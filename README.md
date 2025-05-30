@@ -1,5 +1,6 @@
 # Contraction Actor-Critic (Contraction Metric Guided Reinforcement Learning for Robust Path-Tracking)
-![cac](https://github.com/user-attachments/assets/c273cd24-14d8-4172-97d4-67b4e2b3dd6a)
+![cac](https://github.com/user-attachments/assets/fa59776a-bf12-4535-abd1-0ed6111da3ed)
+
 
 It integrates a CCM into reinforcement learning (RL), where the CCM serves as a critic in learning control policies that minimize cumulative tracking error under unknown dynamics. 
 Given a pre-trained dynamics model, CAC simultaneously learns a contraction metric generator (CMG)—which finds a Riemannian metric under which a system contracts—and uses an actor-critic algorithm to learn an optimal tracking policy guided by that contracting geometry.
