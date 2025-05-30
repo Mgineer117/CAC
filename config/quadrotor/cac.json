@@ -1,0 +1,13 @@
+{
+    "timesteps": 3e7,
+    "W_lr": 1e-3,
+    "actor_lr": 3e-4,
+    "critic_lr": 1e-3,
+    "eps_clip": 0.2,
+    "K_epochs": 5,
+    "target_kl": 0.03,
+    "num_minibatch": 4,
+    "minibatch_size": 512,
+    "sigma": 0.0,
+    "gamma": 0.99
+}
