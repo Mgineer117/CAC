@@ -236,7 +236,7 @@ class Trainer:
                         {
                             "avg_reward": ep_reward / t,
                             "avg_inference_time": ep_inference_time / t,
-                            "auc": auc / t,
+                            "mauc": auc * (self.env.episode_len / t),
                             "tracking_error": ep_tracking_error / t,
                             "control_effort": ep_control_effort / t,
                         }
