@@ -43,11 +43,20 @@ class PPO_Actor(nn.Module):
     ):
         # Concatenate the state with reference states and actions
         state = torch.cat((x, xref, uref), dim=-1)
-        mu = self.model(state)
-        std = torch.exp(self.logstd.expand_as(mu))
+
+        logits = self.model(state)
+
+        ### Shape the output as desired
+        mu = logits
+        logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
+        std = torch.exp(logstd.expand_as(mu))
         dist = Normal(loc=mu, scale=std)
 
-        a = dist.rsample()
+        if deterministic:
+            # For deterministic actions, return the mean of the distribution
+            a = mu
+        else:
+            a = dist.rsample()
 
         logprobs = dist.log_prob(a).unsqueeze(-1).sum(1)
         probs = torch.exp(logprobs)

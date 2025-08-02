@@ -136,16 +136,17 @@ class CAC(Base):
         loss_dict, timesteps, update_time = self.learn_ppo(batch)
 
         if self.num_inner_update % 3 == 0:
+            print(detach)
             W_loss_dict, W_update_time = self.learn_W(batch, detach)
 
             loss_dict.update(W_loss_dict)
             update_time += W_update_time
 
-            self.num_outer_update += 1
             self.W_lr_scheduler.step()
             self.ppo_lr_scheduler.step()
 
         self.num_inner_update += 1
+        self.num_outer_update += 1
 
         return loss_dict, timesteps, update_time
 
