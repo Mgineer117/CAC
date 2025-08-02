@@ -296,7 +296,7 @@ class Trainer:
 
         rew_list = [ep_info["avg_reward"] for ep_info in ep_buffer]
         inf_list = [ep_info["avg_inference_time"] for ep_info in ep_buffer]
-        auc_list = [ep_info["auc"] for ep_info in ep_buffer]
+        auc_list = [ep_info["mauc"] for ep_info in ep_buffer]
         trk_list = [ep_info["tracking_error"] for ep_info in ep_buffer]
         ctr_list = [ep_info["control_effort"] for ep_info in ep_buffer]
 
@@ -315,12 +315,12 @@ class Trainer:
             f"eval/rew_std": rew_std,
             f"eval/inf_mean": inf_mean,
             f"eval/inf_std": inf_std,
-            f"eval/auc_mean": auc_mean,
-            f"eval/auc_std": auc_std,
-            f"eval/trk_error_mean": trk_mean,
-            f"eval/trk_error_std": trk_std,
-            f"eval/ctr_effort_mean": ctr_mean,
-            f"eval/ctr_effort_std": ctr_std,
+            f"eval/mauc_mean": auc_mean,
+            f"eval/mauc_std": auc_std,
+            f"eval/tracking_error_mean": trk_mean,
+            f"eval/tracking_error_std": trk_std,
+            f"eval/control_effort_mean": ctr_mean,
+            f"eval/control_effort_std": ctr_std,
             f"eval/convergence_rate": convergence_rate,
             f"eval/overshoot": overshoot,
         }
