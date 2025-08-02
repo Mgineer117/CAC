@@ -144,10 +144,6 @@ class CAC(Base):
             self.num_outer_update += 1
             self.W_lr_scheduler.step()
             self.ppo_lr_scheduler.step()
-        else:
-            loss_dict = {}
-            timesteps = 0
-            update_time = 0
 
         self.num_inner_update += 1
 
@@ -656,15 +652,13 @@ class CAC_Approximation(Base):
         }
 
     def learn(self, batch):
-        if self.num_inner_update <= int(0.1 * self.nupdates):
+        if self.num_inner_update <= int(0.05 * self.nupdates):
             loss_dict, update_time = self.learn_Dynamics(batch)
-            loss_dict = {}
-            timesteps = 0
-            update_time = 0
+            timesteps = batch["states"].shape[0]
             self.num_inner_update += 1
         else:
             detach = (
-                True if self.num_outer_update <= int(0.1 * self.nupdates) else False
+                True if self.num_outer_update <= int(0.2 * self.nupdates) else False
             )
 
             loss_dict, timesteps, update_time = self.learn_ppo(batch)
@@ -683,10 +677,6 @@ class CAC_Approximation(Base):
                 self.ppo_lr_scheduler.step()
                 self.W_lr_scheduler.step()
                 self.D_lr_scheduler.step()
-            else:
-                loss_dict = {}
-                timesteps = 0
-                update_time = 0
 
             self.num_inner_update += 1
 

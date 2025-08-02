@@ -1,27 +1,34 @@
+import random
 import time
 from datetime import date
 from math import ceil, floor
+from queue import Empty
 
 import numpy as np
 import torch
-import torch.multiprocessing as multiprocessing
+import torch.multiprocessing as mp
 import torch.nn as nn
-
-from utils.misc import temp_seed
 
 today = date.today()
 
 
 class Base:
-    def __init__():
-        pass
+    def __init__(self, **kwargs):
+        """
+        Base class for the sampler.
+        """
+        self.state_dim = kwargs.get("state_dim")
+        self.action_dim = kwargs.get("action_dim")
+        self.episode_len = kwargs.get("episode_len")
+        self.batch_size = kwargs.get("batch_size")
 
-    def get_reset_data(self, batch_size):
+    def get_reset_data(self):
         """
         We create a initialization batch to avoid the daedlocking.
         The remainder of zero arrays will be cut in the end.
         np.nan makes it easy to debug
         """
+        batch_size = 2 * self.episode_len
         data = dict(
             states=np.full(((batch_size, self.state_dim)), np.nan, dtype=np.float32),
             next_states=np.full(
@@ -35,36 +42,6 @@ class Base:
         )
         return data
 
-    def calculate_workers_and_rounds(self):
-        """
-        Calculate the number of workers and rounds for multiprocessing training.
-
-        Returns:
-            num_worker_per_round (list): Number of workers per round.
-            num_idx_per_round (list): Number of indices per round.
-            rounds (int): Total number of rounds.
-        """
-        # Calculate required number of workers
-        total_num_workers = ceil(self.batch_size / self.min_batch_for_worker)
-
-        if total_num_workers > self.num_cores:
-            # Calculate the number of workers per round per index
-            num_worker_per_round = []
-            rounds = ceil(total_num_workers / self.num_cores)
-
-            remaining_workers = total_num_workers
-
-            for _ in range(rounds):
-                workers_this_round = min(remaining_workers, self.num_cores)
-                num_worker_per_round.append(workers_this_round)
-                remaining_workers -= workers_this_round
-        else:
-            # All workers can run in a single round
-            num_worker_per_round = [total_num_workers]
-            rounds = 1
-
-        return num_worker_per_round, rounds
-
 
 class OnlineSampler(Base):
     def __init__(
@@ -73,146 +50,106 @@ class OnlineSampler(Base):
         action_dim: int,
         episode_len: int,
         batch_size: int,
-        min_batch_for_worker: int = 1024,
-        cpu_preserve_rate: float = 0.95,
-        num_cores: int | None = None,
         verbose: bool = True,
     ) -> None:
-        super(Base, self).__init__()
         """
-        This computes the ""very"" appropriate parameter for the Monte-Carlo sampling
-        given the number of episodes and the given number of cores the runner specified.
-        ---------------------------------------------------------------------------------
-        Rounds: This gives several rounds when the given sampling load exceeds the number of threads
-        the task is assigned. 
-        This assigned appropriate parameters assuming one worker work with 2 trajectories.
+        Monte Carlo-based sampler for online RL training. Dynamically schedules
+        worker processes based on CPU availability and the desired batch size.
+
+        Each worker collects 2 trajectories per round. The class adjusts sampling
+        load over multiple rounds when cores are insufficient.
+
+        Args:
+            state_dim (tuple): Shape of state space.
+            action_dim (int): Dimensionality of action space.
+            episode_len (int): Maximum episode length.
+            batch_size (int): Desired sample batch size.
+            cpu_preserve_rate (float): Fraction of CPU to keep free.
+            num_cores (int | None): Override for max cores to use.
+            verbose (bool): Whether to print initialization info.
         """
+        super().__init__(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            episode_len=episode_len,
+            batch_size=batch_size,
+        )
 
-        # dimensional params
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-
-        # sampling params
-        self.episode_len = episode_len
-        self.min_batch_for_worker = min_batch_for_worker
-        self.thread_batch_size = self.min_batch_for_worker + 2 * self.episode_len
-        self.batch_size = batch_size
-
-        # Preprocess for multiprocessing to avoid CPU overscription and deadlock
-        self.cpu_preserve_rate = cpu_preserve_rate
-        self.temp_cores = floor(multiprocessing.cpu_count() * self.cpu_preserve_rate)
-        self.num_cores = num_cores if num_cores is not None else self.temp_cores
-
-        (
-            num_workers_per_round,
-            rounds,
-        ) = self.calculate_workers_and_rounds()
-
-        self.num_workers_per_round = num_workers_per_round
-        self.total_num_worker = sum(self.num_workers_per_round)
-        self.rounds = rounds
+        self.total_num_worker = ceil(batch_size / episode_len)
 
         if verbose:
             print("Sampling Parameters:")
-            print(
-                f"Cores (usage)/(given)   : {self.num_workers_per_round}/{self.num_cores} out of {multiprocessing.cpu_count()}"
-            )
-            print(f"Total number of Worker  : {self.total_num_worker}")
-            print(f"Max. batch size         : {self.thread_batch_size}")
+            print(f"Total number of workers: {self.total_num_worker}")
 
-        # enforce one thread for each worker to avoid CPU overscription.
-        torch.set_num_threads(1)
+        torch.set_num_threads(1)  # Avoid CPU oversubscription
 
     def collect_samples(
-        self,
-        env,
-        policy,
-        seed: int | None = None,
-        deterministic: bool = False,
+        self, env, policy, seed: int | None = None, deterministic: bool = False
     ):
         """
-        All sampling and saving to the memory is done in numpy.
-        return: dict() with elements in numpy
+        Collect samples in parallel using multiprocessing.
+
+        Args:
+            env: The environment to interact with.
+            policy: Policy to sample actions from.
+            seed (int | None): Seed for reproducibility.
+            deterministic (bool): Whether to use deterministic policy.
+            random_init_pos (bool): Randomize initial position in env reset.
+
+        Returns:
+            memory (dict): Sampled batch.
+            duration (float): Time taken to collect.
         """
         t_start = time.time()
+        device = next((p.device for p in policy.parameters()), torch.device("cpu"))
 
-        policy_device = policy.device
         policy.to_device(torch.device("cpu"))
 
-        # Use persistent queue from self.manager
-        if not hasattr(self, "manager"):
-            self.manager = multiprocessing.Manager()
-            self.queue = self.manager.Queue()
+        processes = []
+        queue = mp.Queue()
+        worker_memories = [None] * self.total_num_worker
+        for i in range(self.total_num_worker):
+            args = (i, queue, env, policy, seed, deterministic)
+            p = mp.Process(target=self.collect_trajectory, args=args)
+            processes.append(p)
+            p.start()
 
-        queue = self.queue
-
-        # Iterate over rounds
-        worker_idx = 0
-        for round_number in range(self.rounds):
-            processes = []
-            for i in range(self.num_workers_per_round[round_number]):
-                if worker_idx == self.total_num_worker - 1:
-                    # Main thread process
-                    memory = self.collect_trajectory(
-                        worker_idx,
-                        None,
-                        env,
-                        policy,
-                        seed=seed,
-                        deterministic=deterministic,
-                    )
-                else:
-                    # Sub-thread process
-                    worker_args = (
-                        worker_idx,
-                        queue,
-                        env,
-                        policy,
-                        seed,
-                        deterministic,
-                    )
-                    p = multiprocessing.Process(
-                        target=self.collect_trajectory, args=worker_args
-                    )
-                    processes.append(p)
-                    p.start()
-
-                worker_idx += 1
-
-            # Ensure all workers finish before collecting data
-            for p in processes:
-                p.join()
-
-        # Include worker memories in one list
-        worker_memories = [None] * worker_idx
-        while not queue.empty():
+        # ✅ Wait for just the subprocess workers of this round
+        expected = len(processes)
+        collected = 0
+        while collected < expected:
             try:
-                pid, worker_memory = queue.get(timeout=2)
-                worker_memories[pid] = worker_memory
-            except Exception as e:
-                print(f"Queue retrieval error: {e}")
+                pid, data = queue.get(timeout=300)
+                if worker_memories[pid] is None:
+                    worker_memories[pid] = data
+                    collected += 1
+            except Empty:
+                print(f"[Warning] Queue timeout. Retrying... ({collected}/{expected})")
 
-        worker_memories[-1] = memory  # Add main thread memory
+        start_time = time.time()
+        for p in processes:
+            p.join(timeout=max(0.1, 10 - (time.time() - start_time)))
+            if p.is_alive():
+                p.terminate()
+                p.join()  # Force cleanup
 
+        # ✅ Merge memory
         memory = {}
-        for worker_memory in worker_memories:
-            if worker_memory is None:
-                raise ValueError("worker memory shouldn't be None")
-
-            for key in worker_memory:
+        for wm in worker_memories:
+            if wm is None:
+                raise RuntimeError("One or more workers failed to return data.")
+            for key, val in wm.items():
                 if key in memory:
-                    memory[key] = np.concatenate(
-                        (memory[key], worker_memory[key]), axis=0
-                    )
+                    memory[key] = np.concatenate((memory[key], wm[key]), axis=0)
                 else:
-                    memory[key] = worker_memory[key]
+                    memory[key] = wm[key]
 
-        # Truncate to batch size
-        for k, v in memory.items():
-            memory[k] = v[: self.batch_size]
+        # # ✅ Truncate to desired batch size
+        # for k in memory:
+        #     memory[k] = memory[k][: self.batch_size]
 
-        policy.to_device(policy_device)
         t_end = time.time()
+        policy.to_device(device)
 
         return memory, t_end - t_start
 
@@ -225,14 +162,19 @@ class OnlineSampler(Base):
         seed: int | None = None,
         deterministic: bool = False,
     ):
-        # estimate the batch size to hava a large batch
-        data = self.get_reset_data(batch_size=self.thread_batch_size)  # allocate memory
+        # assign per-worker seed
+        worker_seed = seed + pid
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+        torch.manual_seed(worker_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(worker_seed)
 
-        if queue is not None:
-            temp_seed(seed, pid)
+        # estimate the batch size to hava a large batch
+        data = self.get_reset_data()  # allocate memory
 
         current_step = 0
-        while current_step < self.min_batch_for_worker:
+        while current_step < self.episode_len:
             # env initialization
             obs, _ = env.reset(seed=seed)
 

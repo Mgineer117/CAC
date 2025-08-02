@@ -9,8 +9,8 @@ import random
 import uuid
 
 import torch
-import wandb
 
+import wandb
 from trainer.online_trainer import Trainer
 from utils.get_args import get_args
 from utils.misc import (
@@ -29,7 +29,6 @@ def run(args, seed, unique_id, exp_time):
 
     # get env
     env = call_env(args)
-    # dataset = env.get_dataset(args.quality)
 
     policy = get_policy(env, args)
 
