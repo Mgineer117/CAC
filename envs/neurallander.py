@@ -129,6 +129,10 @@ class NeuralLanderEnv(gym.Env):
         self.effective_indices = np.arange(2, 6)
         self.Bbot_func = None
 
+        # initialize the ref trajectory
+        self.x_0, self.xref, self.uref, self.episode_len = self.system_reset()
+        self.init_tracking_error = np.linalg.norm(self.x_0 - self.xref[0], ord=2)
+
         self.observation_space = spaces.Box(
             low=STATE_MIN.flatten(), high=STATE_MAX.flatten(), dtype=np.float64
         )
