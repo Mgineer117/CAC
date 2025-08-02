@@ -150,8 +150,8 @@ class Trainer:
                         name="traj_plot",
                     )
 
-                    self.last_auc_mean.append(eval_dict[f"eval/auc_mean"])
-                    self.last_auc_std.append(eval_dict[f"eval/auc_std"])
+                    self.last_auc_mean.append(eval_dict[f"eval/mauc_mean"])
+                    self.last_auc_std.append(eval_dict[f"eval/mauc_std"])
 
                     self.save_model(step)
 
