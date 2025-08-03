@@ -100,7 +100,7 @@ def get_args():
         "--entropy-scaler", type=float, default=1e-2, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
+        "--W-entropy-scaler", type=float, default=1e-1, help="W entropy scaling factor."
     )
     parser.add_argument(
         "--control-scaler", type=float, default=0.0, help="Control scaling factor to reward."

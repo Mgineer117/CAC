@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Categorical, MultivariateNormal
+from torch.distributions import Categorical, MultivariateNormal, Normal
 
 from policy.layers.building_blocks import MLP
 
@@ -140,8 +140,9 @@ class C3M_W_Gaussian(nn.Module):
         # Clamping logstd for numerical stability and to prevent extreme values
         logstd = torch.clamp(logstd, min=-2, max=3)
 
+
         # Calculate variance as exp(logstd)^2
-        var = torch.exp(logstd) ** 2
+        std = torch.exp(logstd)
 
         # If deterministic, use the mean for W(x) and calculate corresponding log probabilities
         if deterministic:
@@ -152,8 +153,7 @@ class C3M_W_Gaussian(nn.Module):
             entropy = torch.zeros_like(logprobs)
         else:
             # For the stochastic case, use a multivariate Gaussian to sample W(x)
-            covariance_matrix = torch.diag_embed(var)  # Diagonal covariance matrix
-            dist = MultivariateNormal(loc=mu, covariance_matrix=covariance_matrix)
+            dist = Normal(loc=mu, scale=std)
 
             # Sample W(x) from the distribution
             W = dist.rsample()  # Sample from the distribution

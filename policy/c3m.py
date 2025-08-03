@@ -477,7 +477,7 @@ class C3M_Approximation(Base):
         )
 
     def learn(self, batch):
-        if self.num_inner_update <= int(0.1 * self.nupdates):
+        if self.num_inner_update <= int(0.05 * self.nupdates):
             loss_dict, update_time = self.learn_Dynamics(batch)
             loss_dict = {}
             timesteps = 0
