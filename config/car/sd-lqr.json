@@ -1,8 +1,4 @@
 {
-    "timesteps": 3e6,
-    "Dynamic_lr": 1e-3,
-    "SDC_lr": 1e-3,
-    "num_minibatch": 1,
-    "minibatch_size": 1024,
-    "sigma": 0.0
+    "timesteps": 5e6,
+    "num_minibatch": 1
 }

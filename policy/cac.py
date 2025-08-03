@@ -143,7 +143,7 @@ class CAC(Base):
 
             self.num_outer_update += 1
             self.W_lr_scheduler.step()
-            self.ppo_lr_scheduler.step()
+            # self.ppo_lr_scheduler.step()
 
         self.num_inner_update += 1
 
@@ -248,7 +248,7 @@ class CAC(Base):
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],
@@ -674,7 +674,7 @@ class CAC_Approximation(Base):
 
                 self.num_outer_update += 1
 
-                self.ppo_lr_scheduler.step()
+                # self.ppo_lr_scheduler.step()
                 self.W_lr_scheduler.step()
                 self.D_lr_scheduler.step()
             else:
@@ -716,7 +716,7 @@ class CAC_Approximation(Base):
 
         self.Dynamic_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.Dynamic_func.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_norm_(self.Dynamic_func.parameters(), max_norm=100.0)
         grad_dict = self.compute_gradient_norm(
             [self.Dynamic_func],
             ["Dynamic_func"],
@@ -853,7 +853,7 @@ class CAC_Approximation(Base):
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],

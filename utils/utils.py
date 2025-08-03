@@ -216,6 +216,7 @@ def get_policy(env, args):
             state_dim=args.state_dim,
             hidden_dim=[128, 128],
             w_lb=args.w_lb,
+            activation=nn.Tanh(),
             device=args.device,
         )
 

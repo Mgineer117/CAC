@@ -23,89 +23,89 @@ def get_args():
         default=None,
         help='Seed-specific folder name in the "group" folder.',
     )
-    parser.add_argument("--task", type=str, default="car", help="Name of the model.")
-    parser.add_argument("--algo-name", type=str, default="cac", help="Disable cuda.")
-    parser.add_argument("--seed", type=int, default=42, help="Batch size.")
+    parser.add_argument("--task", type=str, default="car", help="Define the task = [car, pvtol, neurallander, quadrotor].")
+    parser.add_argument("--algo-name", type=str, default="cac", help="Algorithm name.")
+    parser.add_argument("--seed", type=int, default=42, help="Seed.")
     parser.add_argument(
-        "--num-runs", type=int, default=10, help="Number of samples for training."
+        "--num-runs", type=int, default=10, help="Number of experiments for each algorithm."
     )  # 4096 * 32
     parser.add_argument(
-        "--actor-lr", type=float, default=None, help="Base learning rate."
+        "--actor-lr", type=float, default=1e-4, help="Actor learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=None, help="Base learning rate."
+        "--critic-lr", type=float, default=3e-4, help="Critic learning rate."
     )
     parser.add_argument(
-        "--Dynamic-lr", type=float, default=None, help="Base learning rate."
+        "--Dynamic-lr", type=float, default=1e-3, help="Dynamic approximator learning rate."
     )
     parser.add_argument(
-        "--SDC-lr", type=float, default=None, help="Base learning rate."
+        "--SDC-lr", type=float, default=1e-3, help="SDC decomposition neural net learning rate."
     )
-    parser.add_argument("--W-lr", type=float, default=None, help="Base learning rate.")
-    parser.add_argument("--u-lr", type=float, default=None, help="Base learning rate.")
-    parser.add_argument("--w-ub", type=float, default=10.0, help="Base learning rate.")
-    parser.add_argument("--w-lb", type=float, default=1e-1, help="Base learning rate.")
+    parser.add_argument("--W-lr", type=float, default=1e-3, help="CMG learning rate.")
+    parser.add_argument("--u-lr", type=float, default=1e-3, help="C3M actor learning rate.")
+    parser.add_argument("--w-ub", type=float, default=10.0, help="Contraction metric upper bound.")
+    parser.add_argument("--w-lb", type=float, default=1e-1, help="Contraction metric lower bound.")
     parser.add_argument(
-        "--eps-clip", type=float, default=None, help="Base learning rate."
+        "--eps-clip", type=float, default=0.2, help="Epsilon clip for PPO."
     )
-    parser.add_argument("--eps", type=float, default=0.05, help="Base learning rate.")
-    parser.add_argument("--lbd", type=float, default=0.5, help="Base learning rate.")
+    parser.add_argument("--eps", type=float, default=0.05, help="Used for CMG learning regularization.")
+    parser.add_argument("--lbd", type=float, default=0.5, help="Desired contraction rate.")
     parser.add_argument(
         "--DynamicLearner-dim",
         type=list,
         default=[256, 256],
-        help="Base learning rate.",
+        help="Dynamic approximator hidden layer.",
     )
     parser.add_argument(
-        "--SDCLearner-dim", type=list, default=[256, 256], help="Base learning rate."
+        "--SDCLearner-dim", type=list, default=[256, 256], help="SDC decomposition neural net hidden layer."
     )
     parser.add_argument(
-        "--actor-dim", type=list, default=[64, 64], help="Base learning rate."
+        "--actor-dim", type=list, default=[64, 64], help="actor hidden layers."
     )
     parser.add_argument(
-        "--critic-dim", type=list, default=[128, 128], help="Base learning rate."
+        "--critic-dim", type=list, default=[128, 128], help="critic hidden layers."
     )
 
     parser.add_argument(
-        "--timesteps", type=int, default=None, help="Number of training epochs."
+        "--timesteps", type=int, default=None, help="Number of training samples."
     )
     parser.add_argument(
-        "--log-interval", type=int, default=25, help="Number of training epochs."
+        "--log-interval", type=int, default=50, help="Number of evaluation throughout timesteps."
     )
     parser.add_argument(
-        "--eval_episodes", type=int, default=10, help="Number of training epochs."
+        "--eval_episodes", type=int, default=10, help="Number of evaluation episodes per reference trajectory."
     )
     parser.add_argument(
-        "--eval-num", type=int, default=10, help="Number of training epochs."
+        "--eval-num", type=int, default=10, help="Number of reference trajectory for evaluation."
     )
     parser.add_argument(
-        "--sigma", type=float, default=None, help="Number of training epochs."
+        "--sigma", type=float, default=0.0, help="Disturbance rate."
     )
-    parser.add_argument("--num-minibatch", type=int, default=None, help="")
-    parser.add_argument("--minibatch-size", type=int, default=None, help="")
-    parser.add_argument("--K-epochs", type=int, default=None, help="")
+    parser.add_argument("--num-minibatch", type=int, default=4, help="Number of mini-batches.")
+    parser.add_argument("--minibatch-size", type=int, default=2048, help="Size of each mini-batch.")
+    parser.add_argument("--K-epochs", type=int, default=5, help="Number of K epochs in PPO.")
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=None,
-        help="Upper bound of the eigenvalue of the dual metric.",
+        default=1e-2,
+        help="PPO Target KL divergence.",
     )
     parser.add_argument(
         "--gae",
         type=float,
         default=0.95,
-        help="Lower bound of the eigenvalue of the dual metric.",
+        help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-3, help="Base learning rate."
+        "--entropy-scaler", type=float, default=1e-2, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-3, help="Base learning rate."
+        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
     )
     parser.add_argument(
-        "--control-scaler", type=float, default=0.1, help="Base learning rate."
+        "--control-scaler", type=float, default=0.0, help="Control scaling factor to reward."
     )
-    parser.add_argument("--gamma", type=float, default=None, help="Base learning rate.")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor.")
     parser.add_argument(
         "--load-pretrained-model",
         action="store_true",
@@ -113,7 +113,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--gpu-idx", type=int, default=0, help="Number of training epochs."
+        "--gpu-idx", type=int, default=0, help="GPU index."
     )
 
     args = parser.parse_args()
