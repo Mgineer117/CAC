@@ -143,7 +143,7 @@ class CAC(Base):
 
             self.num_outer_update += 1
             self.W_lr_scheduler.step()
-            # self.ppo_lr_scheduler.step()
+            self.ppo_lr_scheduler.step()
 
         self.num_inner_update += 1
 
@@ -674,7 +674,7 @@ class CAC_Approximation(Base):
 
                 self.num_outer_update += 1
 
-                # self.ppo_lr_scheduler.step()
+                self.ppo_lr_scheduler.step()
                 self.W_lr_scheduler.step()
                 self.D_lr_scheduler.step()
             else:

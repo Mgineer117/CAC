@@ -7,62 +7,62 @@ from torch.distributions import Categorical, MultivariateNormal, Normal
 from policy.layers.building_blocks import MLP
 
 
-def get_W_model(task, x_dim, effective_x_dim, action_dim):
-    """
-    Returns two neural network models for computing matrices W(x).
+# def get_W_model(task, x_dim, effective_x_dim, action_dim):
+#     """
+#     Returns two neural network models for computing matrices W(x).
 
-    Args:
-        task (str): The task type, such as 'car', 'quadrotor', etc.
-        x_dim (int): The dimension of the state space.
-        effective_x_dim (int): The effective dimension of the state space used by the model.
-        action_dim (int): The dimension of the action space (used in bot model).
+#     Args:
+#         task (str): The task type, such as 'car', 'quadrotor', etc.
+#         x_dim (int): The dimension of the state space.
+#         effective_x_dim (int): The effective dimension of the state space used by the model.
+#         action_dim (int): The dimension of the action space (used in bot model).
 
-    Returns:
-        model_W (torch.nn.Sequential): Neural network for computing W(x).
-        model_Wbot (torch.nn.Sequential): Neural network for computing bot-specific W(x).
-    """
-    # Define the model architectures based on the task
-    if task in ("car", "neurallander", "pvtol", "turtlebot"):
-        # First model (W(x)) for tasks like "car", "neurallander", etc.
-        model_W = torch.nn.Sequential(
-            torch.nn.Linear(effective_x_dim, 128, bias=True),  # First hidden layer
-            torch.nn.Tanh(),  # Activation function
-            torch.nn.Linear(
-                128, x_dim * x_dim, bias=False
-            ),  # Output layer (W(x) in x_dim x x_dim)
-        )
+#     Returns:
+#         model_W (torch.nn.Sequential): Neural network for computing W(x).
+#         model_Wbot (torch.nn.Sequential): Neural network for computing bot-specific W(x).
+#     """
+    # # Define the model architectures based on the task
+    # if task in ("car", "neurallander", "pvtol", "turtlebot"):
+    #     # First model (W(x)) for tasks like "car", "neurallander", etc.
+    #     model_W = torch.nn.Sequential(
+    #         torch.nn.Linear(effective_x_dim, 128, bias=True),  # First hidden layer
+    #         torch.nn.Tanh(),  # Activation function
+    #         torch.nn.Linear(
+    #             128, x_dim * x_dim, bias=False
+    #         ),  # Output layer (W(x) in x_dim x x_dim)
+    #     )
 
-        # Second model (Wbot) for tasks with smaller action dimensions
-        model_Wbot = torch.nn.Sequential(
-            torch.nn.Linear(
-                1, 128, bias=True
-            ),  # First hidden layer with 1 input feature
-            torch.nn.Tanh(),  # Activation function
-            torch.nn.Linear(
-                128, (x_dim - action_dim) ** 2, bias=False
-            ),  # Output layer for Wbot (smaller output dimension)
-        )
+    #     # Second model (Wbot) for tasks with smaller action dimensions
+    #     model_Wbot = torch.nn.Sequential(
+    #         torch.nn.Linear(
+    #             1, 128, bias=True
+    #         ),  # First hidden layer with 1 input feature
+    #         torch.nn.Tanh(),  # Activation function
+    #         torch.nn.Linear(
+    #             128, (x_dim - action_dim) ** 2, bias=False
+    #         ),  # Output layer for Wbot (smaller output dimension)
+    #     )
 
-    elif task == "quadrotor":
-        # Model W(x) for the "quadrotor" task (similar to other models)
-        model_W = torch.nn.Sequential(
-            torch.nn.Linear(effective_x_dim, 128, bias=True),
-            torch.nn.Tanh(),
-            torch.nn.Linear(128, x_dim * x_dim, bias=False),
-        )
+    # elif task == "quadrotor":
+    #     # Model W(x) for the "quadrotor" task (similar to other models)
+    #     model_W = torch.nn.Sequential(
+    #         torch.nn.Linear(effective_x_dim, 128, bias=True),
+    #         torch.nn.Tanh(),
+    #         torch.nn.Linear(128, x_dim * x_dim, bias=False),
+    #     )
 
-        # Model Wbot for "quadrotor", using reduced state dimension (effective_x_dim - action_dim)
-        model_Wbot = torch.nn.Sequential(
-            torch.nn.Linear(
-                effective_x_dim - action_dim, 128, bias=True
-            ),  # Reduced input dimension
-            torch.nn.Tanh(),
-            torch.nn.Linear(
-                128, (x_dim - action_dim) ** 2, bias=False
-            ),  # Output layer with smaller dimension
-        )
+    #     # Model Wbot for "quadrotor", using reduced state dimension (effective_x_dim - action_dim)
+    #     model_Wbot = torch.nn.Sequential(
+    #         torch.nn.Linear(
+    #             effective_x_dim - action_dim, 128, bias=True
+    #         ),  # Reduced input dimension
+    #         torch.nn.Tanh(),
+    #         torch.nn.Linear(
+    #             128, (x_dim - action_dim) ** 2, bias=False
+    #         ),  # Output layer with smaller dimension
+    #     )
 
-    return model_W, model_Wbot
+    # return model_W, model_Wbot
 
 
 class C3M_W_Gaussian(nn.Module):
@@ -235,6 +235,8 @@ class C3M_W(nn.Module):
         action_dim: int,
         w_lb: float,
         task: str,
+        hidden_dim: list,
+        activation: nn.Module = nn.Tanh(),
         device: str = "cpu",
     ):
         super(C3M_W, self).__init__()
@@ -249,9 +251,12 @@ class C3M_W(nn.Module):
         self.task = task
 
         # Instantiate models for generating the W matrix and optional lower blocks
-        model_W, model_Wbot = get_W_model(task, x_dim, self.effective_x_dim, action_dim)
-        self.model_W = model_W
-        self.model_Wbot = model_Wbot
+        # model_W, model_Wbot = get_W_model(task, x_dim, self.effective_x_dim, action_dim)
+        self.model_W = MLP(
+            input_dim=state_dim, hidden_dims=hidden_dim, output_dim=x_dim*x_dim, activation=activation
+        )
+        # self.model_W = model_W
+        # self.model_Wbot = model_Wbot
 
     def forward(
         self,
@@ -273,42 +278,44 @@ class C3M_W(nn.Module):
         """
         n = x_trim.shape[0]
 
-        if self.task == "car":
-            # Generate base matrix W and substitute top-left block with Wbot
-            W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
-            Wbot = self.model_Wbot(torch.ones(n, 1).to(self.device)).view(
-                n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
-            )
-            W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
-            W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
+        # if self.task == "car":
+        #     # Generate base matrix W and substitute top-left block with Wbot
+        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
+        #     Wbot = self.model_Wbot(torch.ones(n, 1).to(self.device)).view(
+        #         n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
+        #     )
+        #     W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
+        #     W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
 
-        elif self.task == "neurallander":
-            # Wbot depends on z-dimension (x[:, 2])
-            W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
-            Wbot = self.model_Wbot(x[:, 2:3]).view(
-                n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
-            )
-            W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
-            W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
+        # elif self.task == "neurallander":
+        #     # Wbot depends on z-dimension (x[:, 2])
+        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
+        #     Wbot = self.model_Wbot(x[:, 2:3]).view(
+        #         n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
+        #     )
+        #     W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
+        #     W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
 
-        elif self.task in ("pvtol", "turtlebot"):
-            # Fully learned W without substitution
-            W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
+        # elif self.task in ("pvtol", "turtlebot"):
+        #     # Fully learned W without substitution
+        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
 
-        elif self.task == "quadrotor":
-            # Wbot depends on selected effective input dimensions (excluding action dims)
-            W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
-            input_Wbot = x[:, self.effective_indices[: -self.action_dim]]
-            Wbot = self.model_Wbot(input_Wbot).view(
-                n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
-            )
-            W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
-            W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
+        # elif self.task == "quadrotor":
+        #     # Wbot depends on selected effective input dimensions (excluding action dims)
+        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
+        #     input_Wbot = x[:, self.effective_indices[: -self.action_dim]]
+        #     Wbot = self.model_Wbot(input_Wbot).view(
+        #         n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
+        #     )
+        #     W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
+        #     W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
 
-        else:
-            raise NotImplementedError(f"Task '{self.task}' not supported.")
+        # else:
+        #     raise NotImplementedError(f"Task '{self.task}' not supported.")
 
         # Ensure W is symmetric and PSD by computing WᵀW
+        states = torch.cat((x, xref, uref), dim=-1)  # Concatenate current and reference states
+        W = self.model_W(states).view(n, self.x_dim, self.x_dim)
         W = W.transpose(1, 2).matmul(W)
 
         # Add lower-bound scaled identity to guarantee positive definiteness

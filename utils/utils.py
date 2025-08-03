@@ -150,6 +150,8 @@ def get_policy(env, args):
             action_dim=args.action_dim,
             w_lb=args.w_lb,
             task=args.task,
+            hidden_dim=[128, 128],
+            activation=nn.Tanh(),
             device=args.device,
         )
         u_func = C3M_U(

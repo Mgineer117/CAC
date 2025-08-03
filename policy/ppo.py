@@ -2,7 +2,7 @@ import os
 import pickle
 import time
 from typing import Callable
-
+from torch.optim.lr_scheduler import LambdaLR
 import numpy as np
 import torch
 import torch.nn as nn
@@ -73,10 +73,16 @@ class PPO(Base):
                 {"params": self.critic.parameters(), "lr": critic_lr},
             ]
         )
+        self.ppo_lr_scheduler = LambdaLR(
+            self.optimizer, lr_lambda=self.lr_lambda
+        )
 
         #
         self.to(self._dtype).to(self.device)
 
+    def lr_lambda(self, step):
+        return 1.0 - float(step) / float(self.nupdates)
+    
     def to_device(self, device):
         self.device = device
         self.to(device)
@@ -223,6 +229,8 @@ class PPO(Base):
         )
         loss_dict.update(grad_dict)
         loss_dict.update(norm_dict)
+
+        self.ppo_lr_scheduler.step()
 
         # Cleanup
         del states, actions, rewards, terminals, old_logprobs
