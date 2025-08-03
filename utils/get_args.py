@@ -27,8 +27,8 @@ def get_args():
     parser.add_argument("--algo-name", type=str, default="cac", help="Algorithm name.")
     parser.add_argument("--seed", type=int, default=42, help="Seed.")
     parser.add_argument(
-        "--num-runs", type=int, default=10, help="Number of experiments for each algorithm."
-    )  # 4096 * 32
+        "--num-runs", type=int, default=5, help="Number of experiments for each algorithm."
+    )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Actor learning rate."
     )
