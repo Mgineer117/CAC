@@ -1,7 +1,5 @@
 import math
-import os
 import random
-import urllib.request
 
 import gymnasium as gym
 import numpy as np

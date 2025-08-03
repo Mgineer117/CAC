@@ -1,16 +1,10 @@
-# =================================================== #
-# Author: Minjae Cho                                  #
-# Email: minjae5@illinois.edu                         #
-# Affiliation: U of Illinois @ Urbana-Champaign       #
-# =================================================== #
-
 import datetime
 import random
 import uuid
 
 import torch
-import wandb
 
+import wandb
 from trainer.online_trainer import Trainer
 from utils.get_args import get_args
 from utils.misc import (
