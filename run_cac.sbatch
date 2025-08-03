@@ -18,7 +18,7 @@ source ~/.bashrc
 # Or: source /sw/apps/anaconda3/2024.10/etc/profile.d/conda.sh  # if ~/.bashrc doesn't source conda
 
 # Activate your conda environment
-conda activate igtpo
+conda activate cac
 
 # === Run Experiments in Parallel ===
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project cac_new --algo-name ppo & 
