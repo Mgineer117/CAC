@@ -87,7 +87,7 @@ def get_args():
         help="SDC decomposition neural net hidden layer.",
     )
     parser.add_argument(
-        "--actor-dim", type=list, default=[64, 64], help="actor hidden layers."
+        "--actor-dim", type=list, default=[128, 128], help="actor hidden layers."
     )
     parser.add_argument(
         "--critic-dim", type=list, default=[256, 256], help="critic hidden layers."
