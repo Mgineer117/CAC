@@ -6,50 +6,46 @@ import numpy as np
 import torch
 from gymnasium import spaces
 
-# PVTOL PARAMETERS
-p_lim = np.pi / 3
-pd_lim = np.pi / 3
-vx_lim = 2.0
-vz_lim = 1.0
+# QUADROTOR PARAMETERS
+X_MIN = np.array([-5.0, -np.pi / 3, -1.0, -np.pi]).reshape(-1, 1)
+X_MAX = np.array([5.0, np.pi / 3, 1.0, np.pi]).reshape(-1, 1)
 
-X_MIN = np.array([-3.0, 0.0, -p_lim, -vx_lim, -vz_lim, -pd_lim]).reshape(-1, 1)
-X_MAX = np.array([3.0, 6.0, p_lim, vx_lim, vz_lim, pd_lim]).reshape(-1, 1)
-
-m = 0.486
-J = 0.00383
-g = 9.81
-l = 0.25
+UREF_MIN = np.array(
+    [
+        0.0,
+    ]
+).reshape(-1, 1)
+UREF_MAX = np.array(
+    [
+        0.0,
+    ]
+).reshape(-1, 1)
 
 lim = 1.0
-XE_MIN = np.array([-lim, -lim, -lim, -lim, -lim, -lim]).reshape(-1, 1)
-XE_MAX = np.array([lim, lim, lim, lim, lim, lim]).reshape(-1, 1)
+XE_MIN = np.array([-lim, -lim, -lim, -lim]).reshape(-1, 1)
+XE_MAX = np.array([lim, lim, lim, lim]).reshape(-1, 1)
 
-# for sampling ref
-X_INIT_MIN = np.array([-1, 1.0, -0.1, 0.5, 0.0, 0.0])
-X_INIT_MAX = np.array([1, 2.0, 0.1, 1.0, 0.0, 0.0])
+X_INIT_MIN = np.array([0.0, 0, 0.0, 0])
+X_INIT_MAX = np.array([0.0, 0, 0.0, 0])
 
-XE_INIT_MIN = np.array([-0.5, -0.5, -0.5, -0.5, -0.5, -0.5])
-XE_INIT_MAX = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
+XE_INIT_MIN = np.array([-1.0, -np.pi / 3, -0.5, -np.pi])
+XE_INIT_MAX = np.array([1.0, np.pi / 3, 0.5, np.pi])
 
-UREF_MIN = np.array([m * g / 2 - 1, m * g / 2 - 1]).reshape(-1, 1)
-UREF_MAX = np.array([m * g / 2 + 1, m * g / 2 + 1]).reshape(-1, 1)
-
-
-state_weights = np.array([1, 1, 1.0, 1.0, 1.0, 1.0])
+state_weights = np.array([1, 1, 1.0, 1.0])  # 1
 
 STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten()))
 STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten()))
 
 
-class PvtolEnv(gym.Env):
+class SegwayEnv(gym.Env):
     def __init__(self, sigma: float = 0.0):
-        super(PvtolEnv, self).__init__()
+        super(SegwayEnv, self).__init__()
         """
         State: tracking error between current and reference trajectory
         Reward: 1 / (The 2-norm of tracking error + 1)
         """
-        self.num_dim_x = 6
-        self.num_dim_control = 2
+        self.num_dim_x = 4
+        self.num_dim_control = 1
         self.pos_dimension = 2
 
         self.tracking_scaler = 1.0
@@ -64,12 +60,7 @@ class PvtolEnv(gym.Env):
         self.sigma = sigma
         self.d_up = 3 * sigma
 
-        self.Bbot_func = None
-        self.effective_indices = np.arange(2, 4)
-
-        # initialize the ref trajectory
-        self.x_0, self.xref, self.uref, self.episode_len = self.system_reset()
-        self.init_tracking_error = np.linalg.norm(self.x_0 - self.xref[0], ord=2)
+        self.effective_indices = np.arange(1, 4)
 
         self.observation_space = spaces.Box(
             low=STATE_MIN.flatten(), high=STATE_MAX.flatten(), dtype=np.float64
@@ -78,64 +69,99 @@ class PvtolEnv(gym.Env):
             low=UREF_MIN.flatten(), high=UREF_MAX.flatten(), dtype=np.float64
         )
 
-    def f_func_np(self, x):
+    def Bbot_func(self, x: torch.Tensor):
+        if len(x.shape) == 1:
+            x = x.unsqueeze(0)
+
+        n = x.shape[0]
+
+        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
+        Bbot = torch.zeros(
+            n, self.num_dim_x, self.num_dim_x - self.num_dim_control
+        ).type(x.type())
+
+        Bbot[:, 0, 0] = 1
+        Bbot[:, 1, 1] = 1
+        Bbot[:, 2, 2] = (9.3 * torch.cos(theta) + 38.6) / (torch.cos(theta) ** 2 - 24.7)
+        Bbot[:, 3, 2] = -(-1.8 * torch.cos(theta) - 10.9) / (torch.cos(theta) - 24.7)
+        return Bbot
+
+    def f_func_np(self, x: np.ndarray):
         # x: bs x n x 1
         # f: bs x n x 1
         if len(x.shape) == 1:
             x = x[np.newaxis, :]
         n = x.shape[0]
 
-        p_x, p_z, phi, v_x, v_z, dot_phi = [x[:, i] for i in range(self.num_dim_x)]
-        f = np.zeros((n, self.num_dim_x))
-        f[:, 0] = v_x * np.cos(phi) - v_z * np.sin(phi)
-        f[:, 1] = v_x * np.sin(phi) + v_z * np.cos(phi)
-        f[:, 2] = dot_phi
-        f[:, 3] = v_z * dot_phi - g * np.sin(phi)
-        f[:, 4] = -v_x * dot_phi - g * np.cos(phi)
-        f[:, 5] = 0
-        return f.squeeze()
+        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
 
-    def f_func(self, x):
+        f = np.zeros((n, self.num_dim_x))
+        f[:, 0] = v
+        f[:, 1] = omega
+        f[:, 2] = (
+            np.cos(theta) * (9.8 * np.sin(theta) + 11.5 * v)
+            + 68.4 * v
+            - 1.2 * (omega**2) * np.sin(theta)
+        ) / (np.cos(theta) - 24.7)
+        f[:, 3] = (
+            -58.8 * v * np.cos(theta)
+            - 243.5 * v
+            - np.sin(theta) * (208.3 + (omega**2) * np.cos(theta))
+        ) / (np.cos(theta) ** 2 - 24.7)
+
+        return f.squeeze(0)
+
+    def f_func(self, x: torch.Tensor):
         # x: bs x n x 1
         # f: bs x n x 1
         if len(x.shape) == 1:
             x = x.unsqueeze(0)
         n = x.shape[0]
 
-        p_x, p_z, phi, v_x, v_z, dot_phi = [x[:, i] for i in range(self.num_dim_x)]
+        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
+
         f = torch.zeros((n, self.num_dim_x))
-        f[:, 0] = v_x * torch.cos(phi) - v_z * torch.sin(phi)
-        f[:, 1] = v_x * torch.sin(phi) + v_z * torch.cos(phi)
-        f[:, 2] = dot_phi
-        f[:, 3] = v_z * dot_phi - g * torch.sin(phi)
-        f[:, 4] = -v_x * dot_phi - g * torch.cos(phi)
-        f[:, 5] = 0
+        f[:, 0] = v
+        f[:, 1] = omega
+        f[:, 2] = (
+            torch.cos(theta) * (9.8 * torch.sin(theta) + 11.5 * v)
+            + 68.4 * v
+            - 1.2 * (omega**2) * torch.sin(theta)
+        ) / (torch.cos(theta) - 24.7)
+        f[:, 3] = (
+            -58.8 * v * torch.cos(theta)
+            - 243.5 * v
+            - torch.sin(theta) * (208.3 + (omega**2) * torch.cos(theta))
+        ) / (torch.cos(theta) ** 2 - 24.7)
+
         return f
 
-    def B_func_np(self, x):
+    def B_func_np(self, x: np.ndarray):
         if len(x.shape) == 1:
             x = x[np.newaxis, :]
         n = x.shape[0]
+
+        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
 
         B = np.zeros((n, self.num_dim_x, self.num_dim_control))
 
-        B[:, 4, 0] = 1 / m
-        B[:, 4, 1] = 1 / m
-        B[:, 5, 0] = l / J
-        B[:, 5, 1] = -l / J
-        return B.squeeze()
+        B[:, 2, 0] = (-1.8 * np.cos(theta) - 10.9) / (np.cos(theta) - 24.7)
+        B[:, 3, 0] = (9.3 * np.cos(theta) + 38.6) / (np.cos(theta) ** 2 - 24.7)
 
-    def B_func(self, x):
+        return B.squeeze(0)
+
+    def B_func(self, x: torch.Tensor):
         if len(x.shape) == 1:
             x = x.unsqueeze(0)
         n = x.shape[0]
 
+        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
+
         B = torch.zeros((n, self.num_dim_x, self.num_dim_control))
 
-        B[:, 4, 0] = 1 / m
-        B[:, 4, 1] = 1 / m
-        B[:, 5, 0] = l / J
-        B[:, 5, 1] = -l / J
+        B[:, 2, 0] = (-1.8 * torch.cos(theta) - 10.9) / (torch.cos(theta) - 24.7)
+        B[:, 3, 0] = (9.3 * torch.cos(theta) + 38.6) / (torch.cos(theta) ** 2 - 24.7)
+
         return B
 
     def system_reset(self):
@@ -148,21 +174,22 @@ class PvtolEnv(gym.Env):
         )
         x_0 = xref_0 + xe_0
 
-        freqs = list(range(1, 11))
+        freqs = []
         weights = np.random.randn(len(freqs), len(UREF_MIN))
         weights = (
-            0.1 * weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
+            0.0 * weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
         ).tolist()
 
         xref = [xref_0]
         uref = []
         for i, _t in enumerate(self.t):
-            u = 0.5 * np.array([m * g, m * g])  # ref
+            u = np.array([10.2 * xref_0[2] / 47.9])  # ref
             for freq, weight in zip(freqs, weights):
                 u += np.array(
                     [
-                        weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                        weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
+                        weight[0]
+                        * (-1) ** (int(freq * _t / self.time_bound))
+                        * np.sin(freq * _t / self.time_bound * 2 * np.pi),
                     ]
                 )
             u = np.clip(u, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten())
@@ -199,15 +226,11 @@ class PvtolEnv(gym.Env):
             f_x + np.matmul(B_x, action[:, np.newaxis]).squeeze()
         )
 
-        # add noise for 0.2 probability
-        if self.sigma > 0.0 and np.random.rand() < 0.2:
-            # add noise to position and velocity
-            noise = np.random.normal(loc=0.0, scale=self.sigma, size=self.num_dim_x)
-            noise[self.pos_dimension :] = 0.0
-            noise = 0.01 * np.clip(noise, -self.d_up, self.d_up)
+        noise = np.random.normal(loc=0.0, scale=self.sigma, size=self.num_dim_x)
+        noise[self.pos_dimension :] = 0.0
+        noise = np.clip(noise, -self.d_up, self.d_up)
 
-            self.x_t += noise
-
+        self.x_t += noise
         termination = np.any(
             self.x_t[: self.pos_dimension] <= X_MIN.flatten()[: self.pos_dimension]
         ) or np.any(
@@ -266,7 +289,7 @@ class PvtolEnv(gym.Env):
 
     def step(self, action):
         # policy output ranges [-1, 1]
-        action = self.uref[self.time_steps] + action
+        # action = self.uref[self.time_steps] + action
         action = np.clip(action, UREF_MIN.flatten(), UREF_MAX.flatten())
 
         termination = self.dynamic_fn(action)

@@ -6,6 +6,7 @@ from envs.car import CarEnv
 from envs.neurallander import NeuralLanderEnv
 from envs.pvtol import PvtolEnv
 from envs.quadrotor import QuadRotorEnv
+from envs.segway import SegwayEnv
 from envs.turtlebot import TurtlebotEnv
 
 
@@ -20,6 +21,8 @@ def call_env(args):
         env = QuadRotorEnv(sigma=args.sigma)
     elif task == "neurallander":
         env = NeuralLanderEnv(sigma=args.sigma)
+    elif task == "segway":
+        env = SegwayEnv(sigma=args.sigma)
     elif task == "turtlebot":
         env = TurtlebotEnv(sigma=args.sigma)
     else:

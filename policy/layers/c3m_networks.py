@@ -2,67 +2,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Categorical, MultivariateNormal, Normal
+from torch.distributions import Normal
 
 from policy.layers.building_blocks import MLP
-
-
-# def get_W_model(task, x_dim, effective_x_dim, action_dim):
-#     """
-#     Returns two neural network models for computing matrices W(x).
-
-#     Args:
-#         task (str): The task type, such as 'car', 'quadrotor', etc.
-#         x_dim (int): The dimension of the state space.
-#         effective_x_dim (int): The effective dimension of the state space used by the model.
-#         action_dim (int): The dimension of the action space (used in bot model).
-
-#     Returns:
-#         model_W (torch.nn.Sequential): Neural network for computing W(x).
-#         model_Wbot (torch.nn.Sequential): Neural network for computing bot-specific W(x).
-#     """
-    # # Define the model architectures based on the task
-    # if task in ("car", "neurallander", "pvtol", "turtlebot"):
-    #     # First model (W(x)) for tasks like "car", "neurallander", etc.
-    #     model_W = torch.nn.Sequential(
-    #         torch.nn.Linear(effective_x_dim, 128, bias=True),  # First hidden layer
-    #         torch.nn.Tanh(),  # Activation function
-    #         torch.nn.Linear(
-    #             128, x_dim * x_dim, bias=False
-    #         ),  # Output layer (W(x) in x_dim x x_dim)
-    #     )
-
-    #     # Second model (Wbot) for tasks with smaller action dimensions
-    #     model_Wbot = torch.nn.Sequential(
-    #         torch.nn.Linear(
-    #             1, 128, bias=True
-    #         ),  # First hidden layer with 1 input feature
-    #         torch.nn.Tanh(),  # Activation function
-    #         torch.nn.Linear(
-    #             128, (x_dim - action_dim) ** 2, bias=False
-    #         ),  # Output layer for Wbot (smaller output dimension)
-    #     )
-
-    # elif task == "quadrotor":
-    #     # Model W(x) for the "quadrotor" task (similar to other models)
-    #     model_W = torch.nn.Sequential(
-    #         torch.nn.Linear(effective_x_dim, 128, bias=True),
-    #         torch.nn.Tanh(),
-    #         torch.nn.Linear(128, x_dim * x_dim, bias=False),
-    #     )
-
-    #     # Model Wbot for "quadrotor", using reduced state dimension (effective_x_dim - action_dim)
-    #     model_Wbot = torch.nn.Sequential(
-    #         torch.nn.Linear(
-    #             effective_x_dim - action_dim, 128, bias=True
-    #         ),  # Reduced input dimension
-    #         torch.nn.Tanh(),
-    #         torch.nn.Linear(
-    #             128, (x_dim - action_dim) ** 2, bias=False
-    #         ),  # Output layer with smaller dimension
-    #     )
-
-    # return model_W, model_Wbot
 
 
 class C3M_W_Gaussian(nn.Module):
@@ -139,7 +81,6 @@ class C3M_W_Gaussian(nn.Module):
 
         # Clamping logstd for numerical stability and to prevent extreme values
         logstd = torch.clamp(logstd, min=-2, max=3)
-
 
         # Calculate variance as exp(logstd)^2
         std = torch.exp(logstd)
@@ -251,12 +192,12 @@ class C3M_W(nn.Module):
         self.task = task
 
         # Instantiate models for generating the W matrix and optional lower blocks
-        # model_W, model_Wbot = get_W_model(task, x_dim, self.effective_x_dim, action_dim)
         self.model_W = MLP(
-            input_dim=state_dim, hidden_dims=hidden_dim, output_dim=x_dim*x_dim, activation=activation
+            input_dim=state_dim,
+            hidden_dims=hidden_dim,
+            output_dim=x_dim * x_dim,
+            activation=activation,
         )
-        # self.model_W = model_W
-        # self.model_Wbot = model_Wbot
 
     def forward(
         self,
@@ -276,7 +217,7 @@ class C3M_W(nn.Module):
         Returns:
             W (torch.Tensor): Positive semi-definite matrix of shape (n, x_dim, x_dim)
         """
-        n = x_trim.shape[0]
+        n = x.shape[0]
 
         # if self.task == "car":
         #     # Generate base matrix W and substitute top-left block with Wbot
@@ -314,7 +255,9 @@ class C3M_W(nn.Module):
         #     raise NotImplementedError(f"Task '{self.task}' not supported.")
 
         # Ensure W is symmetric and PSD by computing WᵀW
-        states = torch.cat((x, xref, uref), dim=-1)  # Concatenate current and reference states
+        states = torch.cat(
+            (x, xref, uref), dim=-1
+        )  # Concatenate current and reference states
         W = self.model_W(states).view(n, self.x_dim, self.x_dim)
         W = W.transpose(1, 2).matmul(W)
 
