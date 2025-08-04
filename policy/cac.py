@@ -131,7 +131,7 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_outer_update <= int(0.01 * self.nupdates) else False
+        detach = True if self.num_outer_update <= int(0.1 * self.nupdates) else False
 
         loss_dict, timesteps, update_time = self.learn_ppo(batch)
 
@@ -652,7 +652,7 @@ class CAC_Approximation(Base):
         }
 
     def learn(self, batch):
-        if self.num_inner_update <= int(0.01 * self.nupdates):
+        if self.num_inner_update <= int(0.05 * self.nupdates):
             loss_dict, update_time = self.learn_Dynamics(batch)
             timesteps = batch["states"].shape[0]
             self.num_inner_update += 1
