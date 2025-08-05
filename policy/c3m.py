@@ -108,7 +108,7 @@ class C3M(Base):
         xref = to_tensor(batch["xref"])
         uref = to_tensor(batch["uref"])
 
-        W = self.W_func(x, xref, uref)  # n, x_dim, x_dim
+        W, _ = self.W_func(x, xref, uref)  # n, x_dim, x_dim
         M = inverse(W)  # n, x_dim, x_dim
 
         f, B, Bbot = self.get_f_and_B(x)

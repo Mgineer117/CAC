@@ -79,11 +79,7 @@ class PPO_Actor(nn.Module):
             logprobs (torch.Tensor): The log probability of the actions.
         """
         actions = actions.squeeze() if actions.shape[-1] > 1 else actions
-
-        if self.is_discrete:
-            logprobs = dist.log_prob(torch.argmax(actions, dim=-1)).unsqueeze(-1)
-        else:
-            logprobs = dist.log_prob(actions).unsqueeze(-1).sum(1)
+        logprobs = dist.log_prob(actions).unsqueeze(-1).sum(1)
         return logprobs
 
     def entropy(self, dist: torch.distributions):
@@ -96,10 +92,7 @@ class PPO_Actor(nn.Module):
         Returns:
             entropy (torch.Tensor): The entropy of the distribution.
         """
-        if self.is_discrete:
-            return dist.entropy().unsqueeze(-1)
-        else:
-            return dist.entropy().unsqueeze(-1).sum(1)
+        return dist.entropy().unsqueeze(-1).sum(1)
 
 
 class PPO_Critic(nn.Module):

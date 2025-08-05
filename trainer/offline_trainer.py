@@ -71,6 +71,7 @@ class C3MTrainer:
         self.last_auc_std = deque(maxlen=1)
 
         # Train loop
+        batch_size = 1024
         eval_idx = self.init_epochs // self.eval_interval
         data = self.env.get_rollout(self.buffer_size)
         self.policy.train()
@@ -84,7 +85,9 @@ class C3MTrainer:
 
                 # first sample batch (size of 1024) from the data
                 batch = dict()
-                indices = np.random.choice(self.buffer_size, size=1024, replace=False)
+                indices = np.random.choice(
+                    self.buffer_size, size=batch_size, replace=False
+                )
                 for key in data.keys():
                     # Sample a batch of 1024
                     batch[key] = data[key][indices]
@@ -95,10 +98,10 @@ class C3MTrainer:
                 pbar.update(1)
 
                 # Update environment steps and calculate time metrics
-                loss_dict[f"{self.policy.name}/analytics/timesteps"] = step
+                loss_dict[f"{self.policy.name}/analytics/timesteps"] = batch_size * step
                 loss_dict[f"{self.policy.name}/analytics/update_time"] = update_time
 
-                self.write_log(loss_dict, step=step)
+                self.write_log(loss_dict, step=batch_size * step)
 
                 #### EVALUATIONS ####
                 if step >= self.eval_interval * eval_idx:
@@ -114,10 +117,10 @@ class C3MTrainer:
                     eval_dict = self.average_dict_values(eval_dict_list)
 
                     # Manual logging
-                    self.write_log(eval_dict, step=step, eval_log=True)
+                    self.write_log(eval_dict, step=batch_size * step, eval_log=True)
                     self.write_image(
                         traj_plot,
-                        step=step,
+                        step=batch_size * step,
                         logdir=f"eval",
                         name="traj_plot",
                     )
@@ -125,7 +128,7 @@ class C3MTrainer:
                     self.last_auc_mean.append(eval_dict[f"eval/mauc_mean"])
                     self.last_auc_std.append(eval_dict[f"eval/mauc_std"])
 
-                    self.save_model(step)
+                    self.save_model(batch_size * step)
 
             torch.cuda.empty_cache()
 
@@ -385,7 +388,7 @@ class DynamicsTrainer:
 
                 # first sample batch (size of 1024) from the data
                 batch = dict()
-                indices = np.random.choice(self.buffer_size, size=256, replace=False)
+                indices = np.random.choice(self.buffer_size, size=1024, replace=False)
                 for key in data.keys():
                     # Sample a batch of 1024
                     batch[key] = data[key][indices]

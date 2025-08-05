@@ -220,6 +220,7 @@ class C3M_W(nn.Module):
         x: torch.Tensor,
         xref: torch.Tensor,
         uref: torch.Tensor,
+        deterministic: bool = False,
     ):
         """
         Computes the task-specific matrix W(x) for a batch of inputs.
@@ -280,7 +281,12 @@ class C3M_W(nn.Module):
             1, self.x_dim, self.x_dim
         )
 
-        return W
+        return W, {
+            "dist": None,
+            "probs": torch.ones(self.x_dim * self.x_dim).to(self.device),
+            "logprobs": torch.zeros(self.x_dim * self.x_dim).to(self.device),
+            "entropy": torch.zeros(self.x_dim * self.x_dim).to(self.device),
+        }
 
 
 def get_u_model(task, x_dim: int, effective_x_dim: int, action_dim: int):
@@ -326,6 +332,139 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class C3M_U_Gaussian(nn.Module):
+    """
+    C3M_U: Control model to predict control input 'u' based on state, reference state,
+    and learned task-specific parameters using neural networks.
+
+    The model generates weight matrices from the trimmed states via neural networks,
+    and applies them to the error between current and reference states to compute the control action.
+    """
+
+    def __init__(
+        self,
+        x_dim: int,
+        state_dim: int,
+        effective_indices: list,
+        action_dim: int,
+        task: str,
+    ):
+        """
+        Initialize the control model.
+
+        Args:
+            x_dim (int): Dimension of the state vector x.
+            state_dim (int): Total dimension of the combined state vector.
+            effective_indices (list): Indices of x to be used for control (feature selection).
+            action_dim (int): Dimension of the control/action vector u.
+            task (str): Identifier for the task used to get task-specific model parameters.
+        """
+        super(C3M_U_Gaussian, self).__init__()
+
+        self.x_dim = x_dim  # Dimension of state x
+        self.state_dim = state_dim  # Total dimension of input state
+        self.effective_x_dim = len(effective_indices)  # Dimension of trimmed state x
+        self.action_dim = action_dim  # Dimension of action u
+        self.effective_indices = effective_indices  # Selected indices for trimmed state
+
+        self.task = task
+
+        # Obtain task-specific neural networks that generate weight matrices
+        self.w1, self.w2 = get_u_model(self.task, x_dim, x_dim, self.action_dim)
+        self.logstd = nn.Parameter(torch.zeros(1, self.action_dim))
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        xref: torch.Tensor,
+        uref: torch.Tensor,
+        deterministic: bool = False,
+    ):
+        """
+        Forward pass to compute control input u.
+
+        Args:
+            x (torch.Tensor): Current state x, shape (batch_size, x_dim)
+            xref (torch.Tensor): Reference state x_ref, shape (batch_size, x_dim)
+            uref (torch.Tensor): Reference control input u_ref, unused here
+            x_trim (torch.Tensor): Trimmed x based on effective indices
+            xref_trim (torch.Tensor): Trimmed x_ref based on effective indices
+            deterministic (bool): Placeholder for compatibility; unused
+
+        Returns:
+            u (torch.Tensor): Computed control input, shape (batch_size, action_dim)
+            dict: Empty dictionary (placeholder for potential future use)
+        """
+        n = x.shape[0]  # Batch size
+
+        # Concatenate trimmed current and reference state
+        x_xref = torch.cat((x, xref), axis=-1)
+
+        # Compute the error between x and x_ref
+        e = (x - xref).unsqueeze(-1)  # Shape: (batch_size, x_dim, 1)
+
+        # Generate weight matrices from the neural networks
+        w1 = self.w1(x_xref).reshape(
+            n, -1, self.x_dim
+        )  # Shape: (batch_size, hidden_dim, x_dim)
+        w2 = self.w2(x_xref).reshape(
+            n, self.action_dim, -1
+        )  # Shape: (batch_size, action_dim, hidden_dim)
+
+        # Compute intermediate representation
+        l1 = F.tanh(torch.matmul(w1, e))  # Shape: (batch_size, hidden_dim, 1)
+
+        # Final control output
+        mu = torch.matmul(w2, l1).squeeze(-1)  # Shape: (batch_size, action_dim)
+        logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
+        std = torch.exp(logstd.expand_as(mu))
+        dist = Normal(loc=mu, scale=std)
+
+        if deterministic:
+            # For deterministic actions, return the mean of the distribution
+            u = mu
+        else:
+            u = dist.rsample()
+
+        logprobs = dist.log_prob(u).unsqueeze(-1).sum(1)
+        probs = torch.exp(logprobs)
+        entropy = dist.entropy().sum(1)
+
+        return u, {
+            "dist": dist,
+            "probs": probs,
+            "logprobs": logprobs,
+            "entropy": entropy,
+        }
+
+    def log_prob(self, dist: torch.distributions, actions: torch.Tensor):
+        """
+        Computes log probability of given actions under the distribution.
+
+        Args:
+            dist (torch.distributions): The distribution of actions.
+            actions (torch.Tensor): The actions for which to compute the log probability.
+
+        Returns:
+            logprobs (torch.Tensor): The log probability of the actions.
+        """
+        actions = actions.squeeze() if actions.shape[-1] > 1 else actions
+        logprobs = dist.log_prob(actions).unsqueeze(-1).sum(1)
+        return logprobs
+
+    def entropy(self, dist: torch.distributions):
+        """
+        For code consistency, computes entropy of the distribution.
+
+        Args:
+            dist (torch.distributions): The distribution to compute entropy for.
+
+        Returns:
+            entropy (torch.Tensor): The entropy of the distribution.
+        """
+        return dist.entropy().unsqueeze(-1).sum(1)
+
+
 class C3M_U(nn.Module):
     """
     C3M_U: Control model to predict control input 'u' based on state, reference state,
@@ -365,31 +504,9 @@ class C3M_U(nn.Module):
 
         # Obtain task-specific neural networks that generate weight matrices
         self.w1, self.w2 = get_u_model(self.task, x_dim, x_dim, self.action_dim)
-
-    def trim_state(self, state: torch.Tensor):
-        """
-        Split and trim the input state into x, x_ref, and u_ref.
-
-        Args:
-            state (torch.Tensor): Tensor of shape (batch_size, state_dim)
-
-        Returns:
-            x (torch.Tensor): Current state x
-            xref (torch.Tensor): Reference state x_ref
-            uref (torch.Tensor): Reference action u_ref
-            x_trim (torch.Tensor): Trimmed current state (selected indices)
-            xref_trim (torch.Tensor): Trimmed reference state (selected indices)
-        """
-        # Split state into components
-        x = state[:, : self.x_dim]
-        xref = state[:, self.x_dim : -self.action_dim]
-        uref = state[:, -self.action_dim :]
-
-        # Select only effective indices from x and xref
-        x_trim = x[:, self.effective_indices]
-        xref_trim = xref[:, self.effective_indices]
-
-        return x, xref, uref, x_trim, xref_trim
+        # self.model = MLP(
+        #     input_dim=self.state_dim, hidden_dims=[128, 128], output_dim=action_dim
+        # )
 
     def forward(
         self,
@@ -434,5 +551,8 @@ class C3M_U(nn.Module):
 
         # Final control output
         u = torch.matmul(w2, l1).squeeze(-1)  # Shape: (batch_size, action_dim)
+
+        # states = torch.cat((x, xref, uref), dim=-1)
+        # u = self.model(states)
 
         return u, {}

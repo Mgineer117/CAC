@@ -395,6 +395,9 @@ class NeuralLanderEnv(gym.Env):
             x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
             u=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
             x_dot=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+            x_dot_true=np.full(
+                ((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32
+            ),
             xref=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
             uref=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
         )
@@ -407,14 +410,27 @@ class NeuralLanderEnv(gym.Env):
             x = np.clip(xref + xe, X_MIN.flatten(), X_MAX.flatten())
             u = np.random.uniform(UREF_MIN.flatten(), UREF_MAX.flatten())
 
-            x_dot = (
+            x_dot_true = (
                 self.f_func_np(x)
                 + np.matmul(self.B_func_np(x), u[:, np.newaxis]).squeeze()
             )
 
+            # Bias is 10% of the true value
+            bias = 0.1 * x_dot_true
+
+            # Variance is set so that 3σ + bias stays within ±20%
+            sigma = 0.1 * np.abs(x_dot_true) / 3.0
+
+            # Generate Gaussian noise with 10% bias and bounded 10% std dev
+            noise = np.random.normal(loc=bias, scale=sigma, size=x_dot_true.shape)
+
+            # Final noisy x_dot
+            x_dot = x_dot_true + noise
+
             data["x"][i] = x
             data["u"][i] = u
             data["x_dot"][i] = x_dot
+            data["x_dot_true"][i] = x_dot_true
             data["xref"][i] = xref
             data["uref"][i] = uref
 

@@ -183,7 +183,7 @@ def get_policy(env, args, Dynamic_func=None):
 
     elif algo_name in ("cac", "cac-approx"):
         from policy.cac import CAC
-        from policy.layers.c3m_networks import C3M_W, C3M_W_Gaussian
+        from policy.layers.c3m_networks import C3M_W, C3M_U_Gaussian, C3M_W_Gaussian
         from policy.layers.dynamic_networks import DynamicLearner
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 
@@ -198,11 +198,31 @@ def get_policy(env, args, Dynamic_func=None):
             device=args.device,
         )
 
+        # W_func = C3M_W(
+        #     x_dim=env.num_dim_x,
+        #     state_dim=args.state_dim,
+        #     effective_indices=effective_indices,
+        #     action_dim=args.action_dim,
+        #     w_lb=args.w_lb,
+        #     task=args.task,
+        #     hidden_dim=[128, 128],
+        #     activation=nn.Tanh(),
+        #     device=args.device,
+        # )
+
         actor = PPO_Actor(
             args.state_dim,
             hidden_dim=args.actor_dim,
             a_dim=args.action_dim,
         )
+
+        # actor = C3M_U_Gaussian(
+        #     x_dim=env.num_dim_x,
+        #     state_dim=args.state_dim,
+        #     effective_indices=effective_indices,
+        #     action_dim=args.action_dim,
+        #     task=args.task,
+        # )
 
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
