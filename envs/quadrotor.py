@@ -367,11 +367,18 @@ class QuadRotorEnv(gym.Env):
             x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
             u=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
             x_dot=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+            xref=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+            uref=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
         )
 
         for i in range(buffer_size):
-            x = np.random.uniform(X_MIN.flatten(), X_MAX.flatten())
+            xref = np.random.uniform(X_MIN.flatten(), X_MAX.flatten())
+            uref = np.random.uniform(UREF_MIN.flatten(), UREF_MAX.flatten())
+
+            xe = np.random.uniform(XE_MIN.flatten(), XE_MAX.flatten())
+            x = np.clip(xref + xe, X_MIN.flatten(), X_MAX.flatten())
             u = np.random.uniform(UREF_MIN.flatten(), UREF_MAX.flatten())
+
             x_dot = (
                 self.f_func_np(x)
                 + np.matmul(self.B_func_np(x), u[:, np.newaxis]).squeeze()
@@ -380,5 +387,7 @@ class QuadRotorEnv(gym.Env):
             data["x"][i] = x
             data["u"][i] = u
             data["x_dot"][i] = x_dot
+            data["xref"][i] = xref
+            data["uref"][i] = uref
 
         return data
