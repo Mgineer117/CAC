@@ -39,7 +39,6 @@ def call_env(args):
 
 def get_policy(env, args, Dynamic_func=None):
     algo_name = args.algo_name
-    nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
     # this was not discussed in paper nut implemented by c3m author
     effective_indices = env.effective_indices
@@ -49,6 +48,8 @@ def get_policy(env, args, Dynamic_func=None):
         from policy.layers.sd_lqr_networks import SDCLearner
         from policy.lqr import LQR, LQR_Approximation
         from policy.sd_lqr import SD_LQR
+
+        nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
         if algo_name == "lqr":
             policy = LQR(
@@ -110,6 +111,8 @@ def get_policy(env, args, Dynamic_func=None):
     elif algo_name == "ppo":
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
         from policy.ppo import PPO
+
+        nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
         actor = PPO_Actor(
             args.state_dim,
@@ -174,7 +177,7 @@ def get_policy(env, args, Dynamic_func=None):
             lbd=args.lbd,
             eps=args.eps,
             w_ub=args.w_ub,
-            nupdates=nupdates,
+            nupdates=args.c3m_epochs,
             device=args.device,
         )
 
@@ -183,6 +186,8 @@ def get_policy(env, args, Dynamic_func=None):
         from policy.layers.c3m_networks import C3M_W, C3M_W_Gaussian
         from policy.layers.dynamic_networks import DynamicLearner
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+
+        nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
         W_func = C3M_W_Gaussian(
             x_dim=env.num_dim_x,
