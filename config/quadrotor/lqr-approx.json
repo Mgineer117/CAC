@@ -1,4 +1,4 @@
 {
-    "timesteps": 5e6,
+    "timesteps": 3e6,
     "num_minibatch": 1
 }

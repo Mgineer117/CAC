@@ -201,12 +201,14 @@ def get_policy(env, args, Dynamic_func=None):
 
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
+        data = env.get_rollout(args.c3m_buffer_size)
         get_f_and_B = Dynamic_func if Dynamic_func is not None else env.get_f_and_B
         policy = CAC(
             x_dim=env.num_dim_x,
             effective_indices=effective_indices,
             W_func=W_func,
             get_f_and_B=get_f_and_B,
+            data=data,
             actor=actor,
             critic=critic,
             W_lr=args.W_lr,

@@ -97,7 +97,7 @@ class C3M(Base):
         self.train()
         t0 = time.time()
 
-        detach = True if self.current_update <= int(0.05 * self.nupdates) else False
+        detach = True if self.current_update <= int(0.1 * self.nupdates) else False
 
         # Ingredients: Convert batch data to tensors
         def to_tensor(data):

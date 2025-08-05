@@ -243,7 +243,7 @@ class Base(nn.Module):
         x, xref, uref = self.trim_state(states)
         with torch.no_grad():
             ### Compute the main rewards
-            W, _ = self.W_func(states, deterministic=True)
+            W, _ = self.W_func(x, xref, uref, deterministic=True)
             M = torch.inverse(W)
 
             error = (x - xref).unsqueeze(-1)

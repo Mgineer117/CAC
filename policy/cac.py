@@ -22,6 +22,7 @@ class CAC(Base):
         get_f_and_B: Callable,
         actor: nn.Module,
         critic: nn.Module,
+        data: dict,
         W_lr: float = 3e-4,
         actor_lr: float = 3e-4,
         critic_lr: float = 5e-4,
@@ -54,10 +55,12 @@ class CAC(Base):
         self.effective_x_dim = len(effective_indices)
         self.effective_indices = effective_indices
 
+        self.data = data
+        self.buffer_size = data["x"].shape[0]
         self.num_minibatch = num_minibatch
         self.minibatch_size = minibatch_size
         self.W_entropy_scaler = W_entropy_scaler
-        self._entropy_scaler = entropy_scaler
+        self.entropy_scaler = entropy_scaler
         self.control_scaler = control_scaler
         self.eps = eps
         self.gamma = gamma
@@ -122,7 +125,7 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_outer_update <= int(0.05 * self.nupdates) else False
+        detach = True if self.num_outer_update <= int(0.1 * self.nupdates) else False
 
         loss_dict, timesteps, update_time = self.learn_ppo(batch)
         # W_loss_dict, W_update_time = self.learn_W(batch, detach)
@@ -148,7 +151,7 @@ class CAC(Base):
 
         return loss_dict, timesteps, update_time
 
-    def learn_W(self, batch: dict, detach: bool):
+    def learn_W(self, policy_batch: dict, detach: bool):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
@@ -157,17 +160,21 @@ class CAC(Base):
         def to_tensor(data):
             return torch.from_numpy(data).to(self._dtype).to(self.device)
 
-        states = to_tensor(batch["states"])
-        rewards = to_tensor(batch["rewards"])
+        batch = dict()
+        indices = np.random.choice(self.buffer_size, size=1024, replace=False)
+        for key in self.data.keys():
+            # Sample a batch of 1024
+            batch[key] = self.data[key][indices]
 
-        # List to track actor loss over minibatches
-        states = states.requires_grad_()
-        x, xref, uref = self.trim_state(states)
+        x = to_tensor(batch["x"]).requires_grad_()
+        xref = to_tensor(batch["xref"]).requires_grad_()
+        uref = to_tensor(batch["uref"]).requires_grad_()
+        rewards = to_tensor(policy_batch["rewards"])
 
         if self.W_entropy_scaler == 0.0:
-            W, infos = self.W_func(states, deterministic=True)
+            W, infos = self.W_func(x, xref, uref, deterministic=True)
         else:
-            W, infos = self.W_func(states)
+            W, infos = self.W_func(x, xref, uref)
         M = inverse(W)
 
         f, B, Bbot = self.get_f_and_B(x)
@@ -301,7 +308,6 @@ class CAC(Base):
         loss_dict.update(norm_dict)
 
         # Cleanup
-        del states
         self.eval()
 
         update_time = time.time() - t0
@@ -458,7 +464,7 @@ class CAC(Base):
         )
 
         actor_loss = -torch.min(surr1, surr2).mean()
-        entropy_loss = self._entropy_scaler * entropy.mean()
+        entropy_loss = self.entropy_scaler * entropy.mean()
 
         # Compute clip fraction (for logging)
         clip_fraction = torch.mean(

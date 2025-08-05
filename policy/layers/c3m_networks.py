@@ -60,7 +60,9 @@ class C3M_W_Gaussian(nn.Module):
 
     def forward(
         self,
-        states: torch.Tensor,
+        x: torch.Tensor,
+        xref: torch.Tensor,
+        uref: torch.Tensor,
         deterministic: bool = False,
     ):
         """
@@ -78,6 +80,7 @@ class C3M_W_Gaussian(nn.Module):
             W (torch.Tensor): Computed matrix W(x) of shape (n, x_dim, x_dim).
             dict (dict): A dictionary containing distribution information (log probabilities, entropy, etc.)
         """
+        states = torch.cat((x, xref, uref), dim=-1)
         n = states.shape[0]
 
         # Generate logits from the input states via the MLP
