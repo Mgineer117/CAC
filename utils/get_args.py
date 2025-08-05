@@ -152,10 +152,10 @@ def get_args():
         help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-2, help="Entropy scaling factor."
+        "--entropy-scaler", type=float, default=1e-4, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
+        "--W-entropy-scaler", type=float, default=1e-1, help="W entropy scaling factor."
     )
     parser.add_argument(
         "--control-scaler",
