@@ -142,7 +142,7 @@ def get_args():
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=3e-2,
+        default=1e-2,
         help="PPO Target KL divergence.",
     )
     parser.add_argument(
