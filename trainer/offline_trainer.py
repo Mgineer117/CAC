@@ -82,6 +82,7 @@ class C3MTrainer:
         ) as pbar:
             while pbar.n < (self.epochs + self.init_epochs):
                 step = pbar.n + 1  # + 1 to avoid zero division
+                logging_step = (step - self.init_epochs) * batch_size
 
                 # first sample batch (size of 1024) from the data
                 batch = dict()
@@ -98,10 +99,10 @@ class C3MTrainer:
                 pbar.update(1)
 
                 # Update environment steps and calculate time metrics
-                loss_dict[f"{self.policy.name}/analytics/timesteps"] = batch_size * step
+                loss_dict[f"{self.policy.name}/analytics/timesteps"] = logging_step
                 loss_dict[f"{self.policy.name}/analytics/update_time"] = update_time
 
-                self.write_log(loss_dict, step=batch_size * step)
+                self.write_log(loss_dict, step=logging_step)
 
                 #### EVALUATIONS ####
                 if step >= self.eval_interval * eval_idx:
@@ -117,10 +118,10 @@ class C3MTrainer:
                     eval_dict = self.average_dict_values(eval_dict_list)
 
                     # Manual logging
-                    self.write_log(eval_dict, step=batch_size * step, eval_log=True)
+                    self.write_log(eval_dict, step=logging_step, eval_log=True)
                     self.write_image(
                         traj_plot,
-                        step=batch_size * step,
+                        step=logging_step,
                         logdir=f"eval",
                         name="traj_plot",
                     )
