@@ -110,10 +110,7 @@ class Base(nn.Module):
         xref = state[:, self.x_dim : -self.action_dim].requires_grad_()
         uref = state[:, -self.action_dim :].requires_grad_()
 
-        x_trim = x[:, self.effective_indices].requires_grad_()
-        xref_trim = xref[:, self.effective_indices].requires_grad_()
-
-        return x, xref, uref, x_trim, xref_trim
+        return x, xref, uref
 
     def get_matrix_eig(self, A: torch.Tensor):
         with torch.no_grad():
@@ -121,18 +118,6 @@ class Base(nn.Module):
             pos_eigvals = torch.relu(eigvals)
             neg_eigvals = torch.relu(-eigvals)
         return pos_eigvals.mean(dim=1).mean(), neg_eigvals.mean(dim=1).mean()
-
-    def B_null(self, x: torch.Tensor):
-        n = x.shape[0]
-        Bbot = torch.cat(
-            (
-                torch.eye(self.x_dim - self.action_dim, self.x_dim - self.action_dim),
-                torch.zeros(self.action_dim, self.x_dim - self.action_dim),
-            ),
-            dim=0,
-        )
-        Bbot.unsqueeze(0).to(dtype=self._dtype, device=self.device)
-        return Bbot.repeat(n, 1, 1)
 
     def Jacobian(self, f: torch.Tensor, x: torch.Tensor):
         # NOTE that this function assume that data are independent of each other
@@ -255,7 +240,7 @@ class Base(nn.Module):
         return norm_dict
 
     def get_rewards(self, states: torch.Tensor, actions: torch.Tensor):
-        x, xref, uref, x_trim, xref_trim = self.trim_state(states)
+        x, xref, uref = self.trim_state(states)
         with torch.no_grad():
             ### Compute the main rewards
             W, _ = self.W_func(states, deterministic=True)

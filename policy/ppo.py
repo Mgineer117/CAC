@@ -2,12 +2,13 @@ import os
 import pickle
 import time
 from typing import Callable
-from torch.optim.lr_scheduler import LambdaLR
+
 import numpy as np
 import torch
 import torch.nn as nn
 from torch import inverse, matmul, transpose
 from torch.autograd import grad
+from torch.optim.lr_scheduler import LambdaLR
 
 # from actor.layers.building_blocks import MLP
 from policy.base import Base
@@ -73,16 +74,14 @@ class PPO(Base):
                 {"params": self.critic.parameters(), "lr": critic_lr},
             ]
         )
-        self.ppo_lr_scheduler = LambdaLR(
-            self.optimizer, lr_lambda=self.lr_lambda
-        )
+        self.ppo_lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
 
         #
         self.to(self._dtype).to(self.device)
 
     def lr_lambda(self, step):
         return 1.0 - float(step) / float(self.nupdates)
-    
+
     def to_device(self, device):
         self.device = device
         self.to(device)
@@ -93,10 +92,7 @@ class PPO(Base):
         xref = state[:, self.x_dim : -self.action_dim]
         uref = state[:, -self.action_dim :]
 
-        x_trim = x[:, self.effective_indices]
-        xref_trim = xref[:, self.effective_indices]
-
-        return x, xref, uref, x_trim, xref_trim
+        return x, xref, uref
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
         self._forward_steps += 1
@@ -104,10 +100,8 @@ class PPO(Base):
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        x, xref, uref, x_trim, xref_trim = self.trim_state(state)
-        a, metaData = self.actor(
-            x, xref, uref, x_trim, xref_trim, deterministic=deterministic
-        )
+        x, xref, uref = self.trim_state(state)
+        a, metaData = self.actor(x, xref, uref, deterministic=deterministic)
 
         return a, {
             "probs": metaData["probs"],
@@ -248,9 +242,9 @@ class PPO(Base):
         mb_old_logprobs: torch.Tensor,
         mb_advantages: torch.Tensor,
     ):
-        x, xref, uref, x_trim, xref_trim = self.trim_state(mb_states)
+        x, xref, uref = self.trim_state(mb_states)
 
-        _, metaData = self.actor(x, xref, uref, x_trim, xref_trim)
+        _, metaData = self.actor(x, xref, uref)
         logprobs = self.actor.log_prob(metaData["dist"], mb_actions)
         entropy = self.actor.entropy(metaData["dist"])
         ratios = torch.exp(logprobs - mb_old_logprobs)

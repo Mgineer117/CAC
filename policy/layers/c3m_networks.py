@@ -50,6 +50,14 @@ class C3M_W_Gaussian(nn.Module):
         self.mu = torch.nn.Linear(hidden_dim[-1], x_dim * x_dim)
         self.logstd = torch.nn.Linear(hidden_dim[-1], x_dim * x_dim)
 
+        # self.model = MLP(
+        #     input_dim=state_dim,
+        #     hidden_dims=hidden_dim,
+        #     output_dim=x_dim * x_dim,
+        #     activation=activation,
+        # )
+        # self.logstd = nn.Parameter(torch.zeros(1, self.x_dim * self.x_dim))
+
     def forward(
         self,
         states: torch.Tensor,
@@ -73,29 +81,34 @@ class C3M_W_Gaussian(nn.Module):
         n = states.shape[0]
 
         # Generate logits from the input states via the MLP
-        logits = self.model(states)
+        # logits = self.model(states)
+        # mu = logits
+        # logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
+        # std = torch.exp(logstd.expand_as(mu))
 
+        # # For the stochastic case, use a multivariate Gaussian to sample W(x)
+        # dist = Normal(loc=mu, scale=std)
+
+        logits = self.model(states)
         # Calculate mean (mu) and log standard deviation (logstd)
         mu = self.mu(logits)
         logstd = self.logstd(logits)
 
         # Clamping logstd for numerical stability and to prevent extreme values
-        logstd = torch.clamp(logstd, min=-2, max=3)
-
+        logstd = torch.clamp(logstd, min=-5, max=2)
+        # logstd = torch.clamp(logstd, min=-2, max=3)
         # Calculate variance as exp(logstd)^2
         std = torch.exp(logstd)
+
+        dist = Normal(loc=mu, scale=std)
 
         # If deterministic, use the mean for W(x) and calculate corresponding log probabilities
         if deterministic:
             W = mu  # Use mean (mu) as W(x) in deterministic case
-            dist = None
             logprobs = torch.zeros_like(mu[:, 0:1])
             probs = torch.ones_like(logprobs)  # log(1) = 0
             entropy = torch.zeros_like(logprobs)
         else:
-            # For the stochastic case, use a multivariate Gaussian to sample W(x)
-            dist = Normal(loc=mu, scale=std)
-
             # Sample W(x) from the distribution
             W = dist.rsample()  # Sample from the distribution
 
@@ -204,8 +217,6 @@ class C3M_W(nn.Module):
         x: torch.Tensor,
         xref: torch.Tensor,
         uref: torch.Tensor,
-        x_trim: torch.Tensor,
-        xref_trim: torch.Tensor,
     ):
         """
         Computes the task-specific matrix W(x) for a batch of inputs.
@@ -350,9 +361,7 @@ class C3M_U(nn.Module):
         self.task = task
 
         # Obtain task-specific neural networks that generate weight matrices
-        self.w1, self.w2 = get_u_model(
-            self.task, x_dim, self.effective_x_dim, self.action_dim
-        )
+        self.w1, self.w2 = get_u_model(self.task, x_dim, x_dim, self.action_dim)
 
     def trim_state(self, state: torch.Tensor):
         """
@@ -384,8 +393,6 @@ class C3M_U(nn.Module):
         x: torch.Tensor,
         xref: torch.Tensor,
         uref: torch.Tensor,
-        x_trim: torch.Tensor,
-        xref_trim: torch.Tensor,
         deterministic: bool = False,
     ):
         """
@@ -406,16 +413,16 @@ class C3M_U(nn.Module):
         n = x.shape[0]  # Batch size
 
         # Concatenate trimmed current and reference state
-        x_xref_trim = torch.cat((x_trim, xref_trim), axis=-1)
+        x_xref = torch.cat((x, xref), axis=-1)
 
         # Compute the error between x and x_ref
         e = (x - xref).unsqueeze(-1)  # Shape: (batch_size, x_dim, 1)
 
         # Generate weight matrices from the neural networks
-        w1 = self.w1(x_xref_trim).reshape(
+        w1 = self.w1(x_xref).reshape(
             n, -1, self.x_dim
         )  # Shape: (batch_size, hidden_dim, x_dim)
-        w2 = self.w2(x_xref_trim).reshape(
+        w2 = self.w2(x_xref).reshape(
             n, self.action_dim, -1
         )  # Shape: (batch_size, action_dim, hidden_dim)
 

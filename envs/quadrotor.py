@@ -93,6 +93,9 @@ class QuadRotorEnv(gym.Env):
         self.x_0, self.xref, self.uref, self.episode_len = self.system_reset()
         self.init_tracking_error = np.linalg.norm(self.x_0 - self.xref[0], ord=2)
 
+        self.disturbance_duration = 0.0
+        self.current_disturbance = np.zeros(self.num_dim_x)
+
         self.observation_space = spaces.Box(
             low=STATE_MIN.flatten(), high=STATE_MAX.flatten(), dtype=np.float64
         )
@@ -174,6 +177,28 @@ class QuadRotorEnv(gym.Env):
         B[:, 9, 3] = 1
         return B  # .squeeze()
 
+    def B_null(self, x: torch.Tensor):
+        n = x.shape[0]
+        Bbot = torch.cat(
+            (
+                torch.eye(
+                    self.num_dim_x - self.num_dim_control,
+                    self.num_dim_x - self.num_dim_control,
+                ),
+                torch.zeros(
+                    self.num_dim_control, self.num_dim_x - self.num_dim_control
+                ),
+            ),
+            dim=0,
+        )
+        return Bbot.repeat(n, 1, 1)
+
+    def get_f_and_B(self, x: torch.Tensor):
+        if self.Bbot_func is None:
+            return self.f_func(x), self.B_func(x), self.B_null(x)
+        else:
+            return self.f_func(x), self.B_func(x), self.Bbot_func(x)
+
     def system_reset(self):
         # with temp_seed(int(seed)):
         xref_0 = X_INIT_MIN + np.random.rand(len(X_INIT_MIN)) * (
@@ -237,11 +262,21 @@ class QuadRotorEnv(gym.Env):
             f_x + np.matmul(B_x, action[:, np.newaxis]).squeeze()
         )
 
-        noise = np.random.normal(loc=0.0, scale=self.sigma, size=self.num_dim_x)
-        noise[self.pos_dimension :] = 0.0
-        noise = np.clip(noise, -self.d_up, self.d_up)
+        if self.disturbance_duration <= 0.0:
+            # duration in seconds
+            self.disturbance_duration = np.random.uniform(0.0, 1.0)
+            magnitude = np.random.uniform(0.0, self.sigma, size=self.num_dim_x)
+            self.current_disturbance = (
+                np.random.choice([-1.0, 1.0], size=self.num_dim_x) * magnitude
+            )
+            self.current_disturbance[self.pos_dimension :] = (
+                0.0  # position disturbance only
+            )
 
-        self.x_t += noise
+        if self.sigma > 0.0:
+            self.x_t += self.current_disturbance
+            self.disturbance_duration -= self.dt
+
         termination = np.any(
             self.x_t[: self.pos_dimension] <= X_MIN.flatten()[: self.pos_dimension]
         ) or np.any(
@@ -326,3 +361,24 @@ class QuadRotorEnv(gym.Env):
 
     def render(self, mode="human"):
         pass
+
+    def get_rollout(self, buffer_size: int):
+        data = dict(
+            x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+            u=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
+            x_dot=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+        )
+
+        for i in range(buffer_size):
+            x = np.random.uniform(X_MIN.flatten(), X_MAX.flatten())
+            u = np.random.uniform(UREF_MIN.flatten(), UREF_MAX.flatten())
+            x_dot = (
+                self.f_func_np(x)
+                + np.matmul(self.B_func_np(x), u[:, np.newaxis]).squeeze()
+            )
+
+            data["x"][i] = x
+            data["u"][i] = u
+            data["x_dot"][i] = x_dot
+
+        return data

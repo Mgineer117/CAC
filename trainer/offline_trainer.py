@@ -7,12 +7,12 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from log.wandb_logger import WandbLogger
 from policy.base import Base
-from utils.sampler import OnlineSampler
 
 COLORS = {
     "0": "magenta",
@@ -28,40 +28,16 @@ COLORS = {
 }
 
 
-def check_batch(batch):
-    for key, value in batch.items():
-        if isinstance(value, torch.Tensor):
-            if torch.isnan(value).any():
-                print(f"NaN detected in batch[{key}]")
-                return True
-            if torch.isinf(value).any():
-                print(f"Inf detected in batch[{key}]")
-                return True
-    return False
-
-
-def check_network(network):
-    for name, param in network.named_parameters():
-        if torch.isnan(param).any():
-            print(f"NaN detected in {name}")
-            return True
-        if torch.isinf(param).any():
-            print(f"Inf detected in {name}")
-            return True
-    return False
-
-
-# model-free policy trainer
-class OnlineTrainer:
+class C3MTrainer:
     def __init__(
         self,
         env: gym.Env,
         policy: Base,
-        sampler: OnlineSampler,
         logger: WandbLogger,
         writer: SummaryWriter,
+        buffer_size: int = 200_000,
         init_epochs: int = 0,
-        timesteps: int = 1e6,
+        epochs: int = 10000,
         log_interval: int = 2,
         eval_num: int = 10,
         eval_episodes: int = 10,
@@ -69,25 +45,23 @@ class OnlineTrainer:
     ) -> None:
         self.env = env
         self.policy = policy
-        self.sampler = sampler
-        self.eval_num = eval_num
-        self.eval_episodes = eval_episodes
-
         self.logger = logger
         self.writer = writer
 
         # training parameters
+        self.buffer_size = buffer_size
         self.init_epochs = init_epochs
-        self.timesteps = timesteps
-        self.nupdates = self.policy.nupdates
+        self.epochs = epochs
 
         self.log_interval = log_interval
-        self.eval_interval = int(self.timesteps / self.log_interval)
+        self.eval_interval = int((epochs + init_epochs) / self.log_interval)
 
         # initialize the essential training components
         self.last_min_auc_mean = 1e10
         self.last_min_auc_std = 1e10
 
+        self.eval_num = eval_num
+        self.eval_episodes = eval_episodes
         self.seed = seed
 
     def train(self) -> dict[str, float]:
@@ -97,43 +71,37 @@ class OnlineTrainer:
         self.last_auc_std = deque(maxlen=1)
 
         # Train loop
-        eval_idx = 0
+        eval_idx = self.init_epochs // self.eval_interval
+        data = self.env.get_rollout(self.buffer_size)
+        self.policy.train()
         with tqdm(
             initial=self.init_epochs,
-            total=self.timesteps,
-            desc=f"{self.policy.name} Training (Timesteps)",
+            total=(self.epochs + self.init_epochs),
+            desc=f"{self.policy.name} Training (Epochs)",
         ) as pbar:
-            while pbar.n < self.timesteps:
+            while pbar.n < (self.epochs + self.init_epochs):
                 step = pbar.n + 1  # + 1 to avoid zero division
 
-                self.policy.train()
-                batch, sample_time = self.sampler.collect_samples(
-                    env=self.env, policy=self.policy, seed=self.seed
-                )
+                # first sample batch (size of 1024) from the data
+                batch = dict()
+                indices = np.random.choice(self.buffer_size, size=1024, replace=False)
+                for key in data.keys():
+                    # Sample a batch of 1024
+                    batch[key] = data[key][indices]
 
-                loss_dict, ppo_timesteps, update_time = self.policy.learn(batch)
+                loss_dict, update_time = self.policy.learn(batch)
 
                 # Calculate expected remaining time
-                pbar.update(ppo_timesteps)
-
-                elapsed_time = time.time() - start_time
-                avg_time_per_iter = elapsed_time / step
-                remaining_time = avg_time_per_iter * (self.timesteps - step)
+                pbar.update(1)
 
                 # Update environment steps and calculate time metrics
                 loss_dict[f"{self.policy.name}/analytics/timesteps"] = step
-                loss_dict[f"{self.policy.name}/analytics/sample_time"] = sample_time
                 loss_dict[f"{self.policy.name}/analytics/update_time"] = update_time
-                loss_dict[f"{self.policy.name}/analytics/remaining_time (hr)"] = (
-                    remaining_time / 3600
-                )  # Convert to hours
 
                 self.write_log(loss_dict, step=step)
 
                 #### EVALUATIONS ####
-                if (step >= self.eval_interval * eval_idx) or (
-                    pbar.n >= self.timesteps
-                ):
+                if step >= self.eval_interval * eval_idx:
                     ### Eval Loop
                     self.policy.eval()
                     eval_idx += 1
@@ -162,7 +130,7 @@ class OnlineTrainer:
             torch.cuda.empty_cache()
 
         self.logger.print(
-            "total PPO training time: {:.2f} hours".format(
+            "total dynamics model training time: {:.2f} hours".format(
                 (time.time() - start_time) / 3600
             )
         )
@@ -325,18 +293,6 @@ class OnlineTrainer:
 
         return eval_dict, image_array
 
-    def write_log(self, logging_dict: dict, step: int, eval_log: bool = False):
-        # Logging to WandB and Tensorboard
-        self.logger.store(**logging_dict)
-        self.logger.write(step, eval_log=eval_log, display=False)
-        for key, value in logging_dict.items():
-            self.writer.add_scalar(key, value, step)
-
-    def write_image(self, image: np.ndarray, step: int, logdir: str, name: str):
-        image_list = [image]
-        path_image_path = os.path.join(logdir, name)
-        self.logger.write_images(step=step, images=image_list, logdir=path_image_path)
-
     def save_model(self, e):
         ### save checkpoint
         name = f"model_{e}.pth"
@@ -366,6 +322,18 @@ class OnlineTrainer:
         else:
             raise ValueError("Error: Model is not identifiable!!!")
 
+    def write_log(self, logging_dict: dict, step: int, eval_log: bool = False):
+        # Logging to WandB and Tensorboard
+        self.logger.store(**logging_dict)
+        self.logger.write(step, eval_log=eval_log, display=False)
+        for key, value in logging_dict.items():
+            self.writer.add_scalar(key, value, step)
+
+    def write_image(self, image: np.ndarray, step: int, logdir: str, name: str):
+        image_list = [image]
+        path_image_path = os.path.join(logdir, name)
+        self.logger.write_images(step=step, images=image_list, logdir=path_image_path)
+
     def average_dict_values(self, dict_list):
         if not dict_list:
             return {}
@@ -382,3 +350,75 @@ class OnlineTrainer:
         avg_dict = {key: sum_val / len(dict_list) for key, sum_val in sum_dict.items()}
 
         return avg_dict
+
+
+class DynamicsTrainer:
+    def __init__(
+        self,
+        env: gym.Env,
+        Dynamic_func: nn.Module,
+        logger: WandbLogger,
+        writer: SummaryWriter,
+        buffer_size: int = 200_000,
+        epochs: int = 10000,
+    ) -> None:
+        self.env = env
+        self.Dynamic_func = Dynamic_func
+        self.logger = logger
+        self.writer = writer
+
+        # training parameters
+        self.buffer_size = buffer_size
+        self.epochs = epochs
+
+    def train(self) -> dict[str, float]:
+        start_time = time.time()
+
+        # Train loop
+        data = self.env.get_rollout(self.buffer_size)
+        self.Dynamic_func.train()
+        with tqdm(
+            total=self.epochs, desc=f"{self.Dynamic_func.name} Training (Epochs)"
+        ) as pbar:
+            while pbar.n < self.epochs:
+                step = pbar.n + 1  # + 1 to avoid zero division
+
+                # first sample batch (size of 1024) from the data
+                batch = dict()
+                indices = np.random.choice(self.buffer_size, size=256, replace=False)
+                for key in data.keys():
+                    # Sample a batch of 1024
+                    batch[key] = data[key][indices]
+
+                loss_dict, update_time = self.Dynamic_func.learn(batch)
+
+                # Calculate expected remaining time
+                pbar.update(1)
+
+                # Update environment steps and calculate time metrics
+                loss_dict[f"{self.Dynamic_func.name}/analytics/timesteps"] = step
+                loss_dict[f"{self.Dynamic_func.name}/analytics/update_time"] = (
+                    update_time
+                )
+
+                self.write_log(loss_dict, step=step)
+
+            torch.cuda.empty_cache()
+
+        self.logger.print(
+            "total dynamics model training time: {:.2f} hours".format(
+                (time.time() - start_time) / 3600
+            )
+        )
+
+    def write_log(self, logging_dict: dict, step: int, eval_log: bool = False):
+        # Logging to WandB and Tensorboard
+        self.logger.store(**logging_dict)
+        self.logger.write(step, eval_log=eval_log, display=False)
+        for key, value in logging_dict.items():
+            self.writer.add_scalar(key, value, step)
+
+    def write_image(self, image: np.ndarray, step: int, logdir: str, name: str):
+        image_list = [image]
+        path_image_path = os.path.join(logdir, name)
+        self.logger.write_images(step=step, images=image_list, logdir=path_image_path)

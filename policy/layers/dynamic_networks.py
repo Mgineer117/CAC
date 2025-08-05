@@ -1,10 +1,16 @@
+import time
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch import inverse, matmul, transpose
+from torch.optim.lr_scheduler import LambdaLR
 
+from policy.base import Base
 from policy.layers.building_blocks import MLP
 
 
-class DynamicLearner(nn.Module):
+class DynamicLearner(Base):
     def __init__(
         self,
         x_dim: int,
@@ -12,6 +18,8 @@ class DynamicLearner(nn.Module):
         hidden_dim: list,
         drop_out: float | None = None,
         activation: nn.Module = nn.Tanh(),
+        Dynamic_lr: float = 1e-3,
+        device: torch.device = torch.device("cpu"),
     ):
         """
         Neural network module that models the dynamics of a system.
@@ -43,6 +51,14 @@ class DynamicLearner(nn.Module):
             dropout_rate=drop_out,
         )
 
+        self.Dynamic_optimizer = torch.optim.Adam(
+            params=self.parameters(), lr=Dynamic_lr
+        )
+
+        self.name = "DynamicLearner"
+        self.device = device
+        self.to(self.device)
+
     def forward(self, x: torch.Tensor):
         """
         Forward pass through the dynamics learner.
@@ -61,4 +77,46 @@ class DynamicLearner(nn.Module):
             n, self.x_dim, self.action_dim
         )  # Reshape output into dynamics matrix
 
-        return f, B
+        Bbot = self.compute_B_perp_batch(B, self.x_dim - self.action_dim)
+
+        return f, B, Bbot
+
+    def learn(self, batch: dict) -> dict:
+        self.train()
+        t0 = time.time()
+
+        # Ingredients: Convert batch data to tensors
+        def to_tensor(data):
+            return torch.from_numpy(data).to(self.device)
+
+        x = to_tensor(batch["x"])
+        u = to_tensor(batch["u"])
+        x_dot = to_tensor(batch["x_dot"])
+        n = x.shape[0]
+
+        f_approx = self.f(x)  # Compute bias term
+        B_approx = self.B(x).reshape(
+            n, self.x_dim, self.action_dim
+        )  # Reshape output into dynamics matrix
+
+        x_dot_approx = f_approx + matmul(B_approx, u.unsqueeze(-1)).squeeze(-1)
+
+        loss = F.mse_loss(x_dot, x_dot_approx)
+
+        self.Dynamic_optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
+        self.Dynamic_optimizer.step()
+
+        loss_dict = {
+            f"{self.name}/Dynamic_loss/loss": loss.item(),
+            f"{self.name}/learning_rate/D_lr": self.Dynamic_optimizer.param_groups[0][
+                "lr"
+            ],
+        }
+
+        # Cleanup
+        self.eval()
+        update_time = time.time() - t0
+
+        return loss_dict, update_time

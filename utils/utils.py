@@ -1,3 +1,5 @@
+from csv import writer
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -35,7 +37,7 @@ def call_env(args):
     return env
 
 
-def get_policy(env, args):
+def get_policy(env, args, Dynamic_func=None):
     algo_name = args.algo_name
     nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
@@ -82,12 +84,6 @@ def get_policy(env, args):
                 dt=env.dt,
             )
         elif algo_name == "sd-lqr":
-            Dynamic_func = DynamicLearner(
-                x_dim=env.num_dim_x,
-                action_dim=args.action_dim,
-                hidden_dim=args.DynamicLearner_dim,
-                drop_out=0.2,
-            )
             SDC_func = SDCLearner(
                 x_dim=env.num_dim_x,
                 a_dim=args.action_dim,
@@ -142,7 +138,7 @@ def get_policy(env, args):
         )
 
     elif algo_name in ("c3m", "c3m-approx"):
-        from policy.c3m import C3M, C3M_Approximation
+        from policy.c3m import C3M
         from policy.layers.c3m_networks import C3M_U, C3M_W
         from policy.layers.dynamic_networks import DynamicLearner
 
@@ -164,54 +160,26 @@ def get_policy(env, args):
             action_dim=args.action_dim,
             task=args.task,
         )
-        if algo_name == "c3m":
-            policy = C3M(
-                x_dim=env.num_dim_x,
-                effective_indices=effective_indices,
-                action_dim=args.action_dim,
-                W_func=W_func,
-                u_func=u_func,
-                f_func=env.f_func,
-                B_func=env.B_func,
-                Bbot_func=env.Bbot_func,
-                W_lr=args.W_lr,
-                u_lr=args.u_lr,
-                lbd=args.lbd,
-                eps=args.eps,
-                w_ub=args.w_ub,
-                nupdates=nupdates,
-                device=args.device,
-            )
-        else:
-            Dynamic_func = DynamicLearner(
-                x_dim=env.num_dim_x,
-                action_dim=args.action_dim,
-                hidden_dim=args.DynamicLearner_dim,
-                drop_out=0.2,
-            )
-            policy = C3M_Approximation(
-                x_dim=env.num_dim_x,
-                effective_indices=effective_indices,
-                action_dim=args.action_dim,
-                W_func=W_func,
-                u_func=u_func,
-                Dynamic_func=Dynamic_func,
-                f_func=env.f_func,
-                B_func=env.B_func,
-                Bbot_func=env.Bbot_func,
-                W_lr=args.W_lr,
-                u_lr=args.u_lr,
-                Dynamic_lr=args.Dynamic_lr,
-                lbd=args.lbd,
-                eps=args.eps,
-                w_ub=args.w_ub,
-                nupdates=nupdates,
-                dt=env.dt,
-                device=args.device,
-            )
+
+        get_f_and_B = Dynamic_func if Dynamic_func is not None else env.get_f_and_B
+        policy = C3M(
+            x_dim=env.num_dim_x,
+            effective_indices=effective_indices,
+            action_dim=args.action_dim,
+            W_func=W_func,
+            u_func=u_func,
+            get_f_and_B=get_f_and_B,
+            W_lr=args.W_lr,
+            u_lr=args.u_lr,
+            lbd=args.lbd,
+            eps=args.eps,
+            w_ub=args.w_ub,
+            nupdates=nupdates,
+            device=args.device,
+        )
 
     elif algo_name in ("cac", "cac-approx"):
-        from policy.cac import CAC, CAC_Approximation
+        from policy.cac import CAC
         from policy.layers.c3m_networks import C3M_W, C3M_W_Gaussian
         from policy.layers.dynamic_networks import DynamicLearner
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
@@ -233,73 +201,33 @@ def get_policy(env, args):
 
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
-        if algo_name == "cac":
-            policy = CAC(
-                x_dim=env.num_dim_x,
-                effective_indices=effective_indices,
-                W_func=W_func,
-                f_func=env.f_func,
-                B_func=env.B_func,
-                Bbot_func=env.Bbot_func,
-                actor=actor,
-                critic=critic,
-                W_lr=args.W_lr,
-                actor_lr=args.actor_lr,
-                critic_lr=args.critic_lr,
-                num_minibatch=args.num_minibatch,
-                minibatch_size=args.minibatch_size,
-                w_ub=args.w_ub,
-                lbd=args.lbd,
-                eps=args.eps,
-                eps_clip=args.eps_clip,
-                W_entropy_scaler=args.W_entropy_scaler,
-                entropy_scaler=args.entropy_scaler,
-                control_scaler=args.control_scaler,
-                target_kl=args.target_kl,
-                gamma=args.gamma,
-                gae=args.gae,
-                K=args.K_epochs,
-                nupdates=nupdates,
-                dt=env.dt,
-                device=args.device,
-            )
-        else:
-            Dynamic_func = DynamicLearner(
-                x_dim=env.num_dim_x,
-                action_dim=args.action_dim,
-                hidden_dim=args.DynamicLearner_dim,
-                drop_out=0.2,
-            )
-            policy = CAC_Approximation(
-                x_dim=env.num_dim_x,
-                effective_indices=effective_indices,
-                W_func=W_func,
-                Dynamic_func=Dynamic_func,
-                f_func=env.f_func,
-                B_func=env.B_func,
-                Bbot_func=env.Bbot_func,
-                actor=actor,
-                critic=critic,
-                W_lr=args.W_lr,
-                Dynamic_lr=args.Dynamic_lr,
-                actor_lr=args.actor_lr,
-                critic_lr=args.critic_lr,
-                num_minibatch=args.num_minibatch,
-                minibatch_size=args.minibatch_size,
-                w_ub=args.w_ub,
-                lbd=args.lbd,
-                eps=args.eps,
-                eps_clip=args.eps_clip,
-                W_entropy_scaler=args.W_entropy_scaler,
-                entropy_scaler=args.entropy_scaler,
-                control_scaler=args.control_scaler,
-                target_kl=args.target_kl,
-                gamma=args.gamma,
-                gae=args.gae,
-                K=args.K_epochs,
-                nupdates=nupdates,
-                dt=env.dt,
-                device=args.device,
-            )
+        get_f_and_B = Dynamic_func if Dynamic_func is not None else env.get_f_and_B
+        policy = CAC(
+            x_dim=env.num_dim_x,
+            effective_indices=effective_indices,
+            W_func=W_func,
+            get_f_and_B=get_f_and_B,
+            actor=actor,
+            critic=critic,
+            W_lr=args.W_lr,
+            actor_lr=args.actor_lr,
+            critic_lr=args.critic_lr,
+            num_minibatch=args.num_minibatch,
+            minibatch_size=args.minibatch_size,
+            w_ub=args.w_ub,
+            lbd=args.lbd,
+            eps=args.eps,
+            eps_clip=args.eps_clip,
+            W_entropy_scaler=args.W_entropy_scaler,
+            entropy_scaler=args.entropy_scaler,
+            control_scaler=args.control_scaler,
+            target_kl=args.target_kl,
+            gamma=args.gamma,
+            gae=args.gae,
+            K=args.K_epochs,
+            nupdates=nupdates,
+            dt=env.dt,
+            device=args.device,
+        )
 
     return policy

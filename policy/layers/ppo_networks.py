@@ -37,8 +37,6 @@ class PPO_Actor(nn.Module):
         x: torch.Tensor,
         xref: torch.Tensor,
         uref: torch.Tensor,
-        x_trim: torch.Tensor,
-        xref_trim: torch.Tensor,
         deterministic: bool = False,
     ):
         # Concatenate the state with reference states and actions

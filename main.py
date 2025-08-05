@@ -11,7 +11,8 @@ import uuid
 import torch
 
 import wandb
-from trainer.online_trainer import Trainer
+from trainer.offline_trainer import C3MTrainer, DynamicsTrainer
+from trainer.online_trainer import OnlineTrainer
 from utils.get_args import get_args
 from utils.misc import (
     concat_csv_columnwise_and_delete,
@@ -29,8 +30,35 @@ def run(args, seed, unique_id, exp_time):
 
     # get env
     env = call_env(args)
+    logger, writer = setup_logger(args, unique_id, exp_time, seed)
 
-    policy = get_policy(env, args)
+    if args.algo_name in ["cac-approx", "c3m-approx", "sd-lqr"]:
+        from policy.layers.dynamic_networks import DynamicLearner
+
+        print("[INFO] Using Dynamic Learner for dynamics approximation.")
+        # learn dynamics
+        Dynamic_func = DynamicLearner(
+            x_dim=env.num_dim_x,
+            action_dim=args.action_dim,
+            hidden_dim=args.DynamicLearner_dim,
+            Dynamic_lr=args.Dynamic_lr,
+            device=args.device,
+        )
+        Dynamic_trainer = DynamicsTrainer(
+            env=env,
+            Dynamic_func=Dynamic_func,
+            logger=logger,
+            writer=writer,
+            buffer_size=args.dynamics_buffer_size,
+            epochs=args.dynamics_epochs,
+        )
+        Dynamic_trainer.train()
+        init_epochs = args.dynamics_epochs
+    else:
+        init_epochs = 0
+        Dynamic_func = None
+
+    policy = get_policy(env, args, Dynamic_func)
 
     sampler = OnlineSampler(
         state_dim=args.state_dim,
@@ -38,20 +66,35 @@ def run(args, seed, unique_id, exp_time):
         episode_len=args.episode_len,
         batch_size=int(args.minibatch_size * args.num_minibatch),
     )
-    logger, writer = setup_logger(args, unique_id, exp_time, seed)
 
-    trainer = Trainer(
-        env=env,
-        policy=policy,
-        sampler=sampler,
-        logger=logger,
-        writer=writer,
-        timesteps=args.timesteps,
-        log_interval=args.log_interval,
-        eval_num=args.eval_num,
-        eval_episodes=args.eval_episodes,
-        seed=args.seed,
-    )
+    if args.algo_name in ["cac", "cac-approx", "ppo"]:
+        trainer = OnlineTrainer(
+            env=env,
+            policy=policy,
+            sampler=sampler,
+            logger=logger,
+            writer=writer,
+            init_epochs=init_epochs,
+            timesteps=args.timesteps,
+            log_interval=args.log_interval,
+            eval_num=args.eval_num,
+            eval_episodes=args.eval_episodes,
+            seed=args.seed,
+        )
+    else:
+        trainer = C3MTrainer(
+            env=env,
+            policy=policy,
+            logger=logger,
+            writer=writer,
+            buffer_size=args.c3m_buffer_size,
+            init_epochs=init_epochs,
+            epochs=args.c3m_epochs,
+            log_interval=args.log_interval,
+            eval_num=args.eval_num,
+            eval_episodes=args.eval_episodes,
+            seed=args.seed,
+        )
 
     trainer.train()
     wandb.finish()

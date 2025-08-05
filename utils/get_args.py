@@ -38,10 +38,10 @@ def get_args():
         help="Number of experiments for each algorithm.",
     )
     parser.add_argument(
-        "--actor-lr", type=float, default=1e-4, help="Actor learning rate."
+        "--actor-lr", type=float, default=3e-4, help="Actor learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=3e-4, help="Critic learning rate."
+        "--critic-lr", type=float, default=1e-3, help="Critic learning rate."
     )
     parser.add_argument(
         "--Dynamic-lr",
@@ -55,9 +55,9 @@ def get_args():
         default=1e-3,
         help="SDC decomposition neural net learning rate.",
     )
-    parser.add_argument("--W-lr", type=float, default=1e-3, help="CMG learning rate.")
+    parser.add_argument("--W-lr", type=float, default=3e-4, help="CMG learning rate.")
     parser.add_argument(
-        "--u-lr", type=float, default=1e-3, help="C3M actor learning rate."
+        "--u-lr", type=float, default=3e-4, help="C3M actor learning rate."
     )
     parser.add_argument(
         "--w-ub", type=float, default=10.0, help="Contraction metric upper bound."
@@ -94,6 +94,12 @@ def get_args():
     )
 
     parser.add_argument(
+        "--c3m-epochs", type=int, default=10000, help="Number of training samples."
+    )
+    parser.add_argument(
+        "--dynamics-epochs", type=int, default=10000, help="Number of training samples."
+    )
+    parser.add_argument(
         "--timesteps", type=int, default=None, help="Number of training samples."
     )
     parser.add_argument(
@@ -116,6 +122,15 @@ def get_args():
     )
     parser.add_argument("--sigma", type=float, default=0.0, help="Disturbance rate.")
     parser.add_argument(
+        "--c3m-buffer-size", type=int, default=131072, help="Number of mini-batches."
+    )
+    parser.add_argument(
+        "--dynamics-buffer-size",
+        type=int,
+        default=5_000,
+        help="Number of mini-batches.",
+    )
+    parser.add_argument(
         "--num-minibatch", type=int, default=4, help="Number of mini-batches."
     )
     parser.add_argument(
@@ -127,7 +142,7 @@ def get_args():
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=1e-2,
+        default=3e-2,
         help="PPO Target KL divergence.",
     )
     parser.add_argument(
@@ -140,7 +155,7 @@ def get_args():
         "--entropy-scaler", type=float, default=1e-2, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-1, help="W entropy scaling factor."
+        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
     )
     parser.add_argument(
         "--control-scaler",
