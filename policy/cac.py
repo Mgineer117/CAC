@@ -1,4 +1,5 @@
 import time
+from copy import deepcopy
 from typing import Callable
 
 import numpy as np
@@ -125,29 +126,29 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_outer_update <= int(0.1 * self.nupdates) else False
+        detach = True if self.num_outer_update <= int(0.033 * self.nupdates) else False
 
         loss_dict, timesteps, update_time = self.learn_ppo(batch)
-        W_loss_dict, W_update_time = self.learn_W(batch, detach)
+        # W_loss_dict, W_update_time = self.learn_W(batch, detach)
 
-        loss_dict.update(W_loss_dict)
-        update_time += W_update_time
-        self.num_outer_update += 1
+        # loss_dict.update(W_loss_dict)
+        # update_time += W_update_time
+        # self.num_outer_update += 1
 
-        self.W_lr_scheduler.step()
-        self.ppo_lr_scheduler.step()
+        # self.W_lr_scheduler.step()
+        # self.ppo_lr_scheduler.step()
 
-        # if self.num_inner_update % 3 == 0:
-        #     W_loss_dict, W_update_time = self.learn_W(batch, detach)
+        if self.num_inner_update % 3 == 0:
+            W_loss_dict, W_update_time = self.learn_W(batch, detach)
 
-        #     loss_dict.update(W_loss_dict)
-        #     update_time += W_update_time
+            loss_dict.update(W_loss_dict)
+            update_time += W_update_time
 
-        #     self.num_outer_update += 1
-        #     self.W_lr_scheduler.step()
-        #     self.ppo_lr_scheduler.step()
+            self.num_outer_update += 1
+            self.W_lr_scheduler.step()
+            self.ppo_lr_scheduler.step()
 
-        # self.num_inner_update += 1
+        self.num_inner_update += 1
 
         return loss_dict, timesteps, update_time
 
@@ -189,12 +190,11 @@ class CAC(Base):
         B = B.detach()
         Bbot = Bbot.detach()
 
-        # u, _ = self.actor(x, xref, uref, x_trim, xref_trim, deterministic=True)
-        u, _ = self.actor(x, xref, uref)
+        u, _ = self.actor(x, xref, uref, deterministic=True)
         K = self.Jacobian(u, x)  # n, f_dim, x_dim
 
-        u = u.detach()
-        K = K.detach()
+        # u = u.detach()
+        # K = K.detach()
 
         A = DfDx + sum(
             [
@@ -252,13 +252,14 @@ class CAC(Base):
         mean_penalty = torch.exp(-rewards.mean())
         mean_entropy = infos["entropy"].mean()
 
+        cmg_loss = pd_loss + c1_loss + c2_loss + overshoot_loss
         entropy_loss = self.W_entropy_scaler * mean_penalty * mean_entropy
 
-        loss = pd_loss + c1_loss + c2_loss + overshoot_loss - entropy_loss
+        loss = cmg_loss - entropy_loss
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],

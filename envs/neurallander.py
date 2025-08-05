@@ -425,7 +425,7 @@ class NeuralLanderEnv(gym.Env):
             noise = np.random.normal(loc=bias, scale=sigma, size=x_dot_true.shape)
 
             # Final noisy x_dot
-            x_dot = x_dot_true + noise
+            x_dot = x_dot_true  # + noise
 
             data["x"][i] = x
             data["u"][i] = u

@@ -231,9 +231,9 @@ class PvtolEnv(gym.Env):
             self.current_disturbance = (
                 np.random.choice([-1.0, 1.0], size=self.num_dim_x) * magnitude
             )
-            self.current_disturbance[self.pos_dimension :] = (
-                0.0  # position disturbance only
-            )
+            # self.current_disturbance[self.pos_dimension :] = (
+            #     0.0  # position disturbance only
+            # )
 
         if self.sigma > 0.0:
             self.x_t += self.current_disturbance
@@ -254,17 +254,20 @@ class PvtolEnv(gym.Env):
     def reward_fn(self, action):
         error = self.x_t - self.xref[self.time_steps]
 
-        tracking_error = np.linalg.norm(
-            self.state_weights * error,
-            ord=2,
-        )
+        # tracking_error = np.linalg.norm(
+        #     self.state_weights * error,
+        #     ord=2,
+        # )
+        tracking_error = error.T @ error
         control_effort = np.linalg.norm(action, ord=2)
 
-        reward = self.tracking_scaler / (tracking_error + 1) + self.control_scaler / (
-            control_effort + 1
-        )
+        # reward = self.tracking_scaler / (tracking_error + 1) + self.control_scaler / (
+        #     control_effort + 1
+        # )
 
-        return reward, {
+        rewards = (1 / (tracking_error + 1)).squeeze(-1)
+
+        return rewards, {
             "tracking_error": tracking_error,
             "control_effort": control_effort,
         }
@@ -347,17 +350,18 @@ class PvtolEnv(gym.Env):
                 + np.matmul(self.B_func_np(x), u[:, np.newaxis]).squeeze()
             )
 
-            # Bias is 10% of the true value
-            bias = 0.1 * x_dot_true
+            # # Bias is 10% of the true value
+            # bias = 0.1 * x_dot_true
 
-            # Variance is set so that 3σ + bias stays within ±20%
-            sigma = 0.1 * np.abs(x_dot_true) / 3.0
+            # # Variance is set so that 3σ + bias stays within ±20%
+            # sigma = 0.1 * np.abs(x_dot_true) / 3.0
 
-            # Generate Gaussian noise with 10% bias and bounded 10% std dev
-            noise = np.random.normal(loc=bias, scale=sigma, size=x_dot_true.shape)
+            # # Generate Gaussian noise with 10% bias and bounded 10% std dev
+            # noise = np.random.normal(loc=bias, scale=sigma, size=x_dot_true.shape)
 
-            # Final noisy x_dot
-            x_dot = x_dot_true + noise
+            # # Final noisy x_dot
+            # x_dot = x_dot_true + noise
+            x_dot = x_dot_true
 
             data["x"][i] = x
             data["u"][i] = u

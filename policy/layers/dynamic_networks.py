@@ -103,7 +103,7 @@ class DynamicLearner(Base):
         x_dot_approx = f_approx + matmul(B_approx, u.unsqueeze(-1)).squeeze(-1)
 
         loss = F.mse_loss(x_dot, x_dot_approx)
-        true_loss = F.mse_loss(x_dot_true, x_dot_approx)
+        bias = F.l1_loss(x_dot_true, x_dot_approx)
 
         self.Dynamic_optimizer.zero_grad()
         loss.backward()
@@ -112,7 +112,7 @@ class DynamicLearner(Base):
 
         loss_dict = {
             f"{self.name}/Dynamic_loss/loss": loss.item(),
-            f"{self.name}/Dynamic_loss/true_loss": true_loss.item(),
+            f"{self.name}/Dynamic_loss/mean_bias": bias.item(),
             f"{self.name}/learning_rate/D_lr": self.Dynamic_optimizer.param_groups[0][
                 "lr"
             ],

@@ -116,9 +116,9 @@ class C3M_W_Gaussian(nn.Module):
             W = dist.rsample()  # Sample from the distribution
 
             # Calculate log-probability, probability, and entropy
-            logprobs = dist.log_prob(W).unsqueeze(-1)
+            logprobs = dist.log_prob(W).unsqueeze(-1).sum(1)
             probs = torch.exp(logprobs)
-            entropy = dist.entropy()
+            entropy = dist.entropy().unsqueeze(-1).sum(1)
 
         # Reshape W(x) to the desired shape (n, x_dim, x_dim) and ensure symmetry
         W = W.view(n, self.x_dim, self.x_dim)
