@@ -527,6 +527,6 @@ class C3M_U(nn.Module):
         # Final control output
         u = torch.matmul(w2, l1).squeeze(-1)  # Shape: (batch_size, action_dim)
 
-        u = u + uref  # Add reference control input to the computed action
+        # u = u + uref  # Add reference control input to the computed action
 
         return u, {}
