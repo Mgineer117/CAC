@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal
+from torch.distributions import MultivariateNormal, Normal
 
 from policy.layers.building_blocks import MLP
 
@@ -42,27 +42,15 @@ class C3M_W_Gaussian(nn.Module):
         self.w_lb = w_lb
 
         # Define the MLP model with given input dimension and hidden layers
-        self.model = MLP(
-            input_dim=state_dim, hidden_dims=hidden_dim, activation=activation
-        )
+        self.model = MLP(input_dim=x_dim, hidden_dims=hidden_dim, activation=activation)
 
         # Linear layers for the mean (mu) and log-std (logstd) of the Gaussian distribution
         self.mu = torch.nn.Linear(hidden_dim[-1], x_dim * x_dim)
         self.logstd = torch.nn.Linear(hidden_dim[-1], x_dim * x_dim)
 
-        # self.model = MLP(
-        #     input_dim=state_dim,
-        #     hidden_dims=hidden_dim,
-        #     output_dim=x_dim * x_dim,
-        #     activation=activation,
-        # )
-        # self.logstd = nn.Parameter(torch.zeros(1, self.x_dim * self.x_dim))
-
     def forward(
         self,
         x: torch.Tensor,
-        xref: torch.Tensor,
-        uref: torch.Tensor,
         deterministic: bool = False,
     ):
         """
@@ -80,38 +68,30 @@ class C3M_W_Gaussian(nn.Module):
             W (torch.Tensor): Computed matrix W(x) of shape (n, x_dim, x_dim).
             dict (dict): A dictionary containing distribution information (log probabilities, entropy, etc.)
         """
-        states = torch.cat((x, xref, uref), dim=-1)
-        n = states.shape[0]
+        n = x.shape[0]
 
         # Generate logits from the input states via the MLP
-        # logits = self.model(states)
-        # mu = logits
-        # logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
-        # std = torch.exp(logstd.expand_as(mu))
-
-        # # For the stochastic case, use a multivariate Gaussian to sample W(x)
-        # dist = Normal(loc=mu, scale=std)
-
-        logits = self.model(states)
+        logits = self.model(x)
         # Calculate mean (mu) and log standard deviation (logstd)
         mu = self.mu(logits)
         logstd = self.logstd(logits)
 
         # Clamping logstd for numerical stability and to prevent extreme values
         logstd = torch.clamp(logstd, min=-5, max=2)
-        # logstd = torch.clamp(logstd, min=-2, max=3)
         # Calculate variance as exp(logstd)^2
         std = torch.exp(logstd)
-
-        dist = Normal(loc=mu, scale=std)
 
         # If deterministic, use the mean for W(x) and calculate corresponding log probabilities
         if deterministic:
             W = mu  # Use mean (mu) as W(x) in deterministic case
+            dist = None
             logprobs = torch.zeros_like(mu[:, 0:1])
             probs = torch.ones_like(logprobs)  # log(1) = 0
             entropy = torch.zeros_like(logprobs)
         else:
+            # change it to multivariate Gaussian
+            dist = Normal(loc=mu, scale=std)
+
             # Sample W(x) from the distribution
             W = dist.rsample()  # Sample from the distribution
 
@@ -209,7 +189,7 @@ class C3M_W(nn.Module):
 
         # Instantiate models for generating the W matrix and optional lower blocks
         self.model_W = MLP(
-            input_dim=state_dim,
+            input_dim=x_dim,
             hidden_dims=hidden_dim,
             output_dim=x_dim * x_dim,
             activation=activation,
@@ -218,8 +198,6 @@ class C3M_W(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        xref: torch.Tensor,
-        uref: torch.Tensor,
         deterministic: bool = False,
     ):
         """
@@ -270,10 +248,7 @@ class C3M_W(nn.Module):
         #     raise NotImplementedError(f"Task '{self.task}' not supported.")
 
         # Ensure W is symmetric and PSD by computing WᵀW
-        states = torch.cat(
-            (x, xref, uref), dim=-1
-        )  # Concatenate current and reference states
-        W = self.model_W(states).view(n, self.x_dim, self.x_dim)
+        W = self.model_W(x).view(n, self.x_dim, self.x_dim)
         W = W.transpose(1, 2).matmul(W)
 
         # Add lower-bound scaled identity to guarantee positive definiteness

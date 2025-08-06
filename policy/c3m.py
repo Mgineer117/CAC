@@ -108,7 +108,9 @@ class C3M(Base):
         xref = to_tensor(batch["xref"])
         uref = to_tensor(batch["uref"])
 
-        W, _ = self.W_func(x, xref, uref)  # n, x_dim, x_dim
+        batch_size = x.shape[0]
+
+        W, _ = self.W_func(x)  # n, x_dim, x_dim
         M = inverse(W)  # n, x_dim, x_dim
 
         f, B, Bbot = self.get_f_and_B(x)
@@ -137,7 +139,6 @@ class C3M(Base):
 
         dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
         dot_M = self.weighted_gradients(M, dot_x, x, detach)
-        dot_W = self.weighted_gradients(W, dot_x, x, detach)
 
         # contraction condition
         if detach:
@@ -152,7 +153,7 @@ class C3M(Base):
             C_u = dot_M + sym_MABK + 2 * self.lbd * M
 
         # C1
-        DfW = self.weighted_gradients(W, f, x, detach)
+        DfW = self.weighted_gradients(W, f, x)
         DfDxW = matmul(DfDx, W)
         sym_DfDxW = DfDxW + transpose(DfDxW, 1, 2)
 
@@ -163,7 +164,7 @@ class C3M(Base):
         C2_inners = []
         C2s = []
         for j in range(self.action_dim):
-            DbW = self.weighted_gradients(W, B[:, :, j], x, detach)
+            DbW = self.weighted_gradients(W, B[:, :, j], x)
             DbDxW = matmul(DBDx[:, :, :, j], W)
             sym_DbDxW = DbDxW + transpose(DbDxW, 1, 2)
             C2_inner = DbW - sym_DbDxW
@@ -179,10 +180,10 @@ class C3M(Base):
         c1_loss = self.loss_pos_matrix_random_sampling(
             -C1 - self.eps * torch.eye(C1.shape[-1]).to(self.device)
         )
-        # c2_loss = sum([C2.sum().mean() for C2 in C2s])
-        c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
+        c2_loss = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
+        # c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
         overshoot_loss = self.loss_pos_matrix_random_sampling(
-            self.w_ub * torch.eye(W.shape[-1]).to(self.device) - W
+            (self.w_ub * torch.eye(W.shape[-1])).unsqueeze(0).to(self.device) - W
         )
 
         loss = pd_loss + c1_loss + c2_loss + overshoot_loss

@@ -94,7 +94,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--c3m-epochs", type=int, default=10000, help="Number of training samples."
+        "--c3m-epochs", type=int, default=20000, help="Number of training samples."
     )
     parser.add_argument(
         "--dynamics-epochs", type=int, default=10000, help="Number of training samples."
@@ -152,7 +152,7 @@ def get_args():
         help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-3, help="Entropy scaling factor."
+        "--entropy-scaler", type=float, default=1e-2, help="Entropy scaling factor."
     )
     parser.add_argument(
         "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."

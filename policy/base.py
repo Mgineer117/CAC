@@ -136,7 +136,7 @@ class Base(nn.Module):
 
     def Jacobian_Matrix(self, M: torch.Tensor, x: torch.Tensor):
         # NOTE that this function assume that data are independent of each other
-        M = M + 0.0 * x.sum()  # to avoid the case that f is independent of x
+        # M = M + 0.0 * x.sum()  # to avoid the case that f is independent of x
 
         n = x.shape[0]
         matrix_dim = M.shape[-1]
@@ -163,11 +163,12 @@ class Base(nn.Module):
         return DBDx
 
     def weighted_gradients(
-        self, W: torch.Tensor, v: torch.Tensor, x: torch.Tensor, detach: bool
+        self, W: torch.Tensor, v: torch.Tensor, x: torch.Tensor, detach: bool = False
     ):
         # v, x: bs x n x 1
         # DWDx: bs x n x n x n
         assert v.size() == x.size()
+
         bs = x.shape[0]
         if detach:
             return (self.Jacobian_Matrix(W, x).detach() * v.view(bs, 1, 1, -1)).sum(
@@ -243,7 +244,7 @@ class Base(nn.Module):
         x, xref, uref = self.trim_state(states)
         with torch.no_grad():
             ### Compute the main rewards
-            W, _ = self.W_func(x, xref, uref, deterministic=True)
+            W, _ = self.W_func(x, deterministic=True)
             M = torch.inverse(W)
 
             error = (x - xref).unsqueeze(-1)

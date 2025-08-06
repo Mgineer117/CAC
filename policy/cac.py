@@ -126,7 +126,7 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_outer_update <= int(0.033 * self.nupdates) else False
+        detach = True if self.num_outer_update <= int(0.0333 * self.nupdates) else False
 
         loss_dict, timesteps, update_time = self.learn_ppo(batch)
         # W_loss_dict, W_update_time = self.learn_W(batch, detach)
@@ -162,20 +162,21 @@ class CAC(Base):
             return torch.from_numpy(data).to(self._dtype).to(self.device)
 
         batch = dict()
-        indices = np.random.choice(self.buffer_size, size=1024, replace=False)
+        batch_size = 1024
+        indices = np.random.choice(self.buffer_size, size=batch_size, replace=False)
         for key in self.data.keys():
             # Sample a batch of 1024
             batch[key] = self.data[key][indices]
 
         x = to_tensor(batch["x"]).requires_grad_()
-        xref = to_tensor(batch["xref"]).requires_grad_()
-        uref = to_tensor(batch["uref"]).requires_grad_()
+        xref = to_tensor(batch["xref"])
+        uref = to_tensor(batch["uref"])
         rewards = to_tensor(policy_batch["rewards"])
 
         if self.W_entropy_scaler == 0.0:
-            W, infos = self.W_func(x, xref, uref, deterministic=True)
+            W, infos = self.W_func(x, deterministic=True)
         else:
-            W, infos = self.W_func(x, xref, uref)
+            W, infos = self.W_func(x)
         M = inverse(W)
 
         f, B, Bbot = self.get_f_and_B(x)
@@ -193,8 +194,8 @@ class CAC(Base):
         u, _ = self.actor(x, xref, uref, deterministic=True)
         K = self.Jacobian(u, x)  # n, f_dim, x_dim
 
-        # u = u.detach()
-        # K = K.detach()
+        u = u.detach()
+        K = K.detach()
 
         A = DfDx + sum(
             [
@@ -216,7 +217,7 @@ class CAC(Base):
             C_u = dot_M + sym_MABK + 2 * self.lbd * M
 
         # C1
-        DfW = self.weighted_gradients(W, f, x, detach)
+        DfW = self.weighted_gradients(W, f, x)
         DfDxW = matmul(DfDx, W)
         sym_DfDxW = DfDxW + transpose(DfDxW, 1, 2)
 
@@ -227,7 +228,7 @@ class CAC(Base):
         C2_inners = []
         C2s = []
         for j in range(self.action_dim):
-            DbW = self.weighted_gradients(W, B[:, :, j], x, detach)
+            DbW = self.weighted_gradients(W, B[:, :, j], x)
             DbDxW = matmul(DBDx[:, :, :, j], W)
             sym_DbDxW = DbDxW + transpose(DbDxW, 1, 2)
             C2_inner = DbW - sym_DbDxW
@@ -242,10 +243,10 @@ class CAC(Base):
         c1_loss = self.loss_pos_matrix_random_sampling(
             -C1 - self.eps * torch.eye(C1.shape[-1]).to(self.device)
         )
-        # c2_loss = sum([C2.sum().mean() for C2 in C2s])
-        c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
+        c2_loss = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
+        # c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
         overshoot_loss = self.loss_pos_matrix_random_sampling(
-            self.w_ub * torch.eye(W.shape[-1]).to(self.device) - W
+            (self.w_ub * torch.eye(W.shape[-1]).to(self.device)).unsqueeze(0) - W
         )
 
         ############# entropy loss ################
