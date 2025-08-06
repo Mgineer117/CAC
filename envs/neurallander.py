@@ -14,8 +14,8 @@ drone_height = 0.09
 g = 9.81
 mass = 1.47
 
-X_MIN = np.array([-5.0, -5.0, 0.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
-X_MAX = np.array([5.0, 5.0, 2.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
+X_MIN = np.array([-15.0, -15.0, 0.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
+X_MAX = np.array([15.0, 15.0, 5.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
 
 lim = 1.0
 XE_MIN = np.array([-lim, -lim, -lim, -lim, -lim, -lim]).reshape(-1, 1)
@@ -117,7 +117,7 @@ class NeuralLanderEnv(gym.Env):
         self.tracking_scaler = 1.0
         self.control_scaler = 0.0
 
-        self.time_bound = 3.0
+        self.time_bound = 6.0
         self.dt = 0.03
         self.episode_len = int(self.time_bound / self.dt)
         self.t = np.arange(0, self.time_bound, self.dt)

@@ -12,8 +12,8 @@ pd_lim = np.pi / 3
 vx_lim = 2.0
 vz_lim = 1.0
 
-X_MIN = np.array([-3.0, 0.0, -p_lim, -vx_lim, -vz_lim, -pd_lim]).reshape(-1, 1)
-X_MAX = np.array([3.0, 6.0, p_lim, vx_lim, vz_lim, pd_lim]).reshape(-1, 1)
+X_MIN = np.array([-15.0, 0.0, -p_lim, -vx_lim, -vz_lim, -pd_lim]).reshape(-1, 1)
+X_MAX = np.array([15.0, 30.0, p_lim, vx_lim, vz_lim, pd_lim]).reshape(-1, 1)
 
 m = 0.486
 J = 0.00383
@@ -24,7 +24,7 @@ lim = 1.0
 XE_MIN = np.array([-lim, -lim, -lim, -lim, -lim, -lim]).reshape(-1, 1)
 XE_MAX = np.array([lim, lim, lim, lim, lim, lim]).reshape(-1, 1)
 
-# for sampling ref
+# for sampling reference trajectory
 X_INIT_MIN = np.array([-1, 1.0, -0.1, 0.5, 0.0, 0.0])
 X_INIT_MAX = np.array([1, 2.0, 0.1, 1.0, 0.0, 0.0])
 

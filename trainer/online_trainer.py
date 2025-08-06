@@ -243,6 +243,7 @@ class OnlineTrainer:
                             "mauc": auc * (self.env.episode_len / t),
                             "tracking_error": ep_tracking_error / t,
                             "control_effort": ep_control_effort / t,
+                            "episode_len": t + 1,
                         }
                     )
 
