@@ -168,6 +168,7 @@ class CAC(Base):
             # Sample a batch of 1024
             batch[key] = self.data[key][indices]
 
+        #### COMPUTE INGREDIENTS ####
         x = to_tensor(batch["x"]).requires_grad_()
         xref = to_tensor(batch["xref"])
         uref = to_tensor(batch["uref"])
@@ -177,7 +178,7 @@ class CAC(Base):
             W, infos = self.W_func(x, deterministic=True)
         else:
             W, infos = self.W_func(x)
-        M = inverse(W)
+        M = inverse(W)  # n, x_dim, x_dim
 
         f, B, Bbot = self.get_f_and_B(x)
         f = f.to(self._dtype).to(self.device)  # n, x_dim
@@ -191,12 +192,14 @@ class CAC(Base):
         B = B.detach()
         Bbot = Bbot.detach()
 
-        u, _ = self.actor(x, xref, uref, deterministic=True)
+        # since online we do not do below
+        u, _ = self.actor(x, xref, uref)
         K = self.Jacobian(u, x)  # n, f_dim, x_dim
 
         u = u.detach()
         K = K.detach()
 
+        #  DBDx[:, :, :, i]: n, x_dim, x_dim
         A = DfDx + sum(
             [
                 u[:, i].unsqueeze(-1).unsqueeze(-1) * DBDx[:, :, :, i]
@@ -206,12 +209,15 @@ class CAC(Base):
 
         dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
         dot_M = self.weighted_gradients(M, dot_x, x, detach)
-        ABK = A + matmul(B, K)
+
+        # contraction condition
         if detach:
+            ABK = A + matmul(B, K)
             MABK = matmul(M.detach(), ABK)
             sym_MABK = MABK + transpose(MABK, 1, 2)
             C_u = dot_M + sym_MABK + 2 * self.lbd * M.detach()
         else:
+            ABK = A + matmul(B, K)
             MABK = matmul(M, ABK)
             sym_MABK = MABK + transpose(MABK, 1, 2)
             C_u = dot_M + sym_MABK + 2 * self.lbd * M
@@ -233,6 +239,7 @@ class CAC(Base):
             sym_DbDxW = DbDxW + transpose(DbDxW, 1, 2)
             C2_inner = DbW - sym_DbDxW
             C2 = matmul(matmul(transpose(Bbot, 1, 2), C2_inner), Bbot)
+
             C2_inners.append(C2_inner)
             C2s.append(C2)
 
@@ -246,7 +253,7 @@ class CAC(Base):
         c2_loss = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
         # c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
         overshoot_loss = self.loss_pos_matrix_random_sampling(
-            (self.w_ub * torch.eye(W.shape[-1]).to(self.device)).unsqueeze(0) - W
+            (self.w_ub * torch.eye(W.shape[-1])).unsqueeze(0).to(self.device) - W
         )
 
         ############# entropy loss ################

@@ -254,18 +254,12 @@ class PvtolEnv(gym.Env):
     def reward_fn(self, action):
         error = self.x_t - self.xref[self.time_steps]
 
-        # tracking_error = np.linalg.norm(
-        #     self.state_weights * error,
-        #     ord=2,
-        # )
         tracking_error = error.T @ error
         control_effort = np.linalg.norm(action, ord=2)
 
-        # reward = self.tracking_scaler / (tracking_error + 1) + self.control_scaler / (
-        #     control_effort + 1
-        # )
-
-        rewards = (1 / (tracking_error + 1)).squeeze(-1)
+        rewards = (
+            1 / (tracking_error + 1) + self.control_scaler / (control_effort + 1)
+        ).squeeze(-1)
 
         return rewards, {
             "tracking_error": tracking_error,
@@ -300,7 +294,7 @@ class PvtolEnv(gym.Env):
 
     def step(self, action):
         # policy output ranges [-1, 1]
-        action = self.uref[self.time_steps] + action
+        # action = self.uref[self.time_steps] + action
         action = np.clip(action, UREF_MIN.flatten(), UREF_MAX.flatten())
 
         termination = self.dynamic_fn(action)
