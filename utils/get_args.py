@@ -160,7 +160,7 @@ def get_args():
     parser.add_argument(
         "--control-scaler",
         type=float,
-        default=1.0,
+        default=0.3,
         help="Control scaling factor to reward.",
     )
     parser.add_argument("--gamma", type=float, default=0.999, help="Discount factor.")
