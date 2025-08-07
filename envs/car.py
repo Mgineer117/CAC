@@ -164,7 +164,7 @@ class CarEnv(gym.Env):
                 u += np.array(
                     [weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi), 0]
                 )
-            u = np.clip(u, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten())
+            u = np.clip(u, 0.5 * UREF_MIN.flatten(), 0.5 * UREF_MAX.flatten())
 
             x_t = xref[-1].copy()
 

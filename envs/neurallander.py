@@ -258,7 +258,7 @@ class NeuralLanderEnv(gym.Env):
                         weight[2] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
                     ]
                 )
-            u = np.clip(u, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten())
+            u = np.clip(u, 0.5 * UREF_MIN.flatten(), 0.5 * UREF_MAX.flatten())
 
             x_t = xref[-1].copy()
 

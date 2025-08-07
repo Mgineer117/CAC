@@ -72,7 +72,7 @@ def get_args():
         "--eps", type=float, default=0.05, help="Used for CMG learning regularization."
     )
     parser.add_argument(
-        "--lbd", type=float, default=0.5, help="Desired contraction rate."
+        "--lbd", type=float, default=10.0, help="Desired contraction rate."
     )
     parser.add_argument(
         "--DynamicLearner-dim",
