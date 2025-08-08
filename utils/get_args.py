@@ -72,7 +72,7 @@ def get_args():
         "--eps", type=float, default=0.05, help="Used for CMG learning regularization."
     )
     parser.add_argument(
-        "--lbd", type=float, default=10.0, help="Desired contraction rate."
+        "--lbd", type=float, default=2.0, help="Desired contraction rate."
     )
     parser.add_argument(
         "--DynamicLearner-dim",
@@ -155,12 +155,12 @@ def get_args():
         "--entropy-scaler", type=float, default=1e-2, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
+        "--W-entropy-scaler", type=float, default=1e-1, help="W entropy scaling factor."
     )
     parser.add_argument(
         "--control-scaler",
         type=float,
-        default=0.0,
+        default=0.1,
         help="Control scaling factor to reward.",
     )
     parser.add_argument("--gamma", type=float, default=0.999, help="Discount factor.")

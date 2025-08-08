@@ -126,23 +126,22 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_outer_update <= int(0.0333 * self.nupdates) else False
+        detach = True if self.num_outer_update <= int(0.1 * self.nupdates) else False
 
-        loss_dict, timesteps, update_time = self.learn_ppo(batch)
-        # W_loss_dict, W_update_time = self.learn_W(batch, detach)
-
-        # loss_dict.update(W_loss_dict)
-        # update_time += W_update_time
-        # self.num_outer_update += 1
-
-        # self.W_lr_scheduler.step()
-        # self.ppo_lr_scheduler.step()
+        # loss_dict, timesteps, update_time = self.learn_ppo(batch)
+        if self.num_outer_update > int(0.5 * self.nupdates):
+            loss_dict = {}
+            update_time = 0
+            timesteps = 0
+        else:
+            loss_dict, update_time = self.learn_W(batch, detach)
+            timesteps = 0
 
         if self.num_inner_update % 3 == 0:
-            W_loss_dict, W_update_time = self.learn_W(batch, detach)
+            ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
 
-            loss_dict.update(W_loss_dict)
-            update_time += W_update_time
+            loss_dict.update(ppo_loss_dict)
+            update_time += ppo_update_time
 
             self.num_outer_update += 1
             self.W_lr_scheduler.step()
@@ -257,7 +256,7 @@ class CAC(Base):
         )
 
         ############# entropy loss ################
-        mean_penalty = torch.exp(-rewards.mean())
+        mean_penalty = torch.exp(-5 * rewards.mean())
         mean_entropy = infos["entropy"].mean()
 
         cmg_loss = pd_loss + c1_loss + c2_loss + overshoot_loss
