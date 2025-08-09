@@ -135,10 +135,12 @@ class CAC(Base):
             self.cmg_warmup = True
 
         loss_dict, update_time = self.learn_W(batch, False)
+        timesteps = 0
         if self.num_inner_update % 3 == 0:
-            ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
+            ppo_loss_dict, ppo_timesteps, ppo_update_time = self.learn_ppo(batch)
 
             loss_dict.update(ppo_loss_dict)
+            timesteps += ppo_timesteps
             update_time += ppo_update_time
 
             self.W_lr_scheduler.step()
