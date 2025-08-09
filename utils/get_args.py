@@ -94,7 +94,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--c3m-epochs", type=int, default=20000, help="Number of training samples."
+        "--c3m-epochs", type=int, default=50000, help="Number of training samples."
     )
     parser.add_argument(
         "--dynamics-epochs", type=int, default=10000, help="Number of training samples."
