@@ -61,7 +61,6 @@ class PPO(Base):
         self.target_kl = target_kl
         self.eps_clip = eps_clip
 
-        self._forward_steps = 0
         self.nupdates = nupdates
 
         # trainable networks
@@ -86,22 +85,13 @@ class PPO(Base):
         self.device = device
         self.to(device)
 
-    def trim_state(self, state: torch.Tensor):
-        # state trimming
-        x = state[:, : self.x_dim]
-        xref = state[:, self.x_dim : -self.action_dim]
-        uref = state[:, -self.action_dim :]
-
-        return x, xref, uref
-
     def forward(self, state: np.ndarray, deterministic: bool = False):
-        self._forward_steps += 1
         state = torch.from_numpy(state).to(self._dtype).to(self.device)
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        x, xref, uref = self.trim_state(state)
-        a, metaData = self.actor(x, xref, uref, deterministic=deterministic)
+        x, xref = self.trim_state(state)
+        a, metaData = self.actor(x, xref, deterministic=deterministic)
 
         return a, {
             "probs": metaData["probs"],
@@ -242,9 +232,9 @@ class PPO(Base):
         mb_old_logprobs: torch.Tensor,
         mb_advantages: torch.Tensor,
     ):
-        x, xref, uref = self.trim_state(mb_states)
+        x, xref = self.trim_state(mb_states)
 
-        _, metaData = self.actor(x, xref, uref)
+        _, metaData = self.actor(x, xref)
         logprobs = self.actor.log_prob(metaData["dist"], mb_actions)
         entropy = self.actor.entropy(metaData["dist"])
         ratios = torch.exp(logprobs - mb_old_logprobs)

@@ -35,14 +35,14 @@ class MLP(nn.Module):
         elif activation == nn.Softsign():
             gain = nn.init.calculate_gain("softsign")
         else:
-            gain = 1.0  # Default if no known activation matches
+            gain = 1.0  # Default if no listed activation matches
 
         # Initialize hidden layers
         for in_dim, out_dim in zip(hidden_dims[:-1], hidden_dims[1:]):
             linear_layer = nn.Linear(in_dim, out_dim)
             if initialization == "default":
                 nn.init.xavier_uniform_(linear_layer.weight, gain=gain)
-                linear_layer.bias.data.fill_(0.01)
+                linear_layer.bias.data.fill_(0.1)
 
             elif initialization == "actor":
                 nn.init.orthogonal_(linear_layer.weight, gain=1.414)

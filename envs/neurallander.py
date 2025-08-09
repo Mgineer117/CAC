@@ -34,8 +34,8 @@ XE_INIT_MAX = np.array([1, 1.0, 1.0, 1.0, 1.0, 0.0])
 
 state_weights = np.array([1, 1, 1, 1.0, 1.0, 1.0])
 
-STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten()))
-STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten()))
+STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten()))
+STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten()))
 
 
 # NEURAL-LANDER FUNCTIONS
@@ -266,14 +266,13 @@ class NeuralLanderEnv(gym.Env):
             B_x = self.B_func_np(x_t)
 
             x_t = x_t + self.dt * (f_x + np.matmul(B_x, u[:, np.newaxis]).squeeze())
-
             termination = np.any(
                 x_t[: self.pos_dimension] <= X_MIN.flatten()[: self.pos_dimension]
             ) or np.any(
                 x_t[: self.pos_dimension] >= X_MAX.flatten()[: self.pos_dimension]
             )
-
             x_t = np.clip(x_t, X_MIN.flatten(), X_MAX.flatten())
+
             xref.append(x_t)
             uref.append(u)
 
@@ -283,8 +282,6 @@ class NeuralLanderEnv(gym.Env):
         return x_0, np.array(xref), np.array(uref), i
 
     def dynamic_fn(self, action):
-        self.time_steps += 1
-
         f_x = self.f_func_np(self.x_t)
         B_x = self.B_func_np(self.x_t)
 
@@ -313,9 +310,9 @@ class NeuralLanderEnv(gym.Env):
             self.x_t[: self.pos_dimension] >= X_MAX.flatten()[: self.pos_dimension]
         )
         self.x_t = np.clip(self.x_t, X_MIN.flatten(), X_MAX.flatten())
-        self.state = np.concatenate(
-            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
-        )
+
+        self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
+        self.time_steps += 1
 
         return termination
 
@@ -357,9 +354,10 @@ class NeuralLanderEnv(gym.Env):
                 )
 
         self.x_t = self.x_0.copy()
-        self.state = np.concatenate(
-            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
-        )
+        # self.state = np.concatenate(
+        #     (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
+        # )
+        self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
 
         return self.state, {"x": self.x_t}
 

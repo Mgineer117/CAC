@@ -83,8 +83,8 @@ class C3M(Base):
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        x, xref, uref = self.trim_state(state)
-        a, _ = self.u_func(x, xref, uref)
+        x, xref = self.trim_state(state)
+        a, _ = self.u_func(x, xref)
 
         return a, {
             "probs": self.dummy,  # dummy for code consistency

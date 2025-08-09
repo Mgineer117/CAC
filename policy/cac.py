@@ -99,6 +99,8 @@ class CAC(Base):
             self.ppo_optimizer, lr_lambda=self.ppo_lr_lambda
         )
 
+        self.cmg_warmup = False
+
         self.to(self._dtype).to(self.device)
 
     def W_lr_lambda(self, step):
@@ -116,8 +118,8 @@ class CAC(Base):
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        x, xref, uref = self.trim_state(state)
-        a, metaData = self.actor(x, xref, uref, deterministic=deterministic)
+        x, xref = self.trim_state(state)
+        a, metaData = self.actor(x, xref, deterministic=deterministic)
 
         return a, {
             "probs": metaData["probs"],
@@ -126,26 +128,23 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_outer_update <= int(0.1 * self.nupdates) else False
+        # Warm up CMG to a certain shape
+        if not self.cmg_warmup:
+            for _ in range(int(0.1 * self.nupdates)):
+                loss_dict, update_time = self.learn_W(batch, True)
+            self.cmg_warmup = True
 
-        # loss_dict, timesteps, update_time = self.learn_ppo(batch)
-        if self.num_outer_update > int(0.5 * self.nupdates):
-            loss_dict = {}
-            update_time = 0
-            timesteps = 0
-        else:
-            loss_dict, update_time = self.learn_W(batch, detach)
-            timesteps = 0
-
+        loss_dict, timesteps, update_time = self.learn_ppo(batch)
         if self.num_inner_update % 3 == 0:
-            ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
+            W_loss_dict, W_update_time = self.learn_W(batch, False)
 
-            loss_dict.update(ppo_loss_dict)
-            update_time += ppo_update_time
+            loss_dict.update(W_loss_dict)
+            update_time += W_update_time
+
+            self.W_lr_scheduler.step()
+            # self.ppo_lr_scheduler.step()
 
             self.num_outer_update += 1
-            self.W_lr_scheduler.step()
-            self.ppo_lr_scheduler.step()
 
         self.num_inner_update += 1
 
@@ -170,7 +169,6 @@ class CAC(Base):
         #### COMPUTE INGREDIENTS ####
         x = to_tensor(batch["x"]).requires_grad_()
         xref = to_tensor(batch["xref"])
-        uref = to_tensor(batch["uref"])
         rewards = to_tensor(policy_batch["rewards"])
 
         if self.W_entropy_scaler == 0.0:
@@ -192,7 +190,7 @@ class CAC(Base):
         Bbot = Bbot.detach()
 
         # since online we do not do below
-        u, _ = self.actor(x, xref, uref)
+        u, _ = self.actor(x, xref)
         K = self.Jacobian(u, x)  # n, f_dim, x_dim
 
         u = u.detach()
@@ -459,9 +457,9 @@ class CAC(Base):
         mb_old_logprobs: torch.Tensor,
         mb_advantages: torch.Tensor,
     ):
-        x, xref, uref = self.trim_state(mb_states)
+        x, xref = self.trim_state(mb_states)
 
-        _, metaData = self.actor(x, xref, uref)
+        _, metaData = self.actor(x, xref)
         logprobs = self.actor.log_prob(metaData["dist"], mb_actions)
         entropy = self.actor.entropy(metaData["dist"])
         ratios = torch.exp(logprobs - mb_old_logprobs)
