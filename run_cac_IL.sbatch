@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=12
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:6
+#SBATCH --gres=gpu:3
 #SBATCH --time=3-00:00:00
 #SBATCH --output=cac.o%j
 #SBATCH --mail-type=FAIL
