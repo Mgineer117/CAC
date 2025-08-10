@@ -136,7 +136,7 @@ class CAC(Base):
 
         loss_dict, update_time = self.learn_W(batch, False)
         timesteps = 0
-        if self.num_inner_update % 3 == 0:
+        if self.num_inner_update % 5 == 0:
             ppo_loss_dict, ppo_timesteps, ppo_update_time = self.learn_ppo(batch)
 
             loss_dict.update(ppo_loss_dict)
@@ -266,7 +266,7 @@ class CAC(Base):
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],

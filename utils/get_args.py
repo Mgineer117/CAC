@@ -55,9 +55,9 @@ def get_args():
         default=1e-3,
         help="SDC decomposition neural net learning rate.",
     )
-    parser.add_argument("--W-lr", type=float, default=1e-3, help="CMG learning rate.")
+    parser.add_argument("--W-lr", type=float, default=3e-4, help="CMG learning rate.")
     parser.add_argument(
-        "--u-lr", type=float, default=1e-3, help="C3M actor learning rate."
+        "--u-lr", type=float, default=3e-4, help="C3M actor learning rate."
     )
     parser.add_argument(
         "--w-ub", type=float, default=10.0, help="Contraction metric upper bound."
@@ -87,14 +87,14 @@ def get_args():
         help="SDC decomposition neural net hidden layer.",
     )
     parser.add_argument(
-        "--actor-dim", type=list, default=[256, 256], help="actor hidden layers."
+        "--actor-dim", type=list, default=[128, 128], help="actor hidden layers."
     )
     parser.add_argument(
         "--critic-dim", type=list, default=[256, 256], help="critic hidden layers."
     )
 
     parser.add_argument(
-        "--c3m-epochs", type=int, default=50000, help="Number of training samples."
+        "--c3m-epochs", type=int, default=100000, help="Number of training samples."
     )
     parser.add_argument(
         "--dynamics-epochs", type=int, default=10000, help="Number of training samples."
@@ -134,7 +134,7 @@ def get_args():
         "--num-minibatch", type=int, default=4, help="Number of mini-batches."
     )
     parser.add_argument(
-        "--minibatch-size", type=int, default=2048, help="Size of each mini-batch."
+        "--minibatch-size", type=int, default=1024, help="Size of each mini-batch."
     )
     parser.add_argument(
         "--K-epochs", type=int, default=5, help="Number of K epochs in PPO."
