@@ -69,7 +69,7 @@ def get_args():
         "--eps-clip", type=float, default=0.2, help="Epsilon clip for PPO."
     )
     parser.add_argument(
-        "--eps", type=float, default=0.05, help="Used for CMG learning regularization."
+        "--eps", type=float, default=0.1, help="Used for CMG learning regularization."
     )
     parser.add_argument(
         "--lbd", type=float, default=2.0, help="Desired contraction rate."
