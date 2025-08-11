@@ -353,6 +353,7 @@ class C3M_U_Gaussian(nn.Module):
         self,
         x: torch.Tensor,
         xref: torch.Tensor,
+        uref: torch.Tensor,
         deterministic: bool = False,
     ):
         """
@@ -487,6 +488,7 @@ class C3M_U(nn.Module):
         self,
         x: torch.Tensor,
         xref: torch.Tensor,
+        uref: torch.Tensor,
         deterministic: bool = False,
     ):
         """

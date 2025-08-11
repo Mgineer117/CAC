@@ -118,8 +118,8 @@ class CAC(Base):
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        x, xref = self.trim_state(state)
-        a, metaData = self.actor(x, xref, deterministic=deterministic)
+        x, xref, uref = self.trim_state(state)
+        a, metaData = self.actor(x, xref, uref, deterministic=deterministic)
 
         return a, {
             "probs": metaData["probs"],
@@ -136,7 +136,7 @@ class CAC(Base):
 
         loss_dict, update_time = self.learn_W(batch, False)
         timesteps = 0
-        if self.num_inner_update % 5 == 0:
+        if self.num_inner_update % 3 == 0:
             ppo_loss_dict, ppo_timesteps, ppo_update_time = self.learn_ppo(batch)
 
             loss_dict.update(ppo_loss_dict)
@@ -171,6 +171,7 @@ class CAC(Base):
         #### COMPUTE INGREDIENTS ####
         x = to_tensor(batch["x"]).requires_grad_()
         xref = to_tensor(batch["xref"])
+        uref = to_tensor(batch["uref"])
         rewards = to_tensor(policy_batch["rewards"])
 
         if self.W_entropy_scaler == 0.0:
@@ -192,7 +193,7 @@ class CAC(Base):
         Bbot = Bbot.detach()
 
         # since online we do not do below
-        u, _ = self.actor(x, xref)
+        u, _ = self.actor(x, xref, uref)
         K = self.Jacobian(u, x)  # n, f_dim, x_dim
 
         u = u.detach()
@@ -266,7 +267,7 @@ class CAC(Base):
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
+        # torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],
@@ -459,9 +460,9 @@ class CAC(Base):
         mb_old_logprobs: torch.Tensor,
         mb_advantages: torch.Tensor,
     ):
-        x, xref = self.trim_state(mb_states)
+        x, xref, uref = self.trim_state(mb_states)
 
-        _, metaData = self.actor(x, xref)
+        _, metaData = self.actor(x, xref, uref)
         logprobs = self.actor.log_prob(metaData["dist"], mb_actions)
         entropy = self.actor.entropy(metaData["dist"])
         ratios = torch.exp(logprobs - mb_old_logprobs)

@@ -55,8 +55,8 @@ XE_INIT_MAX = np.array(
 # x, y, z, vx, vy, vz, force, theta_x, theta_y, theta_z
 state_weights = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
-STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten()))
-STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten()))
+STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten()))
+STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten()))
 
 
 class QuadRotorEnv(gym.Env):
@@ -277,7 +277,10 @@ class QuadRotorEnv(gym.Env):
         )
         self.x_t = np.clip(self.x_t, X_MIN.flatten(), X_MAX.flatten())
 
-        self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
+        # self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
+        self.state = np.concatenate(
+            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
+        )
         self.time_steps += 1
 
         return termination
@@ -322,10 +325,10 @@ class QuadRotorEnv(gym.Env):
                 )
 
         self.x_t = self.x_0.copy()
-        # self.state = np.concatenate(
-        #     (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
-        # )
-        self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
+        self.state = np.concatenate(
+            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
+        )
+        # self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
 
         return self.state, {"x": self.x_t}
 

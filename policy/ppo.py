@@ -90,8 +90,8 @@ class PPO(Base):
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        x, xref = self.trim_state(state)
-        a, metaData = self.actor(x, xref, deterministic=deterministic)
+        x, xref, uref = self.trim_state(state)
+        a, metaData = self.actor(x, xref, uref, deterministic=deterministic)
 
         return a, {
             "probs": metaData["probs"],
@@ -232,9 +232,9 @@ class PPO(Base):
         mb_old_logprobs: torch.Tensor,
         mb_advantages: torch.Tensor,
     ):
-        x, xref = self.trim_state(mb_states)
+        x, xref, uref = self.trim_state(mb_states)
 
-        _, metaData = self.actor(x, xref)
+        _, metaData = self.actor(x, xref, uref)
         logprobs = self.actor.log_prob(metaData["dist"], mb_actions)
         entropy = self.actor.entropy(metaData["dist"])
         ratios = torch.exp(logprobs - mb_old_logprobs)
