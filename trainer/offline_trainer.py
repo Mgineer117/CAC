@@ -82,18 +82,9 @@ class C3MTrainer:
         ) as pbar:
             while pbar.n < (self.epochs + self.init_epochs):
                 step = pbar.n + 1  # + 1 to avoid zero division
-                logging_step = (step - self.init_epochs) * batch_size
+                logging_step = (step - self.init_epochs) * batch_size + self.init_epochs
 
-                # first sample batch (size of 1024) from the data
-                batch = dict()
-                indices = np.random.choice(
-                    self.buffer_size, size=batch_size, replace=False
-                )
-                for key in data.keys():
-                    # Sample a batch of 1024
-                    batch[key] = data[key][indices]
-
-                loss_dict, update_time = self.policy.learn(batch)
+                loss_dict, update_time = self.policy.learn(data)
 
                 # Calculate expected remaining time
                 pbar.update(1)

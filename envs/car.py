@@ -322,17 +322,18 @@ class CarEnv(gym.Env):
                 + np.matmul(self.B_func_np(x), u[:, np.newaxis]).squeeze()
             )
 
-            # Bias is 10% of the true value
-            bias = 0.1 * x_dot_true
+            # # Bias is 25% of the true value
+            # biased_mean = 0.25 * x_dot_true + x_dot_true
 
-            # Variance is set so that 3σ + bias stays within ±20%
-            sigma = 0.1 * np.abs(x_dot_true) / 3.0
+            # # Variance is set so that 3σ + bias stays within ±100%
+            # sigma = 0.75 * np.abs(x_dot_true) / 3.0
 
-            # Generate Gaussian noise with 10% bias and bounded 10% std dev
-            noise = np.random.normal(loc=bias, scale=sigma, size=x_dot_true.shape)
-
-            # Final noisy x_dot
-            x_dot = x_dot_true  # + noise
+            # # Generate Gaussian noise with 25% bias and a standard deviation
+            # # scaled to keep values within ±100%
+            # x_dot = np.random.normal(
+            #     loc=biased_mean, scale=sigma, size=x_dot_true.shape
+            # )
+            x_dot = x_dot_true
 
             data["x"][i] = x
             data["u"][i] = u

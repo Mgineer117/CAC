@@ -129,12 +129,19 @@ class CAC(Base):
 
     def learn(self, batch):
         # Warm up CMG to a certain shape
-        if not self.cmg_warmup:
-            for _ in range(int(0.1 * self.nupdates)):
-                loss_dict, update_time = self.learn_W(batch, True)
-            self.cmg_warmup = True
+        # if not self.cmg_warmup:
+        #     update_time = 0
+        #     for _ in range(int(0.01 * self.nupdates)):
+        #         loss_dict, W_update_time = self.learn_W(batch, True)
+        #         ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
+        #         update_time += W_update_time + ppo_update_time
 
-        loss_dict, update_time = self.learn_W(batch, False)
+        #     self.cmg_warmup = True
+        #     loss_dict.update(ppo_loss_dict)
+        #     return loss_dict, timesteps, update_time
+
+        detach = True if self.num_outer_update < int(0.1 * self.nupdates) else False
+        loss_dict, update_time = self.learn_W(batch, detach)
         timesteps = 0
         if self.num_inner_update % 3 == 0:
             ppo_loss_dict, ppo_timesteps, ppo_update_time = self.learn_ppo(batch)

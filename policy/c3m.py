@@ -68,6 +68,8 @@ class C3M(Base):
         self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
 
         #
+        self.cmg_warmup = False
+        self.num_outer_update = 0
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
 
@@ -92,12 +94,31 @@ class C3M(Base):
             "entropy": self.dummy,
         }
 
-    def learn(self, batch):
+    def learn(self, data: dict):
+        # if not self.cmg_warmup:
+        #     for i in range(int(0.1 * self.nupdates)):
+        #         self.learn_W(data, True)
+        #     self.cmg_warmup = True
+
+        detach = True if self.num_outer_update < int(0.1 * self.nupdates) else False
+        loss_dict, update_time = self.learn_W(data, detach)
+
+        self.num_outer_update += 1
+
+        return loss_dict, update_time
+
+    def learn_W(self, data: dict, detach: bool):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
 
-        detach = True if self.current_update <= int(0.1 * self.nupdates) else False
+        # first sample batch (size of 1024) from the data
+        batch = dict()
+        buffer_size, batch_size = data["x"].shape[0], 1024
+        indices = np.random.choice(buffer_size, size=batch_size, replace=False)
+        for key in data.keys():
+            # Sample a batch of 1024
+            batch[key] = data[key][indices]
 
         # Ingredients: Convert batch data to tensors
         def to_tensor(data):
@@ -107,8 +128,6 @@ class C3M(Base):
         x = to_tensor(batch["x"]).requires_grad_()
         xref = to_tensor(batch["xref"])
         uref = to_tensor(batch["uref"])
-
-        batch_size = x.shape[0]
 
         W, _ = self.W_func(x)  # n, x_dim, x_dim
         M = inverse(W)  # n, x_dim, x_dim
