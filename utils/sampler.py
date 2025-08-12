@@ -94,7 +94,8 @@ class OnlineSampler(Base):
 
         # sampling params
         self.episode_len = episode_len
-        self.min_batch_for_worker = min_batch_for_worker
+        # self.min_batch_for_worker = min_batch_for_worker
+        self.min_batch_for_worker = episode_len
         self.thread_batch_size = self.min_batch_for_worker + 2 * self.episode_len
         self.batch_size = batch_size
 

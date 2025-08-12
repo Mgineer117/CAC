@@ -75,7 +75,7 @@ class C3M(Base):
 
         #
         self.cmg_warmup = False
-        self.num_outer_update = 0
+        self.num_W_update = 0
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
 
@@ -101,10 +101,10 @@ class C3M(Base):
         }
 
     def learn(self):
-        detach = True if self.num_outer_update < int(0.1 * self.nupdates) else False
+        detach = True if self.num_W_update < int(0.1 * self.nupdates) else False
         loss_dict, update_time = self.learn_W(detach)
 
-        self.num_outer_update += 1
+        self.num_W_update += 1
 
         return loss_dict, update_time
 

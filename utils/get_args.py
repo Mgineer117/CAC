@@ -72,18 +72,18 @@ def get_args():
         "--eps", type=float, default=0.1, help="Used for CMG learning regularization."
     )
     parser.add_argument(
-        "--lbd", type=float, default=2.0, help="Desired contraction rate."
+        "--lbd", type=float, default=0.5, help="Desired contraction rate."
     )
     parser.add_argument(
         "--DynamicLearner-dim",
         type=list,
-        default=[128, 128],
+        default=[256, 256],
         help="Dynamic approximator hidden layer.",
     )
     parser.add_argument(
         "--SDCLearner-dim",
         type=list,
-        default=[128, 128],
+        default=[256, 256],
         help="SDC decomposition neural net hidden layer.",
     )
     parser.add_argument(
@@ -97,7 +97,7 @@ def get_args():
         "--c3m-epochs", type=int, default=None, help="Number of training samples."
     )
     parser.add_argument(
-        "--dynamics-epochs", type=int, default=10000, help="Number of training samples."
+        "--dynamics-epochs", type=int, default=20000, help="Number of training samples."
     )
     parser.add_argument(
         "--timesteps", type=int, default=None, help="Number of training samples."
@@ -122,7 +122,7 @@ def get_args():
     )
     parser.add_argument("--sigma", type=float, default=0.0, help="Disturbance rate.")
     parser.add_argument(
-        "--c3m-buffer-size", type=int, default=131072, help="Number of mini-batches."
+        "--c3m-buffer-size", type=int, default=100_000, help="Number of mini-batches."
     )
     parser.add_argument(
         "--dynamics-buffer-size",

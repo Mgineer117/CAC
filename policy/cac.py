@@ -80,8 +80,7 @@ class CAC(Base):
             self.get_f_and_B.eval()
 
         self.nupdates = nupdates
-        self.num_outer_update = 0
-        self.num_inner_update = 0
+        self.num_ppo_update = 0
 
         # trainable networks
         self.W_func = W_func
@@ -131,34 +130,23 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        # Warm up CMG to a certain shape
-        # if not self.cmg_warmup:
-        #     update_time = 0
-        #     for _ in range(int(0.01 * self.nupdates)):
-        #         loss_dict, W_update_time = self.learn_W(batch, True)
-        #         ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
-        #         update_time += W_update_time + ppo_update_time
+        detach = True if self.num_ppo_update < int(0.25 * self.nupdates) else False
 
-        #     self.cmg_warmup = True
-        #     loss_dict.update(ppo_loss_dict)
-        #     return loss_dict, timesteps, update_time
+        loss_dict, update_time = {}, 0
+        for _ in range(3):
+            W_loss_dict, W_update_time = self.learn_W(batch, detach)
+            update_time += W_update_time
 
-        detach = True if self.num_outer_update < int(0.25 * self.nupdates) else False
-        loss_dict, update_time = self.learn_W(batch, detach)
-        timesteps = 0
-        if self.num_inner_update % 3 == 0:
-            ppo_loss_dict, ppo_timesteps, ppo_update_time = self.learn_ppo(batch)
+        ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
 
-            loss_dict.update(ppo_loss_dict)
-            timesteps += ppo_timesteps
-            update_time += ppo_update_time
+        loss_dict.update(W_loss_dict)
+        loss_dict.update(ppo_loss_dict)
+        update_time += ppo_update_time
 
-            self.W_lr_scheduler.step()
-            # self.ppo_lr_scheduler.step()
+        self.W_lr_scheduler.step()
+        self.ppo_lr_scheduler.step()
 
-            self.num_outer_update += 1
-
-        self.num_inner_update += 1
+        self.num_ppo_update += 1
 
         return loss_dict, timesteps, update_time
 
@@ -167,16 +155,16 @@ class CAC(Base):
         self.train()
         t0 = time.time()
 
-        # Ingredients: Convert batch data to tensors
-        def to_tensor(data):
-            return torch.from_numpy(data).to(self._dtype).to(self.device)
-
         batch = dict()
-        batch_size = 1024
-        indices = np.random.choice(self.buffer_size, size=batch_size, replace=False)
+        buffer_size, batch_size = self.data["x"].shape[0], 1024
+        indices = np.random.choice(buffer_size, size=batch_size, replace=False)
         for key in self.data.keys():
             # Sample a batch of 1024
             batch[key] = self.data[key][indices]
+
+        # Ingredients: Convert batch data to tensors
+        def to_tensor(data):
+            return torch.from_numpy(data).to(self._dtype).to(self.device)
 
         #### COMPUTE INGREDIENTS ####
         x = to_tensor(batch["x"]).requires_grad_()
