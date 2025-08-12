@@ -21,10 +21,10 @@ source ~/.bashrc
 conda activate cac
 
 # === Run experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project exp --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project exp --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project exp --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project exp --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project exp --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project exp --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project exp --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project exp --algo-name ppo-approx & 
 
 CUDA_VISIBLE_DEVICES=2 python3 main.py --task car --project exp --algo-name cac-approx & 
 CUDA_VISIBLE_DEVICES=2 python3 main.py --task pvtol --project exp --algo-name cac-approx & 
