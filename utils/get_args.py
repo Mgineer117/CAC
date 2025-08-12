@@ -142,7 +142,7 @@ def get_args():
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=3e-2,
+        default=1e-2,
         help="PPO Target KL divergence.",
     )
     parser.add_argument(
@@ -152,7 +152,7 @@ def get_args():
         help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-3, help="Entropy scaling factor."
+        "--entropy-scaler", type=float, default=1e-4, help="Entropy scaling factor."
     )
     parser.add_argument(
         "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
