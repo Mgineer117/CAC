@@ -140,7 +140,7 @@ class CAC(Base):
         #     loss_dict.update(ppo_loss_dict)
         #     return loss_dict, timesteps, update_time
 
-        detach = True if self.num_outer_update < int(0.1 * self.nupdates) else False
+        detach = True if self.num_outer_update < int(0.25 * self.nupdates) else False
         loss_dict, update_time = self.learn_W(batch, detach)
         timesteps = 0
         if self.num_inner_update % 3 == 0:
@@ -268,6 +268,8 @@ class CAC(Base):
         mean_entropy = infos["entropy"].mean()
 
         # prioritize the constraints than contraction
+        # We use this as per our method to reduce
+        # the complexity of bi-level optimization of RL
         weights = [0.1, 0.6, 0.2, 0.1]
         cmg_loss = (
             weights[0] * pd_loss
