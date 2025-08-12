@@ -95,11 +95,6 @@ class C3M(Base):
         }
 
     def learn(self, data: dict):
-        # if not self.cmg_warmup:
-        #     for i in range(int(0.1 * self.nupdates)):
-        #         self.learn_W(data, True)
-        #     self.cmg_warmup = True
-
         detach = True if self.num_outer_update < int(0.1 * self.nupdates) else False
         loss_dict, update_time = self.learn_W(data, detach)
 

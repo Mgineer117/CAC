@@ -94,7 +94,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--c3m-epochs", type=int, default=None, help="Number of training samples."
+        "--c3m-epochs", type=int, default=50000, help="Number of training samples."
     )
     parser.add_argument(
         "--dynamics-epochs", type=int, default=10000, help="Number of training samples."
@@ -127,7 +127,7 @@ def get_args():
     parser.add_argument(
         "--dynamics-buffer-size",
         type=int,
-        default=1024,
+        default=256,
         help="Number of mini-batches.",
     )
     parser.add_argument(

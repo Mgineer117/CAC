@@ -310,12 +310,44 @@ class CarEnv(gym.Env):
         )
 
         for i in range(buffer_size):
-            xref = np.random.uniform(X_MIN.flatten(), X_MAX.flatten())
-            uref = np.random.uniform(UREF_MIN.flatten(), UREF_MAX.flatten())
+            # === DATA FOR C3M === #
+            # Calculate the mean of the range for both state and control
+            xref_mean = (X_MIN.flatten() + X_MAX.flatten()) / 2.0
+            uref_mean = (UREF_MIN.flatten() + UREF_MAX.flatten()) / 2.0
 
-            xe = np.random.uniform(XE_MIN.flatten(), XE_MAX.flatten())
+            # Calculate a standard deviation (sigma) that covers most of the range
+            # Using the 3-sigma rule: range = 6 * sigma
+            xref_sigma = (X_MAX.flatten() - X_MIN.flatten()) / 6.0
+            uref_sigma = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 6.0
+
+            # Sample from a Gaussian (normal) distribution
+            xref = np.random.normal(loc=xref_mean, scale=xref_sigma)
+            xref = np.clip(xref, X_MIN.flatten(), X_MAX.flatten())
+            uref = np.random.normal(loc=uref_mean, scale=uref_sigma)
+
+            # === DATA FOR DYNAMICS LEARNING === #
+            # Sample the error from a Gaussian distribution
+            # The mean is centered at range, and the standard deviation is
+            # set to cover a certain portion of the error range.
+            xe_mean = (XE_MIN.flatten() + XE_MAX.flatten()) / 2.0
+            xe_sigma = (XE_MAX.flatten() - XE_MIN.flatten()) / 6.0
+            xe = np.random.normal(
+                loc=xe_mean, scale=xe_sigma, size=XE_MIN.flatten().shape
+            )
+
+            # Clip the state to ensure it stays within the overall bounds
             x = np.clip(xref + xe, X_MIN.flatten(), X_MAX.flatten())
-            u = np.random.uniform(UREF_MIN.flatten(), UREF_MAX.flatten())
+
+            # Sample the control from a Gaussian distribution
+            # The mean is centered in the middle of the control range.
+            u_mean = (UREF_MIN.flatten() + UREF_MAX.flatten()) / 2.0
+            u_sigma = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 6.0
+            u = np.random.normal(
+                loc=u_mean, scale=u_sigma, size=UREF_MIN.flatten().shape
+            )
+            # xe = np.random.uniform(XE_MIN.flatten(), XE_MAX.flatten())
+            # x = np.clip(xref + xe, X_MIN.flatten(), X_MAX.flatten())
+            # u = np.random.uniform(UREF_MIN.flatten(), UREF_MAX.flatten())
 
             x_dot_true = (
                 self.f_func_np(x)

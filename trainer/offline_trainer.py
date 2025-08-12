@@ -381,9 +381,9 @@ class DynamicsTrainer:
 
                 # first sample batch (size of 1024) from the data
                 batch = dict()
-                indices = np.random.choice(self.buffer_size, size=256, replace=False)
+                indices = np.random.choice(self.buffer_size, size=64, replace=False)
                 for key in data.keys():
-                    # Sample a batch of 1024
+                    # Sample a batch of 64
                     batch[key] = data[key][indices]
 
                 loss_dict, update_time = self.Dynamic_func.learn(batch)

@@ -267,7 +267,14 @@ class CAC(Base):
         mean_penalty = torch.exp(-5 * rewards.mean())
         mean_entropy = infos["entropy"].mean()
 
-        cmg_loss = pd_loss + c1_loss + c2_loss + overshoot_loss
+        # prioritize the constraints than contraction
+        weights = [0.1, 0.6, 0.2, 0.1]
+        cmg_loss = (
+            weights[0] * pd_loss
+            + weights[1] * c1_loss
+            + weights[2] * c2_loss
+            + weights[3] * overshoot_loss
+        )
         entropy_loss = self.W_entropy_scaler * mean_penalty * mean_entropy
 
         loss = cmg_loss - entropy_loss
