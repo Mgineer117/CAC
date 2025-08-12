@@ -53,6 +53,9 @@ class C3M(Base):
         self.W_func = W_func
         self.u_func = u_func
         self.get_f_and_B = get_f_and_B
+        if isinstance(self.get_f_and_B, nn.Module):
+            # set to eval mode due to dropout
+            self.get_f_and_B.eval()
 
         self.lbd = lbd
         self.eps = eps

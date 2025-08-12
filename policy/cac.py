@@ -75,6 +75,9 @@ class CAC(Base):
         self.dt = dt
 
         self.get_f_and_B = get_f_and_B
+        if isinstance(self.get_f_and_B, nn.Module):
+            # set to eval mode due to dropout
+            self.get_f_and_B.eval()
 
         self.nupdates = nupdates
         self.num_outer_update = 0
