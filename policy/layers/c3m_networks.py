@@ -77,8 +77,8 @@ class C3M_W_Gaussian(nn.Module):
         logstd = self.logstd(logits)
 
         # Clamping logstd for numerical stability and to prevent extreme values
-        logstd = torch.clamp(logstd, min=-5, max=2)
-        # logstd = torch.clamp(logstd, min=-3, max=2)
+        # logstd = torch.clamp(logstd, min=-5, max=2)
+        logstd = torch.clamp(logstd, min=-3, max=2)
         # Calculate variance as exp(logstd)^2
         std = torch.exp(logstd)
 
