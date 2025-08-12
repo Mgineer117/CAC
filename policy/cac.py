@@ -267,7 +267,7 @@ class CAC(Base):
         )
 
         ############# entropy loss ################
-        mean_penalty = torch.exp(-3 * rewards.mean())
+        mean_penalty = torch.exp(-rewards.mean())
         mean_entropy = infos["entropy"].mean()
 
         # prioritize the constraints than contraction
@@ -422,7 +422,7 @@ class CAC(Base):
                 # Update parameters
                 self.ppo_optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=0.5)
+                torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
                 grad_dict = self.compute_gradient_norm(
                     [self.actor, self.critic],
                     ["actor", "critic"],

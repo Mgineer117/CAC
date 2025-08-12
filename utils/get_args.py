@@ -38,10 +38,10 @@ def get_args():
         help="Number of experiments for each algorithm.",
     )
     parser.add_argument(
-        "--actor-lr", type=float, default=3e-4, help="Actor learning rate."
+        "--actor-lr", type=float, default=1e-4, help="Actor learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=1e-3, help="Critic learning rate."
+        "--critic-lr", type=float, default=3e-4, help="Critic learning rate."
     )
     parser.add_argument(
         "--Dynamic-lr",
@@ -55,9 +55,9 @@ def get_args():
         default=1e-3,
         help="SDC decomposition neural net learning rate.",
     )
-    parser.add_argument("--W-lr", type=float, default=1e-3, help="CMG learning rate.")
+    parser.add_argument("--W-lr", type=float, default=3e-4, help="CMG learning rate.")
     parser.add_argument(
-        "--u-lr", type=float, default=1e-3, help="C3M actor learning rate."
+        "--u-lr", type=float, default=3e-4, help="C3M actor learning rate."
     )
     parser.add_argument(
         "--w-ub", type=float, default=10.0, help="Contraction metric upper bound."
@@ -77,13 +77,13 @@ def get_args():
     parser.add_argument(
         "--DynamicLearner-dim",
         type=list,
-        default=[256, 256],
+        default=[128, 128],
         help="Dynamic approximator hidden layer.",
     )
     parser.add_argument(
         "--SDCLearner-dim",
         type=list,
-        default=[256, 256],
+        default=[128, 128],
         help="SDC decomposition neural net hidden layer.",
     )
     parser.add_argument(
@@ -127,14 +127,14 @@ def get_args():
     parser.add_argument(
         "--dynamics-buffer-size",
         type=int,
-        default=1024,
+        default=2000,
         help="Number of mini-batches.",
     )
     parser.add_argument(
         "--num-minibatch", type=int, default=4, help="Number of mini-batches."
     )
     parser.add_argument(
-        "--minibatch-size", type=int, default=2048, help="Size of each mini-batch."
+        "--minibatch-size", type=int, default=1024, help="Size of each mini-batch."
     )
     parser.add_argument(
         "--K-epochs", type=int, default=10, help="Number of K epochs in PPO."
@@ -152,7 +152,7 @@ def get_args():
         help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-4, help="Entropy scaling factor."
+        "--entropy-scaler", type=float, default=1e-3, help="Entropy scaling factor."
     )
     parser.add_argument(
         "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."

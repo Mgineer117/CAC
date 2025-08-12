@@ -30,9 +30,10 @@ def run(args, seed, unique_id, exp_time):
 
     # get env
     env = call_env(args)
+    eval_env = call_env(args)
     logger, writer = setup_logger(args, unique_id, exp_time, seed)
 
-    if args.algo_name in ["cac-approx", "c3m-approx", "sd-lqr"]:
+    if args.algo_name in ["cac-approx", "c3m-approx", "ppo-approx", "sd-lqr"]:
         from policy.layers.dynamic_networks import DynamicLearner
 
         print("[INFO] Using Dynamic Learner for dynamics approximation.")
@@ -68,9 +69,10 @@ def run(args, seed, unique_id, exp_time):
         batch_size=int(args.minibatch_size * args.num_minibatch),
     )
 
-    if args.algo_name in ["cac", "cac-approx", "ppo"]:
+    if args.algo_name in ["cac", "cac-approx", "ppo", "ppo-approx"]:
         trainer = OnlineTrainer(
             env=env,
+            eval_env=eval_env,
             policy=policy,
             sampler=sampler,
             logger=logger,
@@ -85,10 +87,10 @@ def run(args, seed, unique_id, exp_time):
     else:
         trainer = C3MTrainer(
             env=env,
+            eval_env=eval_env,
             policy=policy,
             logger=logger,
             writer=writer,
-            buffer_size=args.c3m_buffer_size,
             init_epochs=init_epochs,
             epochs=args.c3m_epochs,
             log_interval=args.log_interval,

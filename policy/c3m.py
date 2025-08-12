@@ -21,6 +21,7 @@ class C3M(Base):
         action_dim: int,
         W_func: nn.Module,
         u_func: nn.Module,
+        data: dict,
         get_f_and_B: Callable,
         W_lr: float = 3e-4,
         u_lr: float = 3e-4,
@@ -52,6 +53,8 @@ class C3M(Base):
         # trainable networks
         self.W_func = W_func
         self.u_func = u_func
+
+        self.data = data
         self.get_f_and_B = get_f_and_B
         if isinstance(self.get_f_and_B, nn.Module):
             # set to eval mode due to dropout
@@ -97,26 +100,26 @@ class C3M(Base):
             "entropy": self.dummy,
         }
 
-    def learn(self, data: dict):
+    def learn(self):
         detach = True if self.num_outer_update < int(0.1 * self.nupdates) else False
-        loss_dict, update_time = self.learn_W(data, detach)
+        loss_dict, update_time = self.learn_W(detach)
 
         self.num_outer_update += 1
 
         return loss_dict, update_time
 
-    def learn_W(self, data: dict, detach: bool):
+    def learn_W(self, detach: bool):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
 
         # first sample batch (size of 1024) from the data
         batch = dict()
-        buffer_size, batch_size = data["x"].shape[0], 1024
+        buffer_size, batch_size = self.data["x"].shape[0], 1024
         indices = np.random.choice(buffer_size, size=batch_size, replace=False)
-        for key in data.keys():
+        for key in self.data.keys():
             # Sample a batch of 1024
-            batch[key] = data[key][indices]
+            batch[key] = self.data[key][indices]
 
         # Ingredients: Convert batch data to tensors
         def to_tensor(data):

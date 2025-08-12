@@ -41,7 +41,6 @@ class PPO_Actor(nn.Module):
     ):
         # Concatenate the state with reference states and actions
         state = torch.cat((x, xref, uref), dim=-1)
-        # state = torch.cat((x, xref), dim=-1)
 
         logits = self.model(state)
 

@@ -70,13 +70,19 @@ class DynamicLearner(Base):
             f (torch.Tensor): Bias term of shape (batch_size, x_dim).
             B (torch.Tensor): Action-dependent transformation matrix of shape (batch_size, x_dim, action_dim).
         """
+
+        def to_tensor(data):
+            return torch.from_numpy(data).to(self._dtype).to(self.device)
+
+        if not isinstance(x, torch.Tensor):
+            x = to_tensor(x)
+
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
         n = x.shape[0]
 
-        f = self.f(x)  # Compute bias term
-        B = self.B(x).reshape(
-            n, self.x_dim, self.action_dim
-        )  # Reshape output into dynamics matrix
-
+        f = self.f(x)
+        B = self.B(x).reshape(n, self.x_dim, self.action_dim)
         Bbot = self.compute_B_perp_batch(B, self.x_dim - self.action_dim)
 
         return f, B, Bbot

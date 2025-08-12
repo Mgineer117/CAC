@@ -56,6 +56,7 @@ class OnlineTrainer:
     def __init__(
         self,
         env: gym.Env,
+        eval_env: gym.Env,
         policy: Base,
         sampler: OnlineSampler,
         logger: WandbLogger,
@@ -68,6 +69,7 @@ class OnlineTrainer:
         seed: int = 0,
     ) -> None:
         self.env = env
+        self.eval_env = eval_env
         self.policy = policy
         self.sampler = sampler
         self.eval_num = eval_num
@@ -171,7 +173,7 @@ class OnlineTrainer:
         """
         Given one ref, show tracking performance
         """
-        dimension = self.env.pos_dimension
+        dimension = self.eval_env.pos_dimension
         assert dimension in [2, 3], "Dimension must be 2 or 3"
 
         # Set subplot parameters based on dimension
@@ -183,7 +185,7 @@ class OnlineTrainer:
             fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 6))
 
         # Dynamically create the coordinate list and plot the reference trajectory
-        coords = [self.env.xref[:, i] for i in range(dimension)]
+        coords = [self.eval_env.xref[:, i] for i in range(dimension)]
         first_point = [c[0] for c in coords]
         ax1.scatter(
             *first_point,
@@ -208,21 +210,21 @@ class OnlineTrainer:
 
             # Env initialization
             options = {"replace_x_0": True}
-            obs, infos = self.env.reset(seed=self.seed, options=options)
+            obs, infos = self.eval_env.reset(seed=self.seed, options=options)
 
-            tref_trajectory = [self.env.time_steps]
+            tref_trajectory = [self.eval_env.time_steps]
             trajectory = [infos["x"][:dimension]]
             normalized_error_trajectory = [1.0]
-            for t in range(1, self.env.episode_len + 1):
+            for t in range(1, self.eval_env.episode_len + 1):
                 with torch.no_grad():
                     t0 = time.time()
                     a, _ = self.policy(obs, deterministic=True)
                     t1 = time.time()
                     a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-                next_obs, rew, term, trunc, infos = self.env.step(a)
+                next_obs, rew, term, trunc, infos = self.eval_env.step(a)
 
-                tref_trajectory.append(self.env.time_steps)
+                tref_trajectory.append(self.eval_env.time_steps)
                 trajectory.append(infos["x"][:dimension])  # Store trajectory point
                 normalized_error_trajectory.append(infos["relative_tracking_error"])
 
@@ -235,12 +237,12 @@ class OnlineTrainer:
                 ep_control_effort += infos["control_effort"]
 
                 if done:
-                    auc = np.trapezoid(normalized_error_trajectory, dx=self.env.dt)
+                    auc = np.trapezoid(normalized_error_trajectory, dx=self.eval_env.dt)
                     ep_buffer.append(
                         {
                             "avg_reward": ep_reward / t,
                             "avg_inference_time": ep_inference_time / t,
-                            "mauc": auc * (self.env.episode_len / t),
+                            "mauc": auc * (self.eval_env.episode_len / t),
                             "tracking_error": ep_tracking_error / t,
                             "control_effort": ep_control_effort / t,
                             "episode_len": t + 1,
