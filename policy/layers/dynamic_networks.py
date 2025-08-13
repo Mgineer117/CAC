@@ -59,6 +59,9 @@ class DynamicLearner(Base):
         self.device = device
         self.to(self.device)
 
+    def to_tensor(self, data):
+        return torch.from_numpy(data).to(self._dtype).to(self.device)
+
     def forward(self, x: torch.Tensor):
         """
         Forward pass through the dynamics learner.
@@ -71,11 +74,8 @@ class DynamicLearner(Base):
             B (torch.Tensor): Action-dependent transformation matrix of shape (batch_size, x_dim, action_dim).
         """
 
-        def to_tensor(data):
-            return torch.from_numpy(data).to(self._dtype).to(self.device)
-
         if not isinstance(x, torch.Tensor):
-            x = to_tensor(x)
+            x = self.to_tensor(x)
 
         if x.dim() == 1:
             x = x.unsqueeze(0)
@@ -92,13 +92,14 @@ class DynamicLearner(Base):
         t0 = time.time()
 
         # Ingredients: Convert batch data to tensors
-        def to_tensor(data):
-            return torch.from_numpy(data).to(self.device)
+        x = self.to_tensor(batch["x"])
+        u = self.to_tensor(batch["u"])
+        x_dot = self.to_tensor(batch["x_dot"])
 
-        x = to_tensor(batch["x"])
-        u = to_tensor(batch["u"])
-        x_dot = to_tensor(batch["x_dot"])
-        x_dot_true = to_tensor(batch["x_dot_true"])
+        x_eval = self.to_tensor(batch["x_eval"])
+        u_eval = self.to_tensor(batch["u_eval"])
+        x_dot_eval = self.to_tensor(batch["x_dot_eval"])
+
         n = x.shape[0]
 
         f_approx = self.f(x)  # Compute bias term
@@ -106,10 +107,18 @@ class DynamicLearner(Base):
             n, self.x_dim, self.action_dim
         )  # Reshape output into dynamics matrix
 
+        f_eval_approx = self.f(x_eval)  # Compute bias term
+        B_eval_approx = self.B(x_eval).reshape(
+            n, self.x_dim, self.action_dim
+        )  # Reshape output into dynamics matrix
+
         x_dot_approx = f_approx + matmul(B_approx, u.unsqueeze(-1)).squeeze(-1)
+        x_dot_eval_approx = f_eval_approx + matmul(
+            B_eval_approx, u_eval.unsqueeze(-1)
+        ).squeeze(-1)
 
         loss = F.mse_loss(x_dot, x_dot_approx)
-        bias = F.l1_loss(x_dot_true, x_dot_approx)
+        evaluation_error = F.l1_loss(x_dot_eval, x_dot_eval_approx)
 
         self.Dynamic_optimizer.zero_grad()
         loss.backward()
@@ -118,7 +127,7 @@ class DynamicLearner(Base):
 
         loss_dict = {
             f"{self.name}/Dynamic_loss/loss": loss.item(),
-            f"{self.name}/Dynamic_loss/mean_bias": bias.item(),
+            f"{self.name}/Dynamic_loss/evaluation_error": evaluation_error.item(),
             f"{self.name}/learning_rate/D_lr": self.Dynamic_optimizer.param_groups[0][
                 "lr"
             ],
