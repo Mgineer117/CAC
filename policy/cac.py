@@ -261,7 +261,7 @@ class CAC(Base):
         # prioritize the constraints than contraction
         # We use this as per our method to reduce
         # the complexity of bi-level optimization of RL
-        weights = [0.025, 0.85, 0.15, 0.025]
+        weights = [0.1, 0.4, 0.4, 0.1]
         cmg_loss = (
             weights[0] * pd_loss
             + weights[1] * c1_loss

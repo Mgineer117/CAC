@@ -134,7 +134,7 @@ def get_args():
         "--num-minibatch", type=int, default=4, help="Number of mini-batches."
     )
     parser.add_argument(
-        "--minibatch-size", type=int, default=2048, help="Size of each mini-batch."
+        "--minibatch-size", type=int, default=1024, help="Size of each mini-batch."
     )
     parser.add_argument(
         "--K-epochs", type=int, default=10, help="Number of K epochs in PPO."
