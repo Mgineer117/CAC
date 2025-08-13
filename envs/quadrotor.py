@@ -270,8 +270,8 @@ class QuadRotorEnv(gym.Env):
             x_t = x_list[-1].copy()
             xref_t = xref_list[-1].copy()
 
-            f_x, B_x, _ = self.get_f_and_B(x_t)
-            f_xref, B_xref, _ = self.get_f_and_B(xref_t)
+            f_x, B_x = self.f_func(x_t), self.B_func(x_t)
+            f_xref, B_xref = self.f_func(xref_t), self.B_func(xref_t)
 
             x_dot = f_x + np.matmul(B_x, u[:, np.newaxis]).squeeze()
             xref_dot = f_xref + np.matmul(B_xref, uref[:, np.newaxis]).squeeze()
