@@ -21,20 +21,20 @@ source ~/.bashrc
 conda activate cac
 
 # === Run experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project exp --algo-name ppo-approx & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project exp --algo-name ppo-approx & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project exp --algo-name ppo-approx & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project exp --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project cac_new --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project cac_new --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project cac_new --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project cac_new --algo-name ppo-approx & 
 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --task car --project exp --algo-name cac-approx & 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --task pvtol --project exp --algo-name cac-approx & 
-CUDA_VISIBLE_DEVICES=3 python3 main.py --task neurallander --project exp --algo-name cac-approx & 
-CUDA_VISIBLE_DEVICES=3 python3 main.py --task quadrotor --project exp --algo-name cac-approx &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --task car --project cac_new --algo-name cac-approx & 
+CUDA_VISIBLE_DEVICES=2 python3 main.py --task pvtol --project cac_new --algo-name cac-approx & 
+CUDA_VISIBLE_DEVICES=3 python3 main.py --task neurallander --project cac_new --algo-name cac-approx & 
+CUDA_VISIBLE_DEVICES=3 python3 main.py --task quadrotor --project cac_new --algo-name cac-approx &
 
-CUDA_VISIBLE_DEVICES=4 python3 main.py --task car --project exp --algo-name c3m-approx & 
-CUDA_VISIBLE_DEVICES=4 python3 main.py --task pvtol --project exp --algo-name c3m-approx & 
-CUDA_VISIBLE_DEVICES=5 python3 main.py --task neurallander --project exp --algo-name c3m-approx & 
-CUDA_VISIBLE_DEVICES=5 python3 main.py --task quadrotor --project exp --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=4 python3 main.py --task car --project cac_new --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=4 python3 main.py --task pvtol --project cac_new --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=5 python3 main.py --task neurallander --project cac_new --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=5 python3 main.py --task quadrotor --project cac_new --algo-name c3m-approx & 
 
 # === Wait for all background jobs to finish ===
 wait
