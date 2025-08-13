@@ -14,8 +14,8 @@ v_h = 2.0
 # X_MIN = np.array([-5.0, -5.0, -np.pi, v_l]).reshape(-1, 1)
 # X_MAX = np.array([5.0, 5.0, np.pi, v_h]).reshape(-1, 1)
 
-X_MIN = np.array([-15.0, -15.0, -np.pi, v_l]).reshape(-1, 1)
-X_MAX = np.array([15.0, 15.0, np.pi, v_h]).reshape(-1, 1)
+X_MIN = np.array([-10.0, -10.0, -np.pi, v_l]).reshape(-1, 1)
+X_MAX = np.array([10.0, 10.0, np.pi, v_h]).reshape(-1, 1)
 
 lim = 1.0
 XE_MIN = np.array([-lim, -lim, -lim, -lim]).reshape(-1, 1)
@@ -191,7 +191,7 @@ class CarEnv(gym.Env):
 
         freqs = list(range(1, 11))
         weights = np.random.randn(len(freqs), len(UREF_MIN))
-        weights = weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
+        weights = (weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))).tolist()
 
         def sample_controls():
             uref = np.array([0.0, 0])

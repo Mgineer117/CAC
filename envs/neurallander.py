@@ -14,8 +14,8 @@ drone_height = 0.09
 g = 9.81
 mass = 1.47
 
-X_MIN = np.array([-15.0, -15.0, 0.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
-X_MAX = np.array([15.0, 15.0, 5.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
+X_MIN = np.array([-10.0, -10.0, 0.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
+X_MAX = np.array([10.0, 10.0, 3.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
 
 lim = 1.0
 XE_MIN = np.array([-lim, -lim, -lim, -lim, -lim, -lim]).reshape(-1, 1)
@@ -275,7 +275,9 @@ class NeuralLanderEnv(gym.Env):
 
         freqs = list(range(1, 11))
         weights = np.random.randn(len(freqs), len(UREF_MIN))
-        weights = 0.5 * weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
+        weights = (
+            0.5 * weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
+        ).tolist()
 
         def sample_controls():
             uref = np.array([0, 0, g]) - Fa / mass  # ref

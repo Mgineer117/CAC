@@ -13,8 +13,8 @@ pd_lim = np.pi / 3
 vx_lim = 2.0
 vz_lim = 1.0
 
-X_MIN = np.array([-15.0, 0.0, -p_lim, -vx_lim, -vz_lim, -pd_lim]).reshape(-1, 1)
-X_MAX = np.array([15.0, 30.0, p_lim, vx_lim, vz_lim, pd_lim]).reshape(-1, 1)
+X_MIN = np.array([-5.0, 0.0, -p_lim, -vx_lim, -vz_lim, -pd_lim]).reshape(-1, 1)
+X_MAX = np.array([5.0, 10.0, p_lim, vx_lim, vz_lim, pd_lim]).reshape(-1, 1)
 
 m = 0.486
 J = 0.00383
@@ -119,36 +119,6 @@ class PvtolEnv(gym.Env):
             f[:, 5] = 0
 
         return f.squeeze()
-
-    # def f_func(self, x):
-    #     # x: bs x n x 1
-    #     # f: bs x n x 1
-    #     if len(x.shape) == 1:
-    #         x = x.unsqueeze(0)
-    #     n = x.shape[0]
-
-    #     p_x, p_z, phi, v_x, v_z, dot_phi = [x[:, i] for i in range(self.num_dim_x)]
-    #     f = torch.zeros((n, self.num_dim_x))
-    #     f[:, 0] = v_x * torch.cos(phi) - v_z * torch.sin(phi)
-    #     f[:, 1] = v_x * torch.sin(phi) + v_z * torch.cos(phi)
-    #     f[:, 2] = dot_phi
-    #     f[:, 3] = v_z * dot_phi - g * torch.sin(phi)
-    #     f[:, 4] = -v_x * dot_phi - g * torch.cos(phi)
-    #     f[:, 5] = 0
-    #     return f
-
-    # def B_func_np(self, x):
-    #     if len(x.shape) == 1:
-    #         x = x[np.newaxis, :]
-    #     n = x.shape[0]
-
-    #     B = np.zeros((n, self.num_dim_x, self.num_dim_control))
-
-    #     B[:, 4, 0] = 1 / m
-    #     B[:, 4, 1] = 1 / m
-    #     B[:, 5, 0] = l / J
-    #     B[:, 5, 1] = -l / J
-    #     return B.squeeze()
 
     def B_func(self, x):
         if isinstance(x, torch.Tensor):

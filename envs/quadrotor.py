@@ -240,7 +240,9 @@ class QuadRotorEnv(gym.Env):
 
         freqs = list(range(1, 11))
         weights = np.random.randn(len(freqs), len(UREF_MIN))
-        weights = 2.0 * weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
+        weights = (
+            2.0 * weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
+        ).tolist()
 
         def sample_controls():
             uref = np.array([0.0, 0.0, 0.0, 0.0])  # ref
