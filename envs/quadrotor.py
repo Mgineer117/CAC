@@ -257,9 +257,7 @@ class QuadRotorEnv(gym.Env):
                 )
             uref = np.clip(uref, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten())
 
-            u_mean = (UREF_MIN.flatten() + UREF_MAX.flatten()) / 2.0
-            u_sigma = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 18.0
-            u = uref + np.random.normal(loc=u_mean, scale=u_sigma)
+            u = np.random.normal(loc=uref, scale=np.abs(0.1 * uref))
             u = np.clip(u, UREF_MIN.flatten(), UREF_MAX.flatten())
 
             return u, uref

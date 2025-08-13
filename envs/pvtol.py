@@ -13,8 +13,8 @@ pd_lim = np.pi / 3
 vx_lim = 2.0
 vz_lim = 1.0
 
-X_MIN = np.array([-5.0, 0.0, -p_lim, -vx_lim, -vz_lim, -pd_lim]).reshape(-1, 1)
-X_MAX = np.array([5.0, 10.0, p_lim, vx_lim, vz_lim, pd_lim]).reshape(-1, 1)
+X_MIN = np.array([-10.0, 0.0, -p_lim, -vx_lim, -vz_lim, -pd_lim]).reshape(-1, 1)
+X_MAX = np.array([10.0, 10.0, p_lim, vx_lim, vz_lim, pd_lim]).reshape(-1, 1)
 
 m = 0.486
 J = 0.00383
@@ -26,8 +26,8 @@ XE_MIN = np.array([-lim, -lim, -lim, -lim, -lim, -lim]).reshape(-1, 1)
 XE_MAX = np.array([lim, lim, lim, lim, lim, lim]).reshape(-1, 1)
 
 # for sampling reference trajectory
-X_INIT_MIN = np.array([-1, 1.0, -0.1, 0.5, 0.0, 0.0])
-X_INIT_MAX = np.array([1, 2.0, 0.1, 1.0, 0.0, 0.0])
+X_INIT_MIN = np.array([-1, 5.0, -0.1, 0.5, 0.0, 0.0])
+X_INIT_MAX = np.array([1, 7.0, 0.1, 1.0, 0.0, 0.0])
 
 XE_INIT_MIN = np.array([-0.5, -0.5, -0.5, -0.5, -0.5, -0.5])
 XE_INIT_MAX = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
@@ -225,9 +225,9 @@ class PvtolEnv(gym.Env):
                 )
             uref = np.clip(uref, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten())
 
-            u_mean = (UREF_MIN.flatten() + UREF_MAX.flatten()) / 2.0
-            u_sigma = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 18.0
-            u = uref + np.random.normal(loc=u_mean, scale=u_sigma)
+            # u_mean = (UREF_MIN.flatten() + UREF_MAX.flatten()) / 2.0
+            # u_sigma = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 18.0
+            u = np.random.normal(loc=uref, scale=np.abs(0.1 * uref))
             u = np.clip(u, UREF_MIN.flatten(), UREF_MAX.flatten())
 
             return u, uref

@@ -270,7 +270,7 @@ class CAC(Base):
         )
         entropy_loss = self.W_entropy_scaler * mean_penalty * mean_entropy
 
-        loss = cmg_loss - entropy_loss
+        loss = cmg_loss  # - entropy_loss
 
         self.W_optimizer.zero_grad()
         loss.backward()
