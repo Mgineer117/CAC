@@ -130,7 +130,7 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_ppo_update < int(0.1 * self.nupdates) else False
+        detach = True if self.num_ppo_update < int(0.25 * self.nupdates) else False
 
         loss_dict, update_time = {}, 0
         for _ in range(3):
@@ -261,7 +261,7 @@ class CAC(Base):
         # prioritize the constraints than contraction
         # We use this as per our method to reduce
         # the complexity of bi-level optimization of RL
-        weights = [0.1, 0.4, 0.4, 0.1]
+        weights = [0.05, 0.6, 0.3, 0.05]
         cmg_loss = (
             weights[0] * pd_loss
             + weights[1] * c1_loss

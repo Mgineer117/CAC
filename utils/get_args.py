@@ -127,14 +127,14 @@ def get_args():
     parser.add_argument(
         "--dynamics-buffer-size",
         type=int,
-        default=2000,
+        default=10000,
         help="Number of mini-batches.",
     )
     parser.add_argument(
         "--num-minibatch", type=int, default=4, help="Number of mini-batches."
     )
     parser.add_argument(
-        "--minibatch-size", type=int, default=1024, help="Size of each mini-batch."
+        "--minibatch-size", type=int, default=2048, help="Size of each mini-batch."
     )
     parser.add_argument(
         "--K-epochs", type=int, default=10, help="Number of K epochs in PPO."
@@ -152,7 +152,7 @@ def get_args():
         help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-3, help="Entropy scaling factor."
+        "--entropy-scaler", type=float, default=1e-4, help="Entropy scaling factor."
     )
     parser.add_argument(
         "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
