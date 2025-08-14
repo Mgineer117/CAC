@@ -130,7 +130,7 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_ppo_update < int(0.25 * self.nupdates) else False
+        detach = True if self.num_ppo_update < int(0.5 * self.nupdates) else False
 
         loss_dict, update_time = {}, 0
         for _ in range(3):
