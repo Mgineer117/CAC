@@ -97,7 +97,7 @@ def get_args():
         "--c3m-epochs", type=int, default=None, help="Number of training samples."
     )
     parser.add_argument(
-        "--dynamics-epochs", type=int, default=30000, help="Number of training samples."
+        "--dynamics-epochs", type=int, default=50000, help="Number of training samples."
     )
     parser.add_argument(
         "--timesteps", type=int, default=None, help="Number of training samples."
@@ -155,7 +155,7 @@ def get_args():
         "--entropy-scaler", type=float, default=1e-4, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
+        "--W-entropy-scaler", type=float, default=1e-3, help="W entropy scaling factor."
     )
     parser.add_argument(
         "--control-scaler",
