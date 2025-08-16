@@ -120,15 +120,6 @@ def get_policy(env, args, Dynamic_func=None):
             hidden_dim=args.actor_dim,
             a_dim=args.action_dim,
         )
-
-        # actor = C3M_U_Gaussian(
-        #     x_dim=env.num_dim_x,
-        #     state_dim=args.state_dim,
-        #     effective_indices=effective_indices,
-        #     action_dim=args.action_dim,
-        #     task=args.task,
-        # )
-
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
         if algo_name == "ppo-approx":
