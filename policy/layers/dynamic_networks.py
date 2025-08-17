@@ -16,6 +16,7 @@ class DynamicLearner(Base):
         x_dim: int,
         action_dim: int,
         hidden_dim: list,
+        nupdates: int,
         drop_out: float | None = None,
         activation: nn.Module = nn.Tanh(),
         Dynamic_lr: float = 1e-3,
@@ -36,6 +37,7 @@ class DynamicLearner(Base):
         self.x_dim = x_dim
         self.action_dim = action_dim
         self.activation = activation
+        self.nupdates = nupdates
 
         # State-dependent bias term for dynamics
         self.f = MLP(
@@ -54,10 +56,14 @@ class DynamicLearner(Base):
         self.Dynamic_optimizer = torch.optim.Adam(
             params=self.parameters(), lr=Dynamic_lr
         )
+        self.lr_scheduler = LambdaLR(self.Dynamic_optimizer, lr_lambda=self.lr_lambda)
 
         self.name = "DynamicLearner"
         self.device = device
         self.to(self.device)
+
+    def lr_lambda(self, step):
+        return 1.0 - float(step) / float(self.nupdates)
 
     def to_tensor(self, data):
         return torch.from_numpy(data).to(self._dtype).to(self.device)
@@ -124,6 +130,7 @@ class DynamicLearner(Base):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
         self.Dynamic_optimizer.step()
+        self.lr_scheduler.step()
 
         loss_dict = {
             f"{self.name}/Dynamic_loss/loss": loss.item(),
