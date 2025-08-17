@@ -445,32 +445,15 @@ class QuadRotorEnv(gym.Env):
         num_samples = 0
         with tqdm(total=buffer_size, desc="Collecting samples", unit="samples") as pbar:
             while num_samples < buffer_size:
-                _, x, u, x_dot_true, xref, uref, episode_len = self.system_reset()
+                _, x, u, x_dot, xref, uref, episode_len = self.system_reset()
                 episode_len += 1
-
-                biased_data = False
-                if biased_data:
-                    # Bias is 10% of the true value
-                    biased_mean = 0.1 * x_dot + x_dot
-                    # Variance is set so that 3σ + bias stays within ±20%
-                    sigma = 0.1 * np.abs(x_dot) / 3.0
-
-                    # Generate Gaussian noise with 10% bias
-                    x_dot = np.random.normal(
-                        loc=biased_mean, scale=sigma, size=x_dot_true.shape
-                    )
-                else:
-                    x_dot = x_dot_true
 
                 start_idx = num_samples
                 end_idx = np.clip(start_idx + episode_len, 0, buffer_size)
 
-                data["x"][start_idx:end_idx] = x[: end_idx - start_idx]
-                data["u"][start_idx:end_idx] = u[: end_idx - start_idx]
-                data["x_dot"][start_idx:end_idx] = x_dot[: end_idx - start_idx]
-                data["x_dot_true"][start_idx:end_idx] = x_dot_true[
-                    : end_idx - start_idx
-                ]
+                # data["x"][start_idx:end_idx] = x[: end_idx - start_idx]
+                # data["u"][start_idx:end_idx] = u[: end_idx - start_idx]
+                # data["x_dot"][start_idx:end_idx] = x_dot[: end_idx - start_idx]
                 data["xref"][start_idx:end_idx] = xref[: end_idx - start_idx]
                 data["uref"][start_idx:end_idx] = uref[: end_idx - start_idx]
 
@@ -496,85 +479,12 @@ class QuadRotorEnv(gym.Env):
         data["u_eval"] = u_eval
         data["x_dot_eval"] = x_dot_eval
 
+        data["x"] = x_eval
+        data["u"] = u_eval
+        data["x_dot"] = x_dot_eval
+
         # Check for NaNs
         if np.any(np.isnan(data["x"])):
             print("NaN values found in x")
 
         return data
-
-    # def get_rollout(self, buffer_size: int):
-    #     data = dict(
-    #         x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-    #         x_eval=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-    #         u=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
-    #         u_eval=np.full(
-    #             (buffer_size, self.num_dim_control), np.nan, dtype=np.float32
-    #         ),
-    #         x_dot=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-    #         x_dot_eval=np.full(
-    #             ((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32
-    #         ),
-    #         xref=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-    #         uref=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
-    #     )
-
-    #     # === C3M data === #
-    #     xref_mean = (X_MIN.flatten() + X_MAX.flatten()) / 2.0
-    #     uref_mean = (UREF_MIN.flatten() + UREF_MAX.flatten()) / 2.0
-
-    #     xref_sigma = (X_MAX.flatten() - X_MIN.flatten()) / 6.0
-    #     uref_sigma = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 6.0
-
-    #     # Batch sample and clip
-    #     xref = np.random.normal(
-    #         loc=xref_mean, scale=xref_sigma, size=(buffer_size, len(xref_mean))
-    #     )
-    #     xref = np.clip(xref, X_MIN.flatten(), X_MAX.flatten())
-    #     uref = np.random.normal(
-    #         loc=uref_mean, scale=uref_sigma, size=(buffer_size, len(uref_mean))
-    #     )
-
-    #     # === Dynamics learning data === #
-    #     xe_mean = (XE_MIN.flatten() + XE_MAX.flatten()) / 2.0
-    #     xe_sigma = (XE_MAX.flatten() - XE_MIN.flatten()) / 6.0
-    #     xe = np.random.normal(
-    #         loc=xe_mean, scale=xe_sigma, size=(buffer_size, len(xe_mean))
-    #     )
-
-    #     # Clip x to valid state range
-    #     x = np.clip(xref_mean + xe, X_MIN.flatten(), X_MAX.flatten())
-
-    #     # Sample controls
-    #     u_mean = (UREF_MIN.flatten() + UREF_MAX.flatten()) / 2.0
-    #     u_sigma = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 6.0
-    #     u = np.random.normal(loc=u_mean, scale=u_sigma, size=(buffer_size, len(u_mean)))
-
-    #     # Compute dynamics in batch
-    #     f_x, B_x, _ = self.get_f_and_B(x)
-    #     x_dot = f_x + np.matmul(B_x, u[:, :, np.newaxis]).squeeze()
-
-    #     # eval data
-    #     x_eval = np.random.uniform(
-    #         low=X_MIN.flatten(),
-    #         high=X_MAX.flatten(),
-    #         size=(buffer_size, len(X_MAX.flatten())),
-    #     )
-    #     u_eval = np.random.uniform(
-    #         low=UREF_MIN.flatten(),
-    #         high=UREF_MAX.flatten(),
-    #         size=(buffer_size, len(UREF_MAX.flatten())),
-    #     )
-    #     f_x, B_x, _ = self.get_f_and_B(x_eval)
-    #     x_dot_eval = f_x + np.matmul(B_x, u_eval[:, :, np.newaxis]).squeeze()
-
-    #     # Assign to data dictionary
-    #     data["x"] = x
-    #     data["u"] = u
-    #     data["x_dot"] = x_dot
-    #     data["x_eval"] = x_eval
-    #     data["u_eval"] = u_eval
-    #     data["x_dot_eval"] = x_dot_eval
-    #     data["xref"] = xref
-    #     data["uref"] = uref
-
-    #     return data

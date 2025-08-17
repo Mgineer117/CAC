@@ -483,9 +483,9 @@ class NeuralLanderEnv(gym.Env):
                 start_idx = num_samples
                 end_idx = np.clip(start_idx + episode_len, 0, buffer_size)
 
-                data["x"][start_idx:end_idx] = x[: end_idx - start_idx]
-                data["u"][start_idx:end_idx] = u[: end_idx - start_idx]
-                data["x_dot"][start_idx:end_idx] = x_dot[: end_idx - start_idx]
+                # data["x"][start_idx:end_idx] = x[: end_idx - start_idx]
+                # data["u"][start_idx:end_idx] = u[: end_idx - start_idx]
+                # data["x_dot"][start_idx:end_idx] = x_dot[: end_idx - start_idx]
                 data["xref"][start_idx:end_idx] = xref[: end_idx - start_idx]
                 data["uref"][start_idx:end_idx] = uref[: end_idx - start_idx]
 
@@ -510,6 +510,10 @@ class NeuralLanderEnv(gym.Env):
         data["x_eval"] = x_eval
         data["u_eval"] = u_eval
         data["x_dot_eval"] = x_dot_eval
+
+        data["x"] = x_eval
+        data["u"] = u_eval
+        data["x_dot"] = x_dot_eval
 
         # Check for NaNs
         if np.any(np.isnan(data["x"])):
