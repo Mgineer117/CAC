@@ -173,15 +173,18 @@ def get_policy(env, args, Dynamic_func=None):
         )
 
         if Dynamic_func is not None:
+            data_used_for_dynamics = env.get_rollout(args.dynamics_buffer_size)
             env.replace_dynamics(Dynamic_func)
             get_f_and_B = Dynamic_func
+            print(
+                "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
+            )
+            data = env.get_rollout(args.c3m_buffer_size)
+            data.update(data_used_for_dynamics)
         else:
             get_f_and_B = env.get_f_and_B
+            data = env.get_rollout(args.c3m_buffer_size)
 
-        print(
-            "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
-        )
-        data = env.get_rollout(args.c3m_buffer_size)
         policy = C3M(
             x_dim=env.num_dim_x,
             effective_indices=effective_indices,

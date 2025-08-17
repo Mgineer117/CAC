@@ -125,7 +125,7 @@ def get_args():
     )
     parser.add_argument("--sigma", type=float, default=0.0, help="Disturbance rate.")
     parser.add_argument(
-        "--c3m-buffer-size", type=int, default=200_000, help="Number of mini-batches."
+        "--c3m-buffer-size", type=int, default=100_000, help="Number of mini-batches."
     )
     parser.add_argument(
         "--dynamics-buffer-size",
