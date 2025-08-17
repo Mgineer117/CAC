@@ -97,7 +97,10 @@ def get_args():
         "--c3m-epochs", type=int, default=None, help="Number of training samples."
     )
     parser.add_argument(
-        "--dynamics-epochs", type=int, default=50000, help="Number of training samples."
+        "--dynamics-epochs",
+        type=int,
+        default=100000,
+        help="Number of training samples.",
     )
     parser.add_argument(
         "--timesteps", type=int, default=None, help="Number of training samples."
@@ -137,7 +140,7 @@ def get_args():
         "--minibatch-size", type=int, default=2048, help="Size of each mini-batch."
     )
     parser.add_argument(
-        "--K-epochs", type=int, default=10, help="Number of K epochs in PPO."
+        "--K-epochs", type=int, default=5, help="Number of K epochs in PPO."
     )
     parser.add_argument(
         "--target-kl",
