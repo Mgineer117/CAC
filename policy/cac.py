@@ -271,11 +271,11 @@ class CAC(Base):
         cmg_loss = pd_loss + c1_loss + c2_loss + overshoot_loss
         entropy_loss = self.W_entropy_scaler * mean_penalty * mean_entropy
 
-        loss = cmg_loss - entropy_loss
+        loss = cmg_loss  # - entropy_loss
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],
@@ -411,7 +411,7 @@ class CAC(Base):
                 # Update parameters
                 self.ppo_optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=0.5)
                 grad_dict = self.compute_gradient_norm(
                     [self.actor, self.critic],
                     ["actor", "critic"],
@@ -423,6 +423,8 @@ class CAC(Base):
 
             if kl_div.item() > self.target_kl:
                 break
+
+        self.ppo_lr_scheduler.step()
 
         # Logging
         loss_dict = {
