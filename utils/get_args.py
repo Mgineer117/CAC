@@ -99,7 +99,7 @@ def get_args():
     parser.add_argument(
         "--dynamics-epochs",
         type=int,
-        default=200000,
+        default=50000,
         help="Number of training samples.",
     )
     parser.add_argument(
