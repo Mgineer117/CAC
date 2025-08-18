@@ -43,7 +43,7 @@ def run(args, seed, unique_id, exp_time):
             action_dim=args.action_dim,
             hidden_dim=args.DynamicLearner_dim,
             Dynamic_lr=args.Dynamic_lr,
-            drop_out=0.2,  # to prevent overfit
+            drop_out=0.1,  # to prevent overfit
             nupdates=args.dynamics_epochs,
             device=args.device,
         )
