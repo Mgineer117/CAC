@@ -71,7 +71,7 @@ class PvtolEnv(gym.Env):
         self.use_learned_dynamics = False
 
         # initialize the ref trajectory
-        self.x_0, _, _, _, self.xref, self.uref, self.episode_len = self.system_reset()
+        self.x_0, self.xref, self.uref, self.episode_len = self.system_reset()
         self.init_tracking_error = np.linalg.norm(self.x_0 - self.xref[0], ord=2)
 
         self.disturbance_duration = 0.0
@@ -224,47 +224,26 @@ class PvtolEnv(gym.Env):
                     ]
                 )
             uref = np.clip(uref, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten())
+            return uref
 
-            u = np.random.normal(loc=uref, scale=np.abs(0.25 * uref))
-            u = np.clip(u, UREF_MIN.flatten(), UREF_MAX.flatten())
-
-            return u, uref
-
-        x_list, u_list, x_dot_list = [x_0], [], []
         xref_list, uref_list = [xref_0], []
         for i, _t in enumerate(self.t):
-            u, uref = sample_controls()
+            uref = sample_controls()
 
-            x_t = x_list[-1].copy()
             xref_t = xref_list[-1].copy()
-
-            f_x, B_x = self.f_func(x_t), self.B_func(x_t)
             f_xref, B_xref = self.f_func(xref_t), self.B_func(xref_t)
 
-            x_dot = f_x + np.matmul(B_x, u[:, np.newaxis]).squeeze()
             xref_dot = f_xref + np.matmul(B_xref, uref[:, np.newaxis]).squeeze()
-
-            x_t = x_t + self.dt * x_dot
             xref_t = xref_t + self.dt * xref_dot
 
-            termination1 = np.any(
-                x_t[: self.pos_dimension] <= X_MIN.flatten()[: self.pos_dimension]
-            ) or np.any(
-                x_t[: self.pos_dimension] >= X_MAX.flatten()[: self.pos_dimension]
-            )
-            termination2 = np.any(
+            termination = np.any(
                 xref_t[: self.pos_dimension] <= X_MIN.flatten()[: self.pos_dimension]
             ) or np.any(
                 xref_t[: self.pos_dimension] >= X_MAX.flatten()[: self.pos_dimension]
             )
-            termination = termination1 or termination2
 
-            x_t = np.clip(x_t, X_MIN.flatten(), X_MAX.flatten())
             xref_t = np.clip(xref_t, X_MIN.flatten(), X_MAX.flatten())
 
-            x_list.append(x_t)
-            u_list.append(u)
-            x_dot_list.append(x_dot)
             xref_list.append(xref_t)
             uref_list.append(uref)
 
@@ -273,9 +252,6 @@ class PvtolEnv(gym.Env):
 
         return (
             x_0,
-            np.array(x_list),
-            np.array(u_list),
-            np.array(x_dot_list),
             np.array(xref_list),
             np.array(uref_list),
             i,
@@ -338,9 +314,7 @@ class PvtolEnv(gym.Env):
         self.time_steps = 0
 
         if options is None:
-            self.x_0, _, _, _, self.xref, self.uref, self.episode_len = (
-                self.system_reset()
-            )
+            self.x_0, self.xref, self.uref, self.episode_len = self.system_reset()
             self.init_tracking_error = np.linalg.norm(self.x_0 - self.xref[0], ord=2)
         else:
             if options.get("replace_x_0", True):
@@ -396,32 +370,32 @@ class PvtolEnv(gym.Env):
         """
         if mode == "c3m":
             c3m_data = dict(
-                x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-                xref=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+                x=np.full((buffer_size, self.num_dim_x), np.nan, dtype=np.float32),
+                xref=np.full((buffer_size, self.num_dim_x), np.nan, dtype=np.float32),
                 uref=np.full(
                     (buffer_size, self.num_dim_control), np.nan, dtype=np.float32
                 ),
             )
 
-            num_samples = 0
-            with tqdm(
-                total=buffer_size, desc="Collecting samples", unit="samples"
-            ) as pbar:
-                while num_samples < buffer_size:
-                    _, x, u, x_dot, xref, uref, episode_len = self.system_reset()
-                    episode_len += 1
+            # Sample all references at once
+            xref = (X_MAX - X_MIN).flatten() * np.random.rand(
+                buffer_size, self.num_dim_x
+            ) + X_MIN.flatten()
+            uref = (UREF_MAX - UREF_MIN).flatten() * np.random.rand(
+                buffer_size, self.num_dim_control
+            ) + UREF_MIN.flatten()
+            xe = (XE_MAX - XE_MIN).flatten() * np.random.rand(
+                buffer_size, self.num_dim_x
+            ) + XE_MIN.flatten()
 
-                    start_idx = num_samples
-                    end_idx = np.clip(start_idx + episode_len, 0, buffer_size)
+            # Compose states
+            x = xe + xref
+            x = np.clip(x, X_MIN.flatten(), X_MAX.flatten())
 
-                    # === DATA FOR C3M === #
-                    c3m_data["x"][start_idx:end_idx] = x[: end_idx - start_idx]
-                    c3m_data["xref"][start_idx:end_idx] = xref[: end_idx - start_idx]
-                    c3m_data["uref"][start_idx:end_idx] = uref[: end_idx - start_idx]
-
-                    added_samples = end_idx - start_idx
-                    num_samples += added_samples
-                    pbar.update(added_samples)  # Update progress bar
+            # Store
+            c3m_data["x"] = x.astype(np.float32)
+            c3m_data["xref"] = xref.astype(np.float32)
+            c3m_data["uref"] = uref.astype(np.float32)
 
             # Check for NaNs
             if np.any(np.isnan(c3m_data["x"])):

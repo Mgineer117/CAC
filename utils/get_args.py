@@ -55,9 +55,9 @@ def get_args():
         default=1e-3,
         help="SDC decomposition neural net learning rate.",
     )
-    parser.add_argument("--W-lr", type=float, default=3e-4, help="CMG learning rate.")
+    parser.add_argument("--W-lr", type=float, default=1e-3, help="CMG learning rate.")
     parser.add_argument(
-        "--u-lr", type=float, default=3e-4, help="C3M actor learning rate."
+        "--u-lr", type=float, default=1e-3, help="C3M actor learning rate."
     )
     parser.add_argument(
         "--w-ub", type=float, default=10.0, help="Contraction metric upper bound."
@@ -72,7 +72,7 @@ def get_args():
         "--eps", type=float, default=0.1, help="Used for CMG learning regularization."
     )
     parser.add_argument(
-        "--lbd", type=float, default=0.5, help="Desired contraction rate."
+        "--lbd", type=float, default=2.0, help="Desired contraction rate."
     )
     parser.add_argument(
         "--DynamicLearner-dim",
@@ -166,7 +166,7 @@ def get_args():
         default=0.0,
         help="Control scaling factor to reward.",
     )
-    parser.add_argument("--gamma", type=float, default=0.999, help="Discount factor.")
+    parser.add_argument("--gamma", type=float, default=0.9, help="Discount factor.")
     parser.add_argument(
         "--load-pretrained-model",
         action="store_true",

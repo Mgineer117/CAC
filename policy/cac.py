@@ -91,16 +91,16 @@ class CAC(Base):
         self.actor = actor
         self.critic = critic
 
-        self.ppo_optimizer = torch.optim.Adam(
-            [
-                {"params": self.actor.parameters(), "lr": actor_lr},
-                {"params": self.critic.parameters(), "lr": critic_lr},
-            ]
+        self.actor_optimizer = torch.optim.Adam(
+            params=self.actor.parameters(), lr=actor_lr
+        )
+        self.critic_optimizer = torch.optim.Adam(
+            params=self.critic.parameters(), lr=critic_lr
         )
 
         self.W_lr_scheduler = LambdaLR(self.W_optimizer, lr_lambda=self.W_lr_lambda)
         self.ppo_lr_scheduler = LambdaLR(
-            self.ppo_optimizer, lr_lambda=self.ppo_lr_lambda
+            self.actor_optimizer, lr_lambda=self.ppo_lr_lambda
         )
 
         self.cmg_warmup = False
@@ -380,7 +380,6 @@ class CAC(Base):
         losses = []
         actor_losses = []
         value_losses = []
-        l2_losses = []
         entropy_losses = []
 
         clip_fractions = []
@@ -400,10 +399,15 @@ class CAC(Base):
                 ) / mb_advantages.std()
 
                 # 1. Critic Loss (with optional regularization)
-                value_loss, l2_loss = self.critic_loss(mb_states, mb_returns)
+                value_loss = self.critic_loss(mb_states, mb_returns)
+                critic_loss = 0.5 * value_loss
+
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                self.critic_optimizer.step()
+
                 # Track value loss for logging
                 value_losses.append(value_loss.item())
-                l2_losses.append(l2_loss.item())
 
                 # 2. actor Loss
                 actor_loss, entropy_loss, clip_fraction, kl_div = self.actor_loss(
@@ -420,11 +424,11 @@ class CAC(Base):
                     break
 
                 # Total loss
-                loss = actor_loss - entropy_loss + 0.5 * value_loss + l2_loss
+                loss = actor_loss - entropy_loss
                 losses.append(loss.item())
 
                 # Update parameters
-                self.ppo_optimizer.zero_grad()
+                self.actor_optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=0.5)
                 grad_dict = self.compute_gradient_norm(
@@ -434,7 +438,7 @@ class CAC(Base):
                     device=self.device,
                 )
                 grad_dicts.append(grad_dict)
-                self.ppo_optimizer.step()
+                self.actor_optimizer.step()
 
             if kl_div.item() > self.target_kl:
                 break
@@ -444,19 +448,18 @@ class CAC(Base):
             f"{self.name}/loss/loss": np.mean(losses),
             f"{self.name}/loss/actor_loss": np.mean(actor_losses),
             f"{self.name}/loss/value_loss": np.mean(value_losses),
-            f"{self.name}/loss/l2_loss": np.mean(l2_losses),
             f"{self.name}/loss/entropy_loss": np.mean(entropy_losses),
             f"{self.name}/analytics/clip_fraction": np.mean(clip_fractions),
             f"{self.name}/analytics/klDivergence": target_kl[-1],
             f"{self.name}/analytics/K-epoch": k + 1,
             f"{self.name}/analytics/avg_rewards": torch.mean(original_rewards).item(),
             f"{self.name}/analytics/corrected_avg_rewards": torch.mean(rewards).item(),
-            f"{self.name}/learning_rate/actor_lr": self.ppo_optimizer.param_groups[0][
+            f"{self.name}/learning_rate/actor_lr": self.actor_optimizer.param_groups[0][
                 "lr"
             ],
-            f"{self.name}/learning_rate/critic_lr": self.ppo_optimizer.param_groups[1][
-                "lr"
-            ],
+            f"{self.name}/learning_rate/critic_lr": self.critic_optimizer.param_groups[
+                0
+            ]["lr"],
         }
         grad_dict = self.average_dict_values(grad_dicts)
         norm_dict = self.compute_weight_norm(
@@ -511,8 +514,5 @@ class CAC(Base):
     def critic_loss(self, mb_states: torch.Tensor, mb_returns: torch.Tensor):
         mb_values = self.critic(mb_states)
         value_loss = self.mse_loss(mb_values, mb_returns)
-        l2_loss = (
-            sum(param.pow(2).sum() for param in self.critic.parameters()) * self.l2_reg
-        )
 
-        return value_loss, l2_loss
+        return value_loss
