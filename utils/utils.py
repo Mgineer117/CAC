@@ -37,7 +37,7 @@ def call_env(args):
     return env
 
 
-def get_policy(env, args, Dynamic_func=None):
+def get_policy(env, eval_env, args, Dynamic_func=None):
     algo_name = args.algo_name
 
     # this was not discussed in paper nut implemented by c3m author
@@ -173,17 +173,30 @@ def get_policy(env, args, Dynamic_func=None):
         )
 
         if Dynamic_func is not None:
-            data_used_for_dynamics = env.get_rollout(args.dynamics_buffer_size)
             env.replace_dynamics(Dynamic_func)
             get_f_and_B = Dynamic_func
-            print(
-                "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
-            )
-            data = env.get_rollout(args.c3m_buffer_size)
-            data.update(data_used_for_dynamics)
         else:
             get_f_and_B = env.get_f_and_B
-            data = env.get_rollout(args.c3m_buffer_size)
+
+        print(
+            "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
+        )
+        data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
+
+        # if Dynamic_func is not None:
+        #     data_used_for_dynamics = env.get_rollout(
+        #         args.dynamics_buffer_size, mode="dynamics"
+        #     )
+        #     env.replace_dynamics(Dynamic_func)
+        #     get_f_and_B = Dynamic_func
+        #     print(
+        #         "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
+        #     )
+        #     data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
+        #     data.update(data_used_for_dynamics)
+        # else:
+        #     get_f_and_B = env.get_f_and_B
+        #     data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
 
         policy = C3M(
             x_dim=env.num_dim_x,
@@ -254,14 +267,15 @@ def get_policy(env, args, Dynamic_func=None):
             get_f_and_B = env.get_f_and_B
 
         print(
-            "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
+            "[INFO] Collecting data for CMG training. (May take upto few minutes when using learned dynamics model-based simulator.)"
         )
-        data = env.get_rollout(args.c3m_buffer_size)
+        data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         policy = CAC(
             x_dim=env.num_dim_x,
             effective_indices=effective_indices,
             W_func=W_func,
             get_f_and_B=get_f_and_B,
+            true_get_f_and_B=eval_env.get_f_and_B,
             data=data,
             actor=actor,
             critic=critic,

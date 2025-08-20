@@ -21,6 +21,7 @@ class CAC(Base):
         effective_indices: list,
         W_func: nn.Module,
         get_f_and_B: Callable,
+        true_get_f_and_B: Callable,
         actor: nn.Module,
         critic: nn.Module,
         data: dict,
@@ -78,6 +79,7 @@ class CAC(Base):
         if isinstance(self.get_f_and_B, nn.Module):
             # set to eval mode due to dropout
             self.get_f_and_B.eval()
+        self.true_get_f_and_B = true_get_f_and_B
 
         self.nupdates = nupdates
         self.num_ppo_update = 0
@@ -130,7 +132,7 @@ class CAC(Base):
         }
 
     def learn(self, batch):
-        detach = True if self.num_ppo_update < int(0.5 * self.nupdates) else False
+        detach = True if self.num_ppo_update < int(0.25 * self.nupdates) else False
 
         loss_dict, update_time = {}, 0
         for _ in range(3):
@@ -144,7 +146,7 @@ class CAC(Base):
         update_time += ppo_update_time
 
         self.W_lr_scheduler.step()
-        # self.ppo_lr_scheduler.step()
+        self.ppo_lr_scheduler.step()
 
         self.num_ppo_update += 1
 
@@ -207,6 +209,18 @@ class CAC(Base):
 
         dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
         dot_M = self.weighted_gradients(M, dot_x, x, detach)
+
+        #
+        with torch.no_grad():
+            f_eval, B_eval, _ = self.true_get_f_and_B(x)
+            f_eval = f_eval.to(self._dtype).to(self.device)  # n, x_dim
+            B_eval = B_eval.to(self._dtype).to(self.device)  # n,
+            dot_x_eval = f_eval + matmul(B_eval, u.unsqueeze(-1)).squeeze(-1)
+
+            # find error between dot_x and dot_x_eval
+            evaluation_error = F.l1_loss(dot_x, dot_x_eval)
+
+        #
 
         # contraction condition
         if detach:
@@ -295,6 +309,7 @@ class CAC(Base):
 
         # Logging
         loss_dict = {
+            f"{self.name}/loss/x_dot_error": evaluation_error.item(),
             f"{self.name}/W_loss/loss": loss.item(),
             f"{self.name}/W_loss/pd_loss": pd_loss.item(),
             f"{self.name}/W_loss/c1_loss": c1_loss.item(),
@@ -423,8 +438,6 @@ class CAC(Base):
 
             if kl_div.item() > self.target_kl:
                 break
-
-        self.ppo_lr_scheduler.step()
 
         # Logging
         loss_dict = {

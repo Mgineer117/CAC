@@ -49,7 +49,8 @@ class DynamicLearner(Base):
             x_dim,
             hidden_dim,
             x_dim * action_dim,
-            activation=self.activation,
+            # activation=self.activation,
+            activation=nn.ReLU(),
             dropout_rate=drop_out,
         )
 
@@ -102,9 +103,9 @@ class DynamicLearner(Base):
         u = self.to_tensor(batch["u"])
         x_dot = self.to_tensor(batch["x_dot"])
 
-        x_eval = self.to_tensor(batch["x_eval"])
-        u_eval = self.to_tensor(batch["u_eval"])
-        x_dot_eval = self.to_tensor(batch["x_dot_eval"])
+        # x_eval = self.to_tensor(val_batch["x"])
+        # u_eval = self.to_tensor(val_batch["u"])
+        # x_dot_eval = self.to_tensor(val_batch["x_dot"])
 
         n = x.shape[0]
 
@@ -113,18 +114,18 @@ class DynamicLearner(Base):
             n, self.x_dim, self.action_dim
         )  # Reshape output into dynamics matrix
 
-        f_eval_approx = self.f(x_eval)  # Compute bias term
-        B_eval_approx = self.B(x_eval).reshape(
-            n, self.x_dim, self.action_dim
-        )  # Reshape output into dynamics matrix
+        # f_eval_approx = self.f(x_eval)  # Compute bias term
+        # B_eval_approx = self.B(x_eval).reshape(
+        #     n, self.x_dim, self.action_dim
+        # )  # Reshape output into dynamics matrix
 
         x_dot_approx = f_approx + matmul(B_approx, u.unsqueeze(-1)).squeeze(-1)
-        x_dot_eval_approx = f_eval_approx + matmul(
-            B_eval_approx, u_eval.unsqueeze(-1)
-        ).squeeze(-1)
+        # x_dot_eval_approx = f_eval_approx + matmul(
+        #     B_eval_approx, u_eval.unsqueeze(-1)
+        # ).squeeze(-1)
 
         loss = F.mse_loss(x_dot, x_dot_approx)
-        evaluation_error = F.l1_loss(x_dot_eval, x_dot_eval_approx)
+        # evaluation_error = F.l1_loss(x_dot_eval, x_dot_eval_approx)
 
         self.Dynamic_optimizer.zero_grad()
         loss.backward()
@@ -134,7 +135,7 @@ class DynamicLearner(Base):
 
         loss_dict = {
             f"{self.name}/Dynamic_loss/loss": loss.item(),
-            f"{self.name}/Dynamic_loss/evaluation_error": evaluation_error.item(),
+            # f"{self.name}/Dynamic_loss/evaluation_error": evaluation_error.item(),
             f"{self.name}/learning_rate/D_lr": self.Dynamic_optimizer.param_groups[0][
                 "lr"
             ],

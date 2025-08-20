@@ -61,7 +61,7 @@ def run(args, seed, unique_id, exp_time):
         init_epochs = 0
         Dynamic_func = None
 
-    policy = get_policy(env, args, Dynamic_func)
+    policy = get_policy(env, eval_env, args, Dynamic_func)
 
     sampler = OnlineSampler(
         state_dim=args.state_dim,

@@ -54,7 +54,7 @@ class C3MTrainer:
         self.epochs = epochs
 
         self.log_interval = log_interval
-        self.eval_interval = int((epochs + init_epochs) / self.log_interval)
+        self.eval_interval = int(epochs / self.log_interval)
 
         # initialize the essential training components
         self.last_min_auc_mean = 1e10
@@ -72,7 +72,7 @@ class C3MTrainer:
 
         # Train loop
         batch_size = 1024
-        eval_idx = self.init_epochs // self.eval_interval
+        eval_idx = 0
         self.policy.train()
         with tqdm(
             initial=self.init_epochs,
@@ -95,7 +95,7 @@ class C3MTrainer:
                 self.write_log(loss_dict, step=logging_step)
 
                 #### EVALUATIONS ####
-                if step >= self.eval_interval * eval_idx:
+                if step >= (self.eval_interval * eval_idx + self.init_epochs):
                     ### Eval Loop
                     self.policy.eval()
                     eval_idx += 1
@@ -370,7 +370,7 @@ class DynamicsTrainer:
         start_time = time.time()
 
         # Train loop
-        data = self.env.get_rollout(self.buffer_size)
+        data = self.env.get_rollout(self.buffer_size, mode="dynamics")
         self.Dynamic_func.train()
         with tqdm(
             total=self.epochs, desc=f"{self.Dynamic_func.name} Training (Epochs)"

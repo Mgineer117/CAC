@@ -426,65 +426,94 @@ class QuadRotorEnv(gym.Env):
     def render(self, mode="human"):
         pass
 
-    def get_rollout(self, buffer_size: int):
+    def get_rollout(self, buffer_size: int, mode: str):
         """
         Mode: Specifies whether the rollout is for training or evaluation.
             - Offline: fully offline case where we use reference control to generate data.
         """
-        data = dict(
-            x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-            u=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
-            x_dot=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-            x_dot_true=np.full(
-                ((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32
-            ),
-            xref=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-            uref=np.full((buffer_size, self.num_dim_control), np.nan, dtype=np.float32),
-        )
+        if mode == "c3m":
+            c3m_data = dict(
+                x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+                xref=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+                uref=np.full(
+                    (buffer_size, self.num_dim_control), np.nan, dtype=np.float32
+                ),
+            )
 
-        num_samples = 0
-        with tqdm(total=buffer_size, desc="Collecting samples", unit="samples") as pbar:
-            while num_samples < buffer_size:
-                _, x, u, x_dot, xref, uref, episode_len = self.system_reset()
-                episode_len += 1
+            num_samples = 0
+            with tqdm(
+                total=buffer_size, desc="Collecting samples", unit="samples"
+            ) as pbar:
+                while num_samples < buffer_size:
+                    _, x, u, x_dot, xref, uref, episode_len = self.system_reset()
+                    episode_len += 1
 
-                start_idx = num_samples
-                end_idx = np.clip(start_idx + episode_len, 0, buffer_size)
+                    start_idx = num_samples
+                    end_idx = np.clip(start_idx + episode_len, 0, buffer_size)
 
-                # data["x"][start_idx:end_idx] = x[: end_idx - start_idx]
-                # data["u"][start_idx:end_idx] = u[: end_idx - start_idx]
-                # data["x_dot"][start_idx:end_idx] = x_dot[: end_idx - start_idx]
-                data["xref"][start_idx:end_idx] = xref[: end_idx - start_idx]
-                data["uref"][start_idx:end_idx] = uref[: end_idx - start_idx]
+                    # === DATA FOR C3M === #
+                    c3m_data["x"][start_idx:end_idx] = x[: end_idx - start_idx]
+                    c3m_data["xref"][start_idx:end_idx] = xref[: end_idx - start_idx]
+                    c3m_data["uref"][start_idx:end_idx] = uref[: end_idx - start_idx]
 
-                added_samples = end_idx - start_idx
-                num_samples += added_samples
-                pbar.update(added_samples)  # Update progress bar
+                    added_samples = end_idx - start_idx
+                    num_samples += added_samples
+                    pbar.update(added_samples)  # Update progress bar
 
-        # eval data
-        x_eval = np.random.uniform(
-            low=X_MIN.flatten(),
-            high=X_MAX.flatten(),
-            size=(buffer_size, len(X_MAX.flatten())),
-        )
-        u_eval = np.random.uniform(
-            low=UREF_MIN.flatten(),
-            high=UREF_MAX.flatten(),
-            size=(buffer_size, len(UREF_MAX.flatten())),
-        )
-        f_x, B_x, _ = self.get_f_and_B(x_eval)
-        x_dot_eval = f_x + np.matmul(B_x, u_eval[:, :, np.newaxis]).squeeze()
+            # Check for NaNs
+            if np.any(np.isnan(c3m_data["x"])):
+                print("NaN values found in x")
 
-        data["x_eval"] = x_eval
-        data["u_eval"] = u_eval
-        data["x_dot_eval"] = x_dot_eval
+            return c3m_data
 
-        data["x"] = x_eval
-        data["u"] = u_eval
-        data["x_dot"] = x_dot_eval
+        else:
+            dynamics_data = dict(
+                x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
+                u=np.full(
+                    ((buffer_size, self.num_dim_control)), np.nan, dtype=np.float32
+                ),
+                x_dot=np.full((buffer_size, self.num_dim_x), np.nan, dtype=np.float32),
+            )
 
-        # Check for NaNs
-        if np.any(np.isnan(data["x"])):
-            print("NaN values found in x")
+            # === DATA FOR DYNAMICS LEARNING === #
+            # sample_mode = "Gaussian"
+            sample_mode = "Uniform"
+            if sample_mode == "Gaussian":
+                # Compute mean and std for Gaussian distribution
+                x_mean = (X_MAX.flatten() + X_MIN.flatten()) / 2.0
+                x_std = (X_MAX.flatten() - X_MIN.flatten()) / 6.0  # 3σ covers range
 
-        return data
+                u_mean = (UREF_MAX.flatten() + UREF_MIN.flatten()) / 2.0
+                u_std = (UREF_MAX.flatten() - UREF_MIN.flatten()) / 6.0
+
+                # Sample Gaussian-distributed data
+                x = np.random.normal(
+                    loc=x_mean,
+                    scale=x_std,
+                    size=(buffer_size, len(x_mean)),
+                )
+
+                u = np.random.normal(
+                    loc=u_mean,
+                    scale=u_std,
+                    size=(buffer_size, len(u_mean)),
+                )
+            else:
+                x = np.random.uniform(
+                    low=X_MIN.flatten(),
+                    high=X_MAX.flatten(),
+                    size=(buffer_size, len(X_MAX.flatten())),
+                )
+                u = np.random.uniform(
+                    low=UREF_MIN.flatten(),
+                    high=UREF_MAX.flatten(),
+                    size=(buffer_size, len(UREF_MAX.flatten())),
+                )
+            f_x, B_x, _ = self.get_f_and_B(x)
+            x_dot = f_x + np.matmul(B_x, u[:, :, np.newaxis]).squeeze()
+
+            dynamics_data["x"] = x
+            dynamics_data["u"] = u
+            dynamics_data["x_dot"] = x_dot
+
+            return dynamics_data
