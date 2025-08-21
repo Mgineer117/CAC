@@ -115,19 +115,14 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
 
         nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
-        actor = PPO_Actor(
-            args.state_dim,
-            hidden_dim=args.actor_dim,
-            a_dim=args.action_dim,
+        actor = C3M_U_Gaussian(
+            x_dim=env.num_dim_x,
+            state_dim=args.state_dim,
+            effective_indices=effective_indices,
+            action_dim=args.action_dim,
+            task=args.task,
         )
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
-
-        if algo_name == "ppo-approx":
-            if Dynamic_func is not None:
-                env.replace_dynamics(Dynamic_func)
-            else:
-                # assert dynamic func should not be None
-                assert Dynamic_func is not None
 
         policy = PPO(
             x_dim=env.num_dim_x,
@@ -173,31 +168,11 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
         )
 
         if Dynamic_func is not None:
-            env.replace_dynamics(Dynamic_func)
             get_f_and_B = Dynamic_func
         else:
             get_f_and_B = env.get_f_and_B
 
-        print(
-            "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
-        )
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-
-        # if Dynamic_func is not None:
-        #     data_used_for_dynamics = env.get_rollout(
-        #         args.dynamics_buffer_size, mode="dynamics"
-        #     )
-        #     env.replace_dynamics(Dynamic_func)
-        #     get_f_and_B = Dynamic_func
-        #     print(
-        #         "[INFO] Collecting data for C3M training. (May take upto few minutes when using learned dynamics model-based simulator.)"
-        #     )
-        #     data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        #     data.update(data_used_for_dynamics)
-        # else:
-        #     get_f_and_B = env.get_f_and_B
-        #     data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-
         policy = C3M(
             x_dim=env.num_dim_x,
             effective_indices=effective_indices,
@@ -232,43 +207,21 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
             device=args.device,
         )
 
-        # W_func = C3M_W(
-        #     x_dim=env.num_dim_x,
-        #     state_dim=args.state_dim,
-        #     effective_indices=effective_indices,
-        #     action_dim=args.action_dim,
-        #     w_lb=args.w_lb,
-        #     task=args.task,
-        #     hidden_dim=[128, 128],
-        #     activation=nn.Tanh(),
-        #     device=args.device,
-        # )
-
-        actor = PPO_Actor(
-            args.state_dim,
-            hidden_dim=args.actor_dim,
-            a_dim=args.action_dim,
+        actor = C3M_U_Gaussian(
+            x_dim=env.num_dim_x,
+            state_dim=args.state_dim,
+            effective_indices=effective_indices,
+            action_dim=args.action_dim,
+            task=args.task,
         )
-
-        # actor = C3M_U_Gaussian(
-        #     x_dim=env.num_dim_x,
-        #     state_dim=args.state_dim,
-        #     effective_indices=effective_indices,
-        #     action_dim=args.action_dim,
-        #     task=args.task,
-        # )
 
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
         if Dynamic_func is not None:
-            env.replace_dynamics(Dynamic_func)
             get_f_and_B = Dynamic_func
         else:
             get_f_and_B = env.get_f_and_B
 
-        print(
-            "[INFO] Collecting data for CMG training. (May take upto few minutes when using learned dynamics model-based simulator.)"
-        )
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         policy = CAC(
             x_dim=env.num_dim_x,

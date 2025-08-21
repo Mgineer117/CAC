@@ -272,24 +272,14 @@ class CAC(Base):
         mean_penalty = torch.exp(-rewards.mean())
         mean_entropy = infos["entropy"].mean()
 
-        # prioritize the constraints than contraction
-        # We use this as per our method to reduce
-        # the complexity of bi-level optimization of RL
-        # weights = [0.05, 0.6, 0.3, 0.05]
-        # cmg_loss = (
-        #     weights[0] * pd_loss
-        #     + weights[1] * c1_loss
-        #     + weights[2] * c2_loss
-        #     + weights[3] * overshoot_loss
-        # )
         cmg_loss = pd_loss + c1_loss + c2_loss + overshoot_loss
         entropy_loss = self.W_entropy_scaler * mean_penalty * mean_entropy
 
-        loss = cmg_loss  # - entropy_loss
+        loss = cmg_loss - entropy_loss
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],
