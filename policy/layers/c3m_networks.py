@@ -301,7 +301,7 @@ class C3M_U_Gaussian(nn.Module):
         self.task = task
 
         # Obtain task-specific neural networks that generate weight matrices
-        self.w1, self.w2 = get_u_model(self.task, x_dim, x_dim, self.action_dim)
+        self.w1, self.w2 = get_u_model(self.task, x_dim, self.action_dim)
         self.logstd = nn.Parameter(torch.zeros(1, self.action_dim))
 
     def forward(

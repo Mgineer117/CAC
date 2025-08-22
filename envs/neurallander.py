@@ -145,6 +145,12 @@ class NeuralLanderEnv(gym.Env):
             low=UREF_MIN.flatten(), high=UREF_MAX.flatten(), dtype=np.float64
         )
 
+    def replace_dynamics(self, dynamics_model: nn.Module):
+        print("[INFO] The environment is now using learned dynamics for transition.")
+        self.learned_dynamics_model = deepcopy(dynamics_model).cpu()
+        self.learned_dynamics_model.device = torch.device("cpu")
+        self.use_learned_dynamics = True
+
     def f_func(self, x: torch.Tensor):
         if isinstance(x, torch.Tensor):
             if len(x.shape) == 1:
@@ -242,10 +248,19 @@ class NeuralLanderEnv(gym.Env):
             return np.repeat(Bbot[np.newaxis, :, :], n, axis=0).squeeze()
 
     def get_f_and_B(self, x: torch.Tensor | np.ndarray):
-        if self.Bbot_func is None:
-            return self.f_func(x), self.B_func(x), self.B_null(x)
+        if self.use_learned_dynamics:
+            with torch.no_grad():
+                f_x, B_x, Bbot_x = self.learned_dynamics_model(x)
+            return (
+                f_x.cpu().squeeze(0).numpy(),
+                B_x.cpu().squeeze(0).numpy(),
+                Bbot_x.cpu().squeeze(0).numpy(),
+            )
         else:
-            return self.f_func(x), self.B_func(x), self.Bbot_func(x)
+            if self.Bbot_func is None:
+                return self.f_func(x), self.B_func(x), self.B_null(x)
+            else:
+                return self.f_func(x), self.B_func(x), self.Bbot_func(x)
 
     def system_reset(self):
         # with temp_seed(int(seed)):

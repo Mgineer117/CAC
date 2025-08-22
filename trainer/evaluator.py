@@ -36,6 +36,7 @@ class Evaluator:
         policy: Base,
         logger: WandbLogger,
         writer: SummaryWriter,
+        timesteps: int,
         init_epochs: int = 0,
         eval_epochs: int = 10,
         eval_num: int = 10,
@@ -51,6 +52,7 @@ class Evaluator:
         self.writer = writer
 
         # training parameters
+        self.timesteps = timesteps
         self.init_epochs = init_epochs
         self.eval_epochs = eval_epochs
 
@@ -60,6 +62,8 @@ class Evaluator:
         start_time = time.time()
 
         # Train loop
+        eval_idx = 1
+        eval_interval = self.timesteps / self.eval_epochs
         self.policy.eval()
         with tqdm(
             initial=self.init_epochs,
@@ -67,7 +71,7 @@ class Evaluator:
             desc=f"{self.policy.name} Evaluation",
         ) as pbar:
             while pbar.n < (self.init_epochs + self.eval_epochs):
-                step = pbar.n + 1  # + 1 to avoid zero division
+                logging_step = int(eval_interval * eval_idx)
 
                 eval_dict_list = []
                 for i in range(self.eval_num):
@@ -77,16 +81,17 @@ class Evaluator:
                 eval_dict = self.average_dict_values(eval_dict_list)
 
                 # Manual logging
-                self.write_log(eval_dict, step=step, eval_log=True)
+                self.write_log(eval_dict, step=logging_step, eval_log=True)
                 self.write_image(
                     traj_plot,
-                    step=step,
+                    step=logging_step,
                     logdir=f"eval",
                     name="traj_plot",
                 )
 
                 # Calculate expected remaining time
                 pbar.update(1)
+                eval_idx += 1
 
             torch.cuda.empty_cache()
 

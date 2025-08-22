@@ -42,12 +42,12 @@ def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
 
     # this was not discussed in paper nut implemented by c3m author
     if Dynamic_func is not None:
+        # env.replace_dynamics(Dynamic_func)
         get_f_and_B = Dynamic_func
     else:
         get_f_and_B = env.get_f_and_B
 
     if algo_name in ("lqr", "lqr-approx", "sd-lqr"):
-        from policy.layers.dynamic_networks import DynamicLearner
         from policy.lqr import LQR
         from policy.sd_lqr import SD_LQR
 
@@ -108,7 +108,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
     elif algo_name in ("c3m", "c3m-approx"):
         from policy.c3m import C3M
         from policy.layers.c3m_networks import C3M_U, C3M_W
-        from policy.layers.dynamic_networks import DynamicLearner
 
         W_func = C3M_W(
             x_dim=env.num_dim_x,
@@ -126,11 +125,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
             action_dim=args.action_dim,
             task=args.task,
         )
-
-        if Dynamic_func is not None:
-            get_f_and_B = Dynamic_func
-        else:
-            get_f_and_B = env.get_f_and_B
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         policy = C3M(
@@ -152,7 +146,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
     elif algo_name in ("cac", "cac-approx"):
         from policy.cac import CAC
         from policy.layers.c3m_networks import C3M_W, C3M_U_Gaussian, C3M_W_Gaussian
-        from policy.layers.dynamic_networks import DynamicLearner
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 
         nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
@@ -174,11 +167,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
         )
 
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
-
-        if Dynamic_func is not None:
-            get_f_and_B = Dynamic_func
-        else:
-            get_f_and_B = env.get_f_and_B
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         policy = CAC(
