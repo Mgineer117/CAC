@@ -23,7 +23,6 @@ class PPO(Base):
     def __init__(
         self,
         x_dim: int,
-        effective_indices: list,
         actor: nn.Module,
         critic: nn.Module,
         actor_lr: float = 3e-4,
@@ -48,8 +47,6 @@ class PPO(Base):
 
         self.x_dim = x_dim
         self.action_dim = actor.action_dim
-        self.effective_x_dim = len(effective_indices)
-        self.effective_indices = effective_indices
 
         self.num_minibatch = num_minibatch
         self.minibatch_size = minibatch_size

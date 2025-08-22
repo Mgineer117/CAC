@@ -18,7 +18,6 @@ class CAC(Base):
     def __init__(
         self,
         x_dim: int,
-        effective_indices: list,
         W_func: nn.Module,
         get_f_and_B: Callable,
         true_get_f_and_B: Callable,
@@ -54,8 +53,6 @@ class CAC(Base):
 
         self.x_dim = x_dim
         self.action_dim = actor.action_dim
-        self.effective_x_dim = len(effective_indices)
-        self.effective_indices = effective_indices
 
         self.data = data
         self.buffer_size = data["x"].shape[0]

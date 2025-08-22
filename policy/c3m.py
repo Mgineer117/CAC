@@ -17,7 +17,6 @@ class C3M(Base):
     def __init__(
         self,
         x_dim: int,
-        effective_indices: list,
         action_dim: int,
         W_func: nn.Module,
         u_func: nn.Module,
@@ -40,8 +39,6 @@ class C3M(Base):
         self.device = device
 
         self.x_dim = x_dim
-        self.effective_x_dim = len(effective_indices)
-        self.effective_indices = effective_indices
         self.action_dim = action_dim
 
         self.num_minibatch = num_minibatch
