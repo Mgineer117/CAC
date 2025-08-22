@@ -33,10 +33,15 @@ def run(args, seed, unique_id, exp_time):
     eval_env = call_env(args)
     logger, writer = setup_logger(args, unique_id, exp_time, seed)
 
-    if args.algo_name in ["cac-approx", "c3m-approx", "ppo-approx", "sd-lqr"]:
+    if args.algo_name in [
+        "cac-approx",
+        "c3m-approx",
+        "sd-lqr",
+        "lqr-approx",
+    ]:
         from policy.layers.dynamic_networks import DynamicLearner
 
-        print("[INFO] Using Dynamic Learner for dynamics approximation.")
+        print("[INFO] Learning a dynamics approximator.")
         # learn dynamics
         Dynamic_func = DynamicLearner(
             x_dim=env.num_dim_x,
@@ -61,7 +66,36 @@ def run(args, seed, unique_id, exp_time):
         init_epochs = 0
         Dynamic_func = None
 
-    policy = get_policy(env, eval_env, args, Dynamic_func)
+    if args.algo_name == "sd-lqr":
+        from policy.layers.sd_lqr_networks import SDCLearner
+        from trainer.offline_trainer import SDCTrainer
+
+        SDC_func = SDCLearner(
+            x_dim=env.num_dim_x,
+            a_dim=args.action_dim,
+            hidden_dim=args.SDCLearner_dim,
+            get_f_and_B=Dynamic_func,
+            nupdates=args.sdc_epochs,
+            device=args.device,
+        )
+
+        SDC_trainer = SDCTrainer(
+            env=env,
+            SDC_func=SDC_func,
+            logger=logger,
+            writer=writer,
+            buffer_size=args.sdc_buffer_size,
+            init_epochs=init_epochs,
+            epochs=args.sdc_epochs,
+        )
+        print("[INFO] Learning the SDC decomposition network.")
+        SDC_trainer.train()
+        init_epochs = init_epochs + args.sdc_epochs
+    else:
+        init_epochs = init_epochs
+        SDC_func = None
+
+    policy = get_policy(env, eval_env, args, Dynamic_func, SDC_func)
 
     sampler = OnlineSampler(
         state_dim=args.state_dim,
@@ -85,7 +119,8 @@ def run(args, seed, unique_id, exp_time):
             eval_episodes=args.eval_episodes,
             seed=args.seed,
         )
-    else:
+        trainer.train()
+    elif args.algo_name in ["c3m", "c3m-approx"]:
         trainer = C3MTrainer(
             env=env,
             eval_env=eval_env,
@@ -99,8 +134,22 @@ def run(args, seed, unique_id, exp_time):
             eval_episodes=args.eval_episodes,
             seed=args.seed,
         )
+        trainer.train()
+    else:
+        from trainer.evaluator import Evaluator
 
-    trainer.train()
+        evaluator = Evaluator(
+            eval_env=eval_env,
+            policy=policy,
+            logger=logger,
+            writer=writer,
+            init_epochs=init_epochs,
+            eval_num=args.eval_num,
+            eval_episodes=args.eval_episodes,
+            seed=args.seed,
+        )
+        evaluator.begin_evaluate()
+
     wandb.finish()
 
 

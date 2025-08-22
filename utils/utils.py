@@ -37,78 +37,42 @@ def call_env(args):
     return env
 
 
-def get_policy(env, eval_env, args, Dynamic_func=None):
+def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
     algo_name = args.algo_name
 
     # this was not discussed in paper nut implemented by c3m author
-    effective_indices = env.effective_indices
+    if Dynamic_func is not None:
+        get_f_and_B = Dynamic_func
+    else:
+        get_f_and_B = env.get_f_and_B
 
     if algo_name in ("lqr", "lqr-approx", "sd-lqr"):
         from policy.layers.dynamic_networks import DynamicLearner
-        from policy.layers.sd_lqr_networks import SDCLearner
-        from policy.lqr import LQR, LQR_Approximation
+        from policy.lqr import LQR
         from policy.sd_lqr import SD_LQR
 
         nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
-        if algo_name == "lqr":
+        if algo_name in ("lqr", "lqr-approx"):
             policy = LQR(
                 x_dim=env.num_dim_x,
-                effective_indices=effective_indices,
                 action_dim=args.action_dim,
-                f_func=env.f_func,
-                B_func=env.B_func,
-                Bbot_func=env.Bbot_func,
+                get_f_and_B=get_f_and_B,
                 num_minibatch=args.num_minibatch,
                 minibatch_size=args.minibatch_size,
                 nupdates=nupdates,
-            )
-        elif algo_name == "lqr-approx":
-            Dynamic_func = DynamicLearner(
-                x_dim=env.num_dim_x,
-                action_dim=args.action_dim,
-                hidden_dim=args.DynamicLearner_dim,
-                drop_out=0.2,
-            )
-            policy = LQR_Approximation(
-                x_dim=env.num_dim_x,
-                effective_indices=effective_indices,
-                action_dim=args.action_dim,
-                Dynamic_func=Dynamic_func,
-                Dynamic_lr=args.Dynamic_lr,
-                f_func=env.f_func,
-                B_func=env.B_func,
-                Bbot_func=env.Bbot_func,
-                num_minibatch=args.num_minibatch,
-                minibatch_size=args.minibatch_size,
-                nupdates=nupdates,
-                dt=env.dt,
             )
         elif algo_name == "sd-lqr":
-            SDC_func = SDCLearner(
-                x_dim=env.num_dim_x,
-                a_dim=args.action_dim,
-                hidden_dim=args.SDCLearner_dim,
-            )
-
             policy = SD_LQR(
                 x_dim=env.num_dim_x,
-                effective_indices=effective_indices,
                 action_dim=args.action_dim,
-                Dynamic_func=Dynamic_func,
+                get_f_and_B=get_f_and_B,
                 SDC_func=SDC_func,
-                Dynamic_lr=args.Dynamic_lr,
-                SDC_lr=args.SDC_lr,
-                f_func=env.f_func,
-                B_func=env.B_func,
-                Bbot_func=env.Bbot_func,
                 num_minibatch=args.num_minibatch,
                 minibatch_size=args.minibatch_size,
-                nupdates=nupdates,
-                dt=env.dt,
             )
 
-    elif algo_name in ("ppo", "ppo-approx"):
+    elif algo_name == "ppo":
         from policy.layers.c3m_networks import C3M_U_Gaussian
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
         from policy.ppo import PPO
@@ -118,7 +82,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
         actor = C3M_U_Gaussian(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
-            effective_indices=effective_indices,
             action_dim=args.action_dim,
             task=args.task,
         )
@@ -126,7 +89,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
 
         policy = PPO(
             x_dim=env.num_dim_x,
-            effective_indices=effective_indices,
             actor=actor,
             critic=critic,
             actor_lr=args.actor_lr,
@@ -151,7 +113,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
         W_func = C3M_W(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
-            effective_indices=effective_indices,
             action_dim=args.action_dim,
             w_lb=args.w_lb,
             task=args.task,
@@ -162,7 +123,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
         u_func = C3M_U(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
-            effective_indices=effective_indices,
             action_dim=args.action_dim,
             task=args.task,
         )
@@ -175,7 +135,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         policy = C3M(
             x_dim=env.num_dim_x,
-            effective_indices=effective_indices,
             action_dim=args.action_dim,
             W_func=W_func,
             u_func=u_func,
@@ -210,7 +169,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
         actor = C3M_U_Gaussian(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
-            effective_indices=effective_indices,
             action_dim=args.action_dim,
             task=args.task,
         )
@@ -225,7 +183,6 @@ def get_policy(env, eval_env, args, Dynamic_func=None):
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         policy = CAC(
             x_dim=env.num_dim_x,
-            effective_indices=effective_indices,
             W_func=W_func,
             get_f_and_B=get_f_and_B,
             true_get_f_and_B=eval_env.get_f_and_B,

@@ -103,6 +103,12 @@ def get_args():
         help="Number of training samples.",
     )
     parser.add_argument(
+        "--sdc-epochs",
+        type=int,
+        default=2000,
+        help="Number of training samples.",
+    )
+    parser.add_argument(
         "--timesteps", type=int, default=None, help="Number of training samples."
     )
     parser.add_argument(
@@ -131,6 +137,12 @@ def get_args():
         "--dynamics-buffer-size",
         type=int,
         default=2_000,
+        help="Number of mini-batches.",
+    )
+    parser.add_argument(
+        "--sdc-buffer-size",
+        type=int,
+        default=100_000,
         help="Number of mini-batches.",
     )
     parser.add_argument(

@@ -109,8 +109,6 @@ class Base(nn.Module):
         x = state[:, : self.x_dim].requires_grad_()
         xref = state[:, self.x_dim : 2 * self.x_dim].requires_grad_()
         uref = state[:, -self.action_dim :].requires_grad_()
-        # xref = state[:, self.x_dim : -self.action_dim].requires_grad_()
-        # uref = state[:, -self.action_dim :].requires_grad_()
 
         return x, xref, uref
 

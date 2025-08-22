@@ -155,7 +155,6 @@ class C3M_W(nn.Module):
     Attributes:
         x_dim (int): Total state dimension.
         state_dim (int): Dimension of the full state input.
-        effective_indices (list): Indices of state components used for trimmed representation.
         action_dim (int): Dimension of action/control vector.
         w_lb (float): Lower bound value added to ensure positive definiteness of W.
         task (str): Identifier for the task (e.g., car, quadrotor).
@@ -168,7 +167,6 @@ class C3M_W(nn.Module):
         self,
         x_dim: int,
         state_dim: int,
-        effective_indices: list,
         action_dim: int,
         w_lb: float,
         task: str,
@@ -180,8 +178,6 @@ class C3M_W(nn.Module):
 
         self.x_dim = x_dim
         self.state_dim = state_dim
-        self.effective_x_dim = len(effective_indices)
-        self.effective_indices = effective_indices
         self.action_dim = action_dim
         self.device = device
         self.w_lb = w_lb
@@ -212,41 +208,6 @@ class C3M_W(nn.Module):
         """
         n = x.shape[0]
 
-        # if self.task == "car":
-        #     # Generate base matrix W and substitute top-left block with Wbot
-        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
-        #     Wbot = self.model_Wbot(torch.ones(n, 1).to(self.device)).view(
-        #         n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
-        #     )
-        #     W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
-        #     W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
-
-        # elif self.task == "neurallander":
-        #     # Wbot depends on z-dimension (x[:, 2])
-        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
-        #     Wbot = self.model_Wbot(x[:, 2:3]).view(
-        #         n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
-        #     )
-        #     W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
-        #     W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
-
-        # elif self.task in ("pvtol", "turtlebot"):
-        #     # Fully learned W without substitution
-        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
-
-        # elif self.task == "quadrotor":
-        #     # Wbot depends on selected effective input dimensions (excluding action dims)
-        #     W = self.model_W(x_trim).view(n, self.x_dim, self.x_dim)
-        #     input_Wbot = x[:, self.effective_indices[: -self.action_dim]]
-        #     Wbot = self.model_Wbot(input_Wbot).view(
-        #         n, self.x_dim - self.action_dim, self.x_dim - self.action_dim
-        #     )
-        #     W[:, : self.x_dim - self.action_dim, : self.x_dim - self.action_dim] = Wbot
-        #     W[:, self.x_dim - self.action_dim :, : self.x_dim - self.action_dim] = 0
-
-        # else:
-        #     raise NotImplementedError(f"Task '{self.task}' not supported.")
-
         # Ensure W is symmetric and PSD by computing WᵀW
         W = self.model_W(x).view(n, self.x_dim, self.x_dim)
         W = W.transpose(1, 2).matmul(W)
@@ -264,7 +225,7 @@ class C3M_W(nn.Module):
         }
 
 
-def get_u_model(task, x_dim: int, effective_x_dim: int, action_dim: int):
+def get_u_model(task, x_dim: int, action_dim: int):
     """
     Constructs two neural networks (w1 and w2) that generate dynamic weight matrices
     based on the trimmed current and reference states. These networks are task-agnostic
@@ -273,7 +234,6 @@ def get_u_model(task, x_dim: int, effective_x_dim: int, action_dim: int):
     Args:
         task (str): Identifier for the task (currently unused, reserved for future extensions).
         x_dim (int): Full state dimension.
-        effective_x_dim (int): Dimension of trimmed (selected) state used as input.
         action_dim (int): Dimension of the action space.
 
     Returns:
@@ -282,7 +242,7 @@ def get_u_model(task, x_dim: int, effective_x_dim: int, action_dim: int):
         w2 (nn.Sequential): Network mapping input to a flattened tensor of shape (c * action_dim),
                             later reshaped to (action_dim, c) to map the transformed error to control.
     """
-    input_dim = 2 * effective_x_dim  # Concatenated trimmed x and x_ref
+    input_dim = 2 * x_dim  # Concatenated trimmed x and x_ref
     c = 3 * x_dim  # Intermediate dimension multiplier
 
     # First weight generator (for projecting error vector to latent space)
@@ -320,7 +280,6 @@ class C3M_U_Gaussian(nn.Module):
         self,
         x_dim: int,
         state_dim: int,
-        effective_indices: list,
         action_dim: int,
         task: str,
     ):
@@ -330,7 +289,6 @@ class C3M_U_Gaussian(nn.Module):
         Args:
             x_dim (int): Dimension of the state vector x.
             state_dim (int): Total dimension of the combined state vector.
-            effective_indices (list): Indices of x to be used for control (feature selection).
             action_dim (int): Dimension of the control/action vector u.
             task (str): Identifier for the task used to get task-specific model parameters.
         """
@@ -338,9 +296,7 @@ class C3M_U_Gaussian(nn.Module):
 
         self.x_dim = x_dim  # Dimension of state x
         self.state_dim = state_dim  # Total dimension of input state
-        self.effective_x_dim = len(effective_indices)  # Dimension of trimmed state x
         self.action_dim = action_dim  # Dimension of action u
-        self.effective_indices = effective_indices  # Selected indices for trimmed state
 
         self.task = task
 
@@ -362,8 +318,6 @@ class C3M_U_Gaussian(nn.Module):
             x (torch.Tensor): Current state x, shape (batch_size, x_dim)
             xref (torch.Tensor): Reference state x_ref, shape (batch_size, x_dim)
             uref (torch.Tensor): Reference control input u_ref, unused here
-            x_trim (torch.Tensor): Trimmed x based on effective indices
-            xref_trim (torch.Tensor): Trimmed x_ref based on effective indices
             deterministic (bool): Placeholder for compatibility; unused
 
         Returns:
@@ -453,7 +407,6 @@ class C3M_U(nn.Module):
         self,
         x_dim: int,
         state_dim: int,
-        effective_indices: list,
         action_dim: int,
         task: str,
     ):
@@ -463,7 +416,6 @@ class C3M_U(nn.Module):
         Args:
             x_dim (int): Dimension of the state vector x.
             state_dim (int): Total dimension of the combined state vector.
-            effective_indices (list): Indices of x to be used for control (feature selection).
             action_dim (int): Dimension of the control/action vector u.
             task (str): Identifier for the task used to get task-specific model parameters.
         """
@@ -471,14 +423,12 @@ class C3M_U(nn.Module):
 
         self.x_dim = x_dim  # Dimension of state x
         self.state_dim = state_dim  # Total dimension of input state
-        self.effective_x_dim = len(effective_indices)  # Dimension of trimmed state x
         self.action_dim = action_dim  # Dimension of action u
-        self.effective_indices = effective_indices  # Selected indices for trimmed state
 
         self.task = task
 
         # Obtain task-specific neural networks that generate weight matrices
-        self.w1, self.w2 = get_u_model(self.task, x_dim, x_dim, self.action_dim)
+        self.w1, self.w2 = get_u_model(self.task, x_dim, self.action_dim)
         # self.model = MLP(
         #     input_dim=self.state_dim, hidden_dims=[128, 128], output_dim=action_dim
         # )
@@ -497,8 +447,6 @@ class C3M_U(nn.Module):
             x (torch.Tensor): Current state x, shape (batch_size, x_dim)
             xref (torch.Tensor): Reference state x_ref, shape (batch_size, x_dim)
             uref (torch.Tensor): Reference control input u_ref, unused here
-            x_trim (torch.Tensor): Trimmed x based on effective indices
-            xref_trim (torch.Tensor): Trimmed x_ref based on effective indices
             deterministic (bool): Placeholder for compatibility; unused
 
         Returns:
