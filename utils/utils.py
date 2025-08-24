@@ -44,8 +44,6 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         from policy.lqr import LQR
         from policy.sd_lqr import SD_LQR
 
-        nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
-
         if algo_name in ("lqr", "lqr-approx"):
             policy = LQR(
                 x_dim=env.num_dim_x,

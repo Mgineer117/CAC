@@ -114,7 +114,7 @@ def get_args():
     parser.add_argument(
         "--log-interval",
         type=int,
-        default=10,
+        default=50,
         help="Number of evaluation throughout timesteps.",
     )
     parser.add_argument(

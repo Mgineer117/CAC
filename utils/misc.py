@@ -88,7 +88,9 @@ def setup_logger(args, unique_id, exp_time, seed):
 def override_args(init_args):
     # copy args
     args = deepcopy(init_args)
-    file_path = f"config/{args.task}/{args.algo_name}.json"
+    # if -approx then remove it
+    algo_name = args.algo_name.replace("-approx", "")
+    file_path = f"config/{args.task}/{algo_name}.json"
     current_params = load_hyperparams(file_path=file_path)
 
     # use pre-defined params if no pram given as args
