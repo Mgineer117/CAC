@@ -1,4 +1,5 @@
 from copy import deepcopy
+from math import ceil
 
 import gymnasium as gym
 import numpy as np
@@ -392,6 +393,9 @@ class CarEnv(gym.Env):
             )
 
             # === DATA FOR DYNAMICS LEARNING === #
+            n_control_per_x = 3
+            batch_size = ceil(buffer_size / n_control_per_x)
+
             # sample_mode = "Gaussian"
             sample_mode = "Uniform"
             if sample_mode == "Gaussian":
@@ -406,30 +410,41 @@ class CarEnv(gym.Env):
                 x = np.random.normal(
                     loc=x_mean,
                     scale=x_std,
-                    size=(buffer_size, len(x_mean)),
+                    size=(batch_size, len(x_mean)),
                 )
 
                 u = np.random.normal(
                     loc=u_mean,
                     scale=u_std,
-                    size=(buffer_size, len(u_mean)),
+                    size=(batch_size, len(u_mean)),
                 )
             else:
+                # Original sampling
                 x = np.random.uniform(
                     low=X_MIN.flatten(),
                     high=X_MAX.flatten(),
-                    size=(buffer_size, len(X_MAX.flatten())),
+                    size=(batch_size, len(X_MAX.flatten())),
                 )
                 u = np.random.uniform(
                     low=UREF_MIN.flatten(),
                     high=UREF_MAX.flatten(),
-                    size=(buffer_size, len(UREF_MAX.flatten())),
+                    size=(batch_size, len(UREF_MAX.flatten())),
                 )
+
+            # Step 1: Repeat x n_control_per_x times along axis 0
+            x = np.concatenate([x] * n_control_per_x, axis=0)
+
+            # Step 2: Shuffle u independently n_control_per_x times and stack
+            u = np.concatenate(
+                [u[np.random.permutation(len(u))] for _ in range(n_control_per_x)],
+                axis=0,
+            )
+
             f_x, B_x, _ = self.get_f_and_B(x)
             x_dot = f_x + np.matmul(B_x, u[:, :, np.newaxis]).squeeze()
 
-            dynamics_data["x"] = x
-            dynamics_data["u"] = u
-            dynamics_data["x_dot"] = x_dot
+            dynamics_data["x"] = x[:buffer_size].astype(np.float32)
+            dynamics_data["u"] = u[:buffer_size].astype(np.float32)
+            dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
 
             return dynamics_data

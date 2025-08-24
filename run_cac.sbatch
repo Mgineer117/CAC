@@ -21,10 +21,10 @@ source ~/.bashrc
 conda activate cac
 
 # === Run cac_neweriments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project cac_new --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project cac_new --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project cac_new --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project cac_new --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project cac_new --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project cac_new --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project cac_new --algo-name ppo-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project cac_new --algo-name ppo-approx & 
 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project cac_new --algo-name cac-approx & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project cac_new --algo-name cac-approx & 
@@ -41,10 +41,10 @@ CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project cac_new --algo-nam
 CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project cac_new --algo-name lqr-approx & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project cac_new --algo-name lqr-approx & 
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project cac_new --algo-name sd-lqr & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project cac_new --algo-name sd-lqr & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project cac_new --algo-name sd-lqr & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project cac_new --algo-name sd-lqr & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project cac_new --algo-name sd-lqr-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project cac_new --algo-name sd-lqr-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project cac_new --algo-name sd-lqr-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project cac_new --algo-name sd-lqr-approx & 
 
 # === Wait for all background jobs to finish ===
 wait

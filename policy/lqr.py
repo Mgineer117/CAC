@@ -22,9 +22,6 @@ class LQR(Base):
         get_f_and_B: Callable,
         Q_scaler: float = 1.0,
         R_scaler: float = 1.0,
-        num_minibatch: int = 8,
-        minibatch_size: int = 256,
-        nupdates: int = 1,
         device: str = "cpu",
     ):
         super(LQR, self).__init__()
@@ -38,13 +35,6 @@ class LQR(Base):
 
         self.x_dim = x_dim
         self.action_dim = action_dim
-
-        self.num_minibatch = num_minibatch
-        self.minibatch_size = minibatch_size
-
-        self._forward_steps = 0
-        self.nupdates = nupdates
-        self.current_update = 0
 
         self.Q_scaler = Q_scaler
         self.R_scaler = R_scaler
@@ -63,7 +53,6 @@ class LQR(Base):
         state: torch.Tensor,
         deterministic: bool = False,
     ):
-        self._forward_steps += 1
         state = torch.from_numpy(state).to(self._dtype).to(self.device)
         if len(state.shape) == 1:
             state = state.unsqueeze(0)  # shape: (1, state_dim)
@@ -124,13 +113,4 @@ class LQR(Base):
         }
 
     def learn(self, batch):
-        """Performs a single training step using PPO, incorporating all reference training steps."""
-        self.train()
-        t0 = time.time()
-
-        loss_dict = {
-            f"{self.name}/analytics/avg_rewards": np.mean(batch["rewards"]).item()
-        }
-        timesteps = self.num_minibatch * self.minibatch_size
-        update_time = time.time() - t0
-        return loss_dict, timesteps, update_time
+        pass

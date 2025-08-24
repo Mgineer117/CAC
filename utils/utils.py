@@ -37,17 +37,10 @@ def call_env(args):
     return env
 
 
-def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
+def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
     algo_name = args.algo_name
 
-    # this was not discussed in paper nut implemented by c3m author
-    if Dynamic_func is not None:
-        # env.replace_dynamics(Dynamic_func)
-        get_f_and_B = Dynamic_func
-    else:
-        get_f_and_B = env.get_f_and_B
-
-    if algo_name in ("lqr", "lqr-approx", "sd-lqr"):
+    if algo_name in ("lqr", "lqr-approx", "sd-lqr", "sd-lqr-approx"):
         from policy.lqr import LQR
         from policy.sd_lqr import SD_LQR
 
@@ -58,18 +51,13 @@ def get_policy(env, eval_env, args, Dynamic_func=None, SDC_func=None):
                 x_dim=env.num_dim_x,
                 action_dim=args.action_dim,
                 get_f_and_B=get_f_and_B,
-                num_minibatch=args.num_minibatch,
-                minibatch_size=args.minibatch_size,
-                nupdates=nupdates,
             )
-        elif algo_name == "sd-lqr":
+        elif algo_name in ("sd-lqr", "sd-lqr-approx"):
             policy = SD_LQR(
                 x_dim=env.num_dim_x,
                 action_dim=args.action_dim,
                 get_f_and_B=get_f_and_B,
                 SDC_func=SDC_func,
-                num_minibatch=args.num_minibatch,
-                minibatch_size=args.minibatch_size,
             )
 
     elif algo_name == "ppo":

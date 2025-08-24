@@ -90,6 +90,10 @@ class SDCLearner(nn.Module):
             f_x, B_x, _ = self.get_f_and_B(x)
             f_xref, B_xref, _ = self.get_f_and_B(xref)
 
+            # make same device
+            f_x, B_x = f_x.to(self.device), B_x.to(self.device)
+            f_xref, B_xref = f_xref.to(self.device), B_xref.to(self.device)
+
             dot_e = (
                 f_x
                 + matmul(B_x, u.unsqueeze(-1)).squeeze(-1)

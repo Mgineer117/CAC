@@ -74,12 +74,6 @@ class C3M_W_Gaussian(nn.Module):
         logits = self.model(x)
         # Calculate mean (mu) and log standard deviation (logstd)
         mu = self.mu(logits)
-        logstd = self.logstd(logits)
-
-        # Clamping logstd for numerical stability and to prevent extreme values
-        logstd = torch.clamp(logstd, min=-5, max=2)
-        # Calculate variance as exp(logstd)^2
-        std = torch.exp(logstd)
 
         # If deterministic, use the mean for W(x) and calculate corresponding log probabilities
         if deterministic:
@@ -89,6 +83,13 @@ class C3M_W_Gaussian(nn.Module):
             probs = torch.ones_like(logprobs)  # log(1) = 0
             entropy = torch.zeros_like(logprobs)
         else:
+            logstd = self.logstd(logits)
+
+            # Clamping logstd for numerical stability and to prevent extreme values
+            logstd = torch.clamp(logstd, min=-5, max=2)
+            # Calculate variance as exp(logstd)^2
+            std = torch.exp(logstd)
+
             # change it to multivariate Gaussian
             dist = Normal(loc=mu, scale=std)
 
@@ -345,19 +346,25 @@ class C3M_U_Gaussian(nn.Module):
 
         # Final control output
         mu = torch.matmul(w2, l1).squeeze(-1)  # Shape: (batch_size, action_dim)
-        logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
-        std = torch.exp(logstd.expand_as(mu))
-        dist = Normal(loc=mu, scale=std)
 
         if deterministic:
             # For deterministic actions, return the mean of the distribution
             u = mu
+
+            dist = None
+            logprobs = torch.zeros_like(mu[:, 0:1])
+            probs = torch.ones_like(logprobs)  # log(1) = 0
+            entropy = torch.zeros_like(logprobs)
         else:
+            logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
+            std = torch.exp(logstd.expand_as(mu))
+            dist = Normal(loc=mu, scale=std)
+
             u = dist.rsample()
 
-        logprobs = dist.log_prob(u).unsqueeze(-1).sum(1)
-        probs = torch.exp(logprobs)
-        entropy = dist.entropy().sum(1)
+            logprobs = dist.log_prob(u).unsqueeze(-1).sum(1)
+            probs = torch.exp(logprobs)
+            entropy = dist.entropy().sum(1)
 
         return u, {
             "dist": dist,

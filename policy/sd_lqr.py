@@ -21,8 +21,6 @@ class SD_LQR(Base):
         SDC_func: nn.Module,
         Q_scaler: float = 1.0,
         R_scaler: float = 1.0,
-        num_minibatch: int = 8,
-        minibatch_size: int = 256,
         device: str = "cpu",
     ):
         super(SD_LQR, self).__init__()
@@ -36,11 +34,6 @@ class SD_LQR(Base):
 
         self.x_dim = x_dim
         self.action_dim = action_dim
-
-        self.num_minibatch = num_minibatch
-        self.minibatch_size = minibatch_size
-
-        self.current_update = 0
 
         self.get_f_and_B = get_f_and_B
         if isinstance(self.get_f_and_B, nn.Module):
@@ -112,12 +105,4 @@ class SD_LQR(Base):
 
     def learn(self, batch):
         """Performs a single training step using PPO, incorporating all reference training steps."""
-        self.train()
-        t0 = time.time()
-
-        loss_dict = {
-            f"{self.name}/analytics/avg_rewards": np.mean(batch["rewards"]).item()
-        }
-        timesteps = self.num_minibatch * self.minibatch_size
-        update_time = time.time() - t0
-        return loss_dict, timesteps, update_time
+        pass
