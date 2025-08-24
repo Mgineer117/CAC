@@ -60,7 +60,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
                 SDC_func=SDC_func,
             )
 
-    elif algo_name == "ppo":
+    elif algo_name in ("ppo", "ppo-approx"):
         from policy.layers.c3m_networks import C3M_U_Gaussian
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
         from policy.ppo import PPO
