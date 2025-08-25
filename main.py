@@ -118,7 +118,6 @@ if __name__ == "__main__":
 
     for seed in seeds:
         args = override_args(init_args)
-        print(args.timesteps)
         args.seed = seed
 
         run(args, seed, unique_id, exp_time)
