@@ -143,7 +143,7 @@ class CAC(Base):
         update_time += ppo_update_time
 
         self.W_lr_scheduler.step()
-        self.ppo_lr_scheduler.step()
+        # self.ppo_lr_scheduler.step()
 
         self.num_ppo_update += 1
 
