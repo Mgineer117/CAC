@@ -30,7 +30,7 @@ def get_dynamics(env, args, logger, writer):
             epochs=args.dynamics_epochs,
         )
         Dynamic_trainer.train()
-        env.replace_dynamics(Dynamic_func)
+        # env.replace_dynamics(Dynamic_func)
 
         init_epochs = args.dynamics_epochs
     else:
