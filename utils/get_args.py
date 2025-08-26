@@ -72,7 +72,7 @@ def get_args():
         "--eps", type=float, default=0.1, help="Used for CMG learning regularization."
     )
     parser.add_argument(
-        "--lbd", type=float, default=0.5, help="Desired contraction rate."
+        "--lbd", type=float, default=2.0, help="Desired contraction rate."
     )
     parser.add_argument(
         "--DynamicLearner-dim",
@@ -87,10 +87,10 @@ def get_args():
         help="SDC decomposition neural net hidden layer.",
     )
     parser.add_argument(
-        "--actor-dim", type=list, default=[128, 128], help="actor hidden layers."
+        "--actor-dim", type=list, default=[64, 64], help="actor hidden layers."
     )
     parser.add_argument(
-        "--critic-dim", type=list, default=[256, 256], help="critic hidden layers."
+        "--critic-dim", type=list, default=[128, 128], help="critic hidden layers."
     )
 
     parser.add_argument(

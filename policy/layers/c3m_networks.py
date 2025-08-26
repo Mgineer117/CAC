@@ -356,7 +356,9 @@ class C3M_U_Gaussian(nn.Module):
             probs = torch.ones_like(logprobs)  # log(1) = 0
             entropy = torch.zeros_like(logprobs)
         else:
-            logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
+            logstd = torch.clip(
+                self.logstd, -5, 2
+            )  # Clip logstd to avoid numerical issues
             std = torch.exp(logstd.expand_as(mu))
             dist = Normal(loc=mu, scale=std)
 
