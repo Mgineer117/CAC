@@ -117,7 +117,7 @@ class C3MTrainer:
                     )
 
                     self.last_auc_mean.append(eval_dict[f"eval/mauc_mean"])
-                    self.last_auc_std.append(eval_dict[f"eval/mauc_std"])
+                    self.last_auc_std.append(eval_dict[f"eval/mauc_95_interval"])
 
                     self.save_model(logging_step)
 
