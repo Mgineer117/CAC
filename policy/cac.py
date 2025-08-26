@@ -88,17 +88,15 @@ class CAC(Base):
         self.actor = actor
         self.critic = critic
 
-        self.actor_optimizer = torch.optim.Adam(
-            params=self.actor.parameters(), lr=actor_lr
-        )
-        self.critic_optimizer = torch.optim.Adam(
-            params=self.critic.parameters(), lr=critic_lr
+        self.optimizer = torch.optim.Adam(
+            [
+                {"params": self.actor.parameters(), "lr": actor_lr},
+                {"params": self.critic.parameters(), "lr": critic_lr},
+            ]
         )
 
         self.W_lr_scheduler = LambdaLR(self.W_optimizer, lr_lambda=self.W_lr_lambda)
-        self.ppo_lr_scheduler = LambdaLR(
-            self.actor_optimizer, lr_lambda=self.ppo_lr_lambda
-        )
+        self.ppo_lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.ppo_lr_lambda)
 
         self.cmg_warmup = False
 
@@ -132,13 +130,13 @@ class CAC(Base):
         detach = True if self.num_ppo_update < int(0.25 * self.nupdates) else False
 
         loss_dict, update_time = {}, 0
-        for _ in range(3):
+        if self.num_ppo_update % 3 == 0:
             W_loss_dict, W_update_time = self.learn_W(batch, detach)
+            loss_dict.update(W_loss_dict)
             update_time += W_update_time
 
         ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
 
-        loss_dict.update(W_loss_dict)
         loss_dict.update(ppo_loss_dict)
         update_time += ppo_update_time
 
@@ -389,10 +387,6 @@ class CAC(Base):
                 value_loss = self.critic_loss(mb_states, mb_returns)
                 critic_loss = 0.5 * value_loss
 
-                self.critic_optimizer.zero_grad()
-                critic_loss.backward()
-                self.critic_optimizer.step()
-
                 # Track value loss for logging
                 value_losses.append(value_loss.item())
 
@@ -411,11 +405,11 @@ class CAC(Base):
                     break
 
                 # Total loss
-                loss = actor_loss - entropy_loss
+                loss = actor_loss - entropy_loss + 0.5 * critic_loss
                 losses.append(loss.item())
 
                 # Update parameters
-                self.actor_optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=0.5)
                 grad_dict = self.compute_gradient_norm(
@@ -425,7 +419,7 @@ class CAC(Base):
                     device=self.device,
                 )
                 grad_dicts.append(grad_dict)
-                self.actor_optimizer.step()
+                self.optimizer.step()
 
             if kl_div.item() > self.target_kl:
                 break
