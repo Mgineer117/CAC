@@ -141,7 +141,7 @@ class CAC(Base):
         update_time += ppo_update_time
 
         self.W_lr_scheduler.step()
-        # self.ppo_lr_scheduler.step()
+        self.ppo_lr_scheduler.step()
 
         self.num_ppo_update += 1
 
@@ -274,7 +274,7 @@ class CAC(Base):
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],

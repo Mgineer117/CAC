@@ -488,6 +488,7 @@ class NeuralLanderEnv(gym.Env):
 
             # sample_mode = "Gaussian"
             sample_mode = "Uniform"
+            # sample_mode = "Sampling"
             if sample_mode == "Gaussian":
                 # Compute mean and std for Gaussian distribution
                 x_mean = (X_MAX.flatten() + X_MIN.flatten()) / 2.0
@@ -508,7 +509,24 @@ class NeuralLanderEnv(gym.Env):
                     scale=u_std,
                     size=(batch_size, len(u_mean)),
                 )
-            else:
+
+                # Step 1: Repeat x n_control_per_x times along axis 0
+                x = np.concatenate([x] * n_control_per_x, axis=0)
+
+                # Step 2: Shuffle u independently n_control_per_x times and stack
+                u = np.concatenate(
+                    [u[np.random.permutation(len(u))] for _ in range(n_control_per_x)],
+                    axis=0,
+                )
+
+                f_x, B_x, _ = self.get_f_and_B(x)
+                x_dot = f_x + np.matmul(B_x, u[:, :, np.newaxis]).squeeze()
+
+                dynamics_data["x"] = x[:buffer_size].astype(np.float32)
+                dynamics_data["u"] = u[:buffer_size].astype(np.float32)
+                dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
+
+            elif sample_mode == "Uniform":
                 # Original sampling
                 x = np.random.uniform(
                     low=X_MIN.flatten(),
@@ -521,20 +539,89 @@ class NeuralLanderEnv(gym.Env):
                     size=(batch_size, len(UREF_MAX.flatten())),
                 )
 
-            # Step 1: Repeat x n_control_per_x times along axis 0
-            x = np.concatenate([x] * n_control_per_x, axis=0)
+                # Step 1: Repeat x n_control_per_x times along axis 0
+                x = np.concatenate([x] * n_control_per_x, axis=0)
 
-            # Step 2: Shuffle u independently n_control_per_x times and stack
-            u = np.concatenate(
-                [u[np.random.permutation(len(u))] for _ in range(n_control_per_x)],
-                axis=0,
-            )
+                # Step 2: Shuffle u independently n_control_per_x times and stack
+                u = np.concatenate(
+                    [u[np.random.permutation(len(u))] for _ in range(n_control_per_x)],
+                    axis=0,
+                )
 
-            f_x, B_x, _ = self.get_f_and_B(x)
-            x_dot = f_x + np.matmul(B_x, u[:, :, np.newaxis]).squeeze()
+                f_x, B_x, _ = self.get_f_and_B(x)
+                x_dot = f_x + np.matmul(B_x, u[:, :, np.newaxis]).squeeze()
 
-            dynamics_data["x"] = x[:buffer_size].astype(np.float32)
-            dynamics_data["u"] = u[:buffer_size].astype(np.float32)
-            dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
+                dynamics_data["x"] = x[:buffer_size].astype(np.float32)
+                dynamics_data["u"] = u[:buffer_size].astype(np.float32)
+                dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
+            else:
+                current_time = 0
+                while current_time < buffer_size:
+                    xref_0 = X_INIT_MIN + np.random.rand(len(X_INIT_MIN)) * (
+                        X_INIT_MAX - X_INIT_MIN
+                    )
+                    Fa = Fa_func_np(xref_0.reshape(-1)).reshape(-1)
+
+                    freqs = list(range(1, 11))
+                    weights = np.random.randn(len(freqs), len(UREF_MIN))
+                    weights = (
+                        0.5 * weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))
+                    ).tolist()
+
+                    def sample_controls():
+                        uref = np.array([0, 0, g]) - Fa / mass  # ref
+                        for freq, weight in zip(freqs, weights):
+                            uref += np.array(
+                                [
+                                    weight[0]
+                                    * np.sin(freq * _t / self.time_bound * 2 * np.pi),
+                                    weight[1]
+                                    * np.sin(freq * _t / self.time_bound * 2 * np.pi),
+                                    weight[2]
+                                    * np.sin(freq * _t / self.time_bound * 2 * np.pi),
+                                ]
+                            )
+                        uref = np.clip(
+                            uref, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten()
+                        )
+                        return uref
+
+                    xref_list, uref_list = [xref_0], []
+                    for i, _t in enumerate(self.t):
+                        uref = sample_controls()
+
+                        xref_t = xref_list[-1].copy()
+                        f_xref, B_xref = self.f_func(xref_t), self.B_func(xref_t)
+                        xref_dot = (
+                            f_xref + np.matmul(B_xref, uref[:, np.newaxis]).squeeze()
+                        )
+
+                        ### LOGGING ###
+                        try:
+                            dynamics_data["x"][current_time + i] = xref_list[-1]
+                            dynamics_data["u"][current_time + i] = uref
+                            dynamics_data["x_dot"][current_time + i] = xref_dot
+                        except:
+                            break
+
+                        xref_t = xref_t + self.dt * xref_dot
+
+                        termination = np.any(
+                            xref_t[: self.pos_dimension]
+                            <= X_MIN.flatten()[: self.pos_dimension]
+                        ) or np.any(
+                            xref_t[: self.pos_dimension]
+                            >= X_MAX.flatten()[: self.pos_dimension]
+                        )
+
+                        xref_t = np.clip(xref_t, X_MIN.flatten(), X_MAX.flatten())
+
+                        xref_list.append(xref_t)
+                        uref_list.append(uref)
+
+                        if termination:
+                            break
+
+                    current_time += i + 1
 
             return dynamics_data
