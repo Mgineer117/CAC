@@ -303,30 +303,38 @@ class OnlineTrainer:
 
         rew_list = [ep_info["avg_reward"] for ep_info in ep_buffer]
         inf_list = [ep_info["avg_inference_time"] for ep_info in ep_buffer]
-        auc_list = [ep_info["mauc"] for ep_info in ep_buffer]
+        mauc_list = [ep_info["mauc"] for ep_info in ep_buffer]
         trk_list = [ep_info["tracking_error"] for ep_info in ep_buffer]
         ctr_list = [ep_info["control_effort"] for ep_info in ep_buffer]
 
-        rew_mean, rew_std = np.mean(rew_list), np.std(rew_list)
-        inf_mean, inf_std = np.mean(inf_list), np.std(inf_list)
-        auc_mean, auc_std = np.mean(auc_list), np.std(auc_list)
-        trk_mean, trk_std = np.mean(trk_list), np.std(trk_list)
-        ctr_mean, ctr_std = np.mean(ctr_list), np.std(ctr_list)
+        rew_mean, rew_interv = self.mean_confidence_interval(rew_list)
+        inf_mean, inf_interv = self.mean_confidence_interval(inf_list)
+        mauc_mean, mauc_interv = self.mean_confidence_interval(mauc_list)
+        trk_mean, trk_interv = self.mean_confidence_interval(trk_list)
+        ctr_mean, ctr_interv = self.mean_confidence_interval(ctr_list)
 
         eval_dict = {
             f"eval/rew_mean": rew_mean,
-            f"eval/rew_std": rew_std,
+            f"eval/rew_95_interval": rew_interv,
             f"eval/inf_mean": inf_mean,
-            f"eval/inf_std": inf_std,
-            f"eval/mauc_mean": auc_mean,
-            f"eval/mauc_std": auc_std,
+            f"eval/inf_95_interval": inf_interv,
+            f"eval/mauc_mean": mauc_mean,
+            f"eval/mauc_95_interval": mauc_interv,
             f"eval/tracking_error_mean": trk_mean,
-            f"eval/tracking_error_std": trk_std,
+            f"eval/tracking_error_95_interval": trk_interv,
             f"eval/control_effort_mean": ctr_mean,
-            f"eval/control_effort_std": ctr_std,
+            f"eval/control_effort_95_interval": ctr_interv,
         }
 
         return eval_dict, image_array
+
+    def mean_confidence_interval(self, data, confidence=0.95):
+        n = len(data)
+        data = np.array(data)
+        mean = np.mean(data)
+        sem = np.std(data, ddof=1) / np.sqrt(n)  # standard error
+        h = 1.96 * sem  # margin of error for 95% CI
+        return mean, h
 
     def write_log(self, logging_dict: dict, step: int, eval_log: bool = False):
         # Logging to WandB and Tensorboard
