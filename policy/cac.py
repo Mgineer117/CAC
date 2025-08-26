@@ -435,12 +435,10 @@ class CAC(Base):
             f"{self.name}/analytics/K-epoch": k + 1,
             f"{self.name}/analytics/avg_rewards": torch.mean(original_rewards).item(),
             f"{self.name}/analytics/corrected_avg_rewards": torch.mean(rewards).item(),
-            f"{self.name}/learning_rate/actor_lr": self.actor_optimizer.param_groups[0][
+            f"{self.name}/learning_rate/actor_lr": self.optimizer.param_groups[0]["lr"],
+            f"{self.name}/learning_rate/critic_lr": self.optimizer.param_groups[0][
                 "lr"
             ],
-            f"{self.name}/learning_rate/critic_lr": self.critic_optimizer.param_groups[
-                0
-            ]["lr"],
         }
         grad_dict = self.average_dict_values(grad_dicts)
         norm_dict = self.compute_weight_norm(
