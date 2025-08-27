@@ -117,7 +117,7 @@ class C3MTrainer:
                     )
 
                     self.last_auc_mean.append(eval_dict[f"eval/mauc_mean"])
-                    self.last_auc_std.append(eval_dict[f"eval/mauc_95_interval"])
+                    self.last_auc_std.append(eval_dict[f"eval/mauc_std_(95)"])
 
                     self.save_model(logging_step)
 
@@ -275,15 +275,15 @@ class C3MTrainer:
 
         eval_dict = {
             f"eval/rew_mean": rew_mean,
-            f"eval/rew_95_interval": rew_interv,
+            f"eval/rew_std_(95)": rew_interv,
             f"eval/inf_mean": inf_mean,
-            f"eval/inf_95_interval": inf_interv,
+            f"eval/inf_std_(95)": inf_interv,
             f"eval/mauc_mean": mauc_mean,
-            f"eval/mauc_95_interval": mauc_interv,
+            f"eval/mauc_std_(95)": mauc_interv,
             f"eval/tracking_error_mean": trk_mean,
-            f"eval/tracking_error_95_interval": trk_interv,
+            f"eval/tracking_error_std_(95)": trk_interv,
             f"eval/control_effort_mean": ctr_mean,
-            f"eval/control_effort_95_interval": ctr_interv,
+            f"eval/control_effort_std_(95)": ctr_interv,
         }
 
         return eval_dict, image_array
