@@ -38,7 +38,7 @@ def get_args():
         help="Number of experiments for each algorithm.",
     )
     parser.add_argument(
-        "--actor-lr", type=float, default=3e-4, help="Actor learning rate."
+        "--actor-lr", type=float, default=1e-4, help="Actor learning rate."
     )
     parser.add_argument(
         "--critic-lr", type=float, default=3e-4, help="Critic learning rate."
