@@ -95,8 +95,8 @@ class OnlineTrainer:
     def train(self) -> dict[str, float]:
         start_time = time.time()
 
-        self.last_auc_mean = deque(maxlen=1)
-        self.last_auc_std = deque(maxlen=1)
+        self.last_auc_mean = deque(maxlen=3)
+        self.last_auc_std = deque(maxlen=3)
 
         # Train loop
         eval_idx = 0

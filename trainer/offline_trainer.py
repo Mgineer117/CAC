@@ -67,11 +67,11 @@ class C3MTrainer:
     def train(self) -> dict[str, float]:
         start_time = time.time()
 
-        self.last_auc_mean = deque(maxlen=1)
-        self.last_auc_std = deque(maxlen=1)
+        self.last_auc_mean = deque(maxlen=3)
+        self.last_auc_std = deque(maxlen=3)
 
         # Train loop
-        batch_size = 1024
+        batch_size = 2048
         eval_idx = 0
         self.policy.train()
         with tqdm(

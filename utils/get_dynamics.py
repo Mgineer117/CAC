@@ -17,6 +17,7 @@ def get_dynamics(env, args, logger, writer):
             action_dim=args.action_dim,
             hidden_dim=args.DynamicLearner_dim,
             Dynamic_lr=args.Dynamic_lr,
+            drop_out=0.1,
             nupdates=args.dynamics_epochs,
             device=args.device,
         )
