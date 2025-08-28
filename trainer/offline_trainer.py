@@ -58,7 +58,6 @@ class C3MTrainer:
 
         # initialize the essential training components
         self.last_min_auc_mean = 1e10
-        self.last_min_auc_std = 1e10
 
         self.eval_num = eval_num
         self.eval_episodes = eval_episodes
@@ -68,7 +67,6 @@ class C3MTrainer:
         start_time = time.time()
 
         self.last_auc_mean = deque(maxlen=3)
-        self.last_auc_std = deque(maxlen=3)
 
         # Train loop
         batch_size = 2048
@@ -117,7 +115,6 @@ class C3MTrainer:
                     )
 
                     self.last_auc_mean.append(eval_dict[f"eval/mauc_mean"])
-                    self.last_auc_std.append(eval_dict[f"eval/mauc_std_(95)"])
 
                     self.save_model(logging_step)
 
@@ -312,16 +309,12 @@ class C3MTrainer:
             torch.save(model.state_dict(), path)
 
             # save the best model
-            if (
-                np.mean(self.last_auc_mean) < self.last_min_auc_mean
-                and np.mean(self.last_auc_std) <= self.last_min_auc_std
-            ):
+            if np.mean(self.last_auc_mean) < self.last_min_auc_mean:
                 name = f"best_model.pth"
                 path = os.path.join(self.logger.log_dir, name)
                 torch.save(model.state_dict(), path)
 
                 self.last_min_auc_mean = np.mean(self.last_auc_mean)
-                self.last_min_auc_std = np.mean(self.last_auc_std)
         else:
             raise ValueError("Error: Model is not identifiable!!!")
 
