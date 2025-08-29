@@ -108,7 +108,9 @@ class Base(nn.Module):
         # state trimming
         x = state[:, : self.x_dim].requires_grad_()
         xref = state[:, self.x_dim : 2 * self.x_dim].requires_grad_()
-        uref = state[:, -self.action_dim : -1].requires_grad_()
+        uref = state[
+            :, 2 * self.x_dim : 2 * self.x_dim + self.action_dim
+        ].requires_grad_()
         t = state[:, -1].unsqueeze(-1)
 
         return x, xref, uref, t
