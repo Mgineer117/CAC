@@ -4,7 +4,7 @@
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=20
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=3
 #SBATCH --gres=gpu:5
 #SBATCH --time=2-00:00:00
 #SBATCH --output=cac.o%j
