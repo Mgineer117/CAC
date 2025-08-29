@@ -470,6 +470,10 @@ class CarEnv(gym.Env):
                     xref_0 = X_INIT_MIN + np.random.rand(len(X_INIT_MIN)) * (
                         X_INIT_MAX - X_INIT_MIN
                     )
+                    xe_0 = XE_INIT_MIN + np.random.rand(len(XE_INIT_MIN)) * (
+                        XE_INIT_MAX - XE_INIT_MIN
+                    )
+                    x_0 = xref_0 + xe_0
 
                     freqs = list(range(1, 11))
                     weights = np.random.randn(len(freqs), len(UREF_MIN))
@@ -478,52 +482,49 @@ class CarEnv(gym.Env):
                     ).tolist()
 
                     def sample_controls():
-                        uref = np.array([0.0, 0])
+                        u = np.array([0.0, 0])
                         for freq, weight in zip(freqs, weights):
-                            uref += np.array(
+                            u += np.array(
                                 [
                                     weight[0]
                                     * np.sin(freq * _t / self.time_bound * 2 * np.pi),
                                     0,
                                 ]
                             )
-                        uref = np.clip(
-                            uref, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten()
-                        )
-                        return uref
+                        # add gaussian noise
+                        u += np.random.normal(0, np.abs(0.1 * u), size=u.shape)
+                        u = np.clip(u, UREF_MIN.flatten(), UREF_MAX.flatten())
+                        return u
 
-                    xref_list, uref_list = [xref_0], []
+                    x_list = [x_0]
                     for i, _t in enumerate(self.t):
-                        uref = sample_controls()
+                        u = sample_controls()
 
-                        xref_t = xref_list[-1].copy()
-                        f_xref, B_xref = self.f_func(xref_t), self.B_func(xref_t)
-                        xref_dot = (
-                            f_xref + np.matmul(B_xref, uref[:, np.newaxis]).squeeze()
-                        )
+                        x_t = x_list[-1].copy()
+                        f_x, B_x = self.f_func(x_t), self.B_func(x_t)
+                        x_dot = f_x + np.matmul(B_x, u[:, np.newaxis]).squeeze()
 
                         ### LOGGING ###
                         try:
-                            dynamics_data["x"][current_time + i] = xref_list[-1]
-                            dynamics_data["u"][current_time + i] = uref
-                            dynamics_data["x_dot"][current_time + i] = xref_dot
+                            dynamics_data["x"][current_time + i] = x_list[-1]
+                            dynamics_data["u"][current_time + i] = u
+                            dynamics_data["x_dot"][current_time + i] = x_dot
                         except:
                             break
 
-                        xref_t = xref_t + self.dt * xref_dot
+                        x_t = x_t + self.dt * x_dot
 
                         termination = np.any(
-                            xref_t[: self.pos_dimension]
+                            x_t[: self.pos_dimension]
                             <= X_MIN.flatten()[: self.pos_dimension]
                         ) or np.any(
-                            xref_t[: self.pos_dimension]
+                            x_t[: self.pos_dimension]
                             >= X_MAX.flatten()[: self.pos_dimension]
                         )
 
-                        xref_t = np.clip(xref_t, X_MIN.flatten(), X_MAX.flatten())
+                        x_t = np.clip(x_t, X_MIN.flatten(), X_MAX.flatten())
 
-                        xref_list.append(xref_t)
-                        uref_list.append(uref)
+                        x_list.append(x_t)
 
                         if termination:
                             break

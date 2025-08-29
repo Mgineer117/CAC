@@ -336,10 +336,10 @@ class C3M_U_Gaussian(nn.Module):
         # Generate weight matrices from the neural networks
         w1 = self.w1(x_xref).reshape(
             n, -1, self.x_dim
-        )  # Shape: (batch_size, hidden_dim, x_dim)
+        )  # Shape: (batch_size, x_dim, x_dim)
         w2 = self.w2(x_xref).reshape(
             n, self.action_dim, -1
-        )  # Shape: (batch_size, action_dim, hidden_dim)
+        )  # Shape: (batch_size, action_dim, x_dim)
 
         # Compute intermediate representation
         l1 = F.tanh(torch.matmul(w1, e))  # Shape: (batch_size, hidden_dim, 1)
