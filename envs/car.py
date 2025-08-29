@@ -34,8 +34,8 @@ UREF_MAX = np.array([3.0, 3.0]).reshape(-1, 1)
 
 state_weights = np.array([1, 1, 1, 1])
 
-STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten()))
-STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten()))
+STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten(), [0]))
+STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten(), [1]))
 
 
 class CarEnv(gym.Env):
@@ -56,6 +56,7 @@ class CarEnv(gym.Env):
 
         self.time_bound = 6.0
         self.dt = 0.03
+        self.max_episode_len = int(self.time_bound / self.dt)
         self.episode_len = int(self.time_bound / self.dt)
         self.t = np.arange(0, self.time_bound, self.dt)
 
@@ -264,7 +265,12 @@ class CarEnv(gym.Env):
         self.x_t = np.clip(self.x_t, X_MIN.flatten(), X_MAX.flatten())
 
         self.state = np.concatenate(
-            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
+            (
+                self.x_t,
+                self.xref[self.time_steps],
+                self.uref[self.time_steps],
+                [self.time_steps / self.max_episode_len],
+            )
         )
         self.time_steps += 1
 
@@ -311,9 +317,13 @@ class CarEnv(gym.Env):
 
         self.x_t = self.x_0.copy()
         self.state = np.concatenate(
-            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
+            (
+                self.x_t,
+                self.xref[self.time_steps],
+                self.uref[self.time_steps],
+                [self.time_steps / self.max_episode_len],
+            )
         )
-        # self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
 
         return self.state, {"x": self.x_t}
 

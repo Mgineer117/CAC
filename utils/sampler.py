@@ -73,7 +73,6 @@ class OnlineSampler(Base):
         action_dim: int,
         episode_len: int,
         batch_size: int,
-        min_batch_for_worker: int = 1024,
         cpu_preserve_rate: float = 0.95,
         num_cores: int | None = None,
         verbose: bool = True,
@@ -94,7 +93,6 @@ class OnlineSampler(Base):
 
         # sampling params
         self.episode_len = episode_len
-        # self.min_batch_for_worker = min_batch_for_worker
         self.min_batch_for_worker = episode_len
         self.thread_batch_size = self.min_batch_for_worker + 2 * self.episode_len
         self.batch_size = batch_size

@@ -35,8 +35,8 @@ XE_INIT_MAX = np.array([1, 1.0, 1.0, 1.0, 1.0, 0.0])
 
 state_weights = np.array([1, 1, 1, 1.0, 1.0, 1.0])
 
-STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten()))
-STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten()))
+STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten(), [0]))
+STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten(), [1]))
 
 
 # NEURAL-LANDER FUNCTIONS
@@ -120,6 +120,7 @@ class NeuralLanderEnv(gym.Env):
 
         self.time_bound = 6.0
         self.dt = 0.03
+        self.max_episode_len = int(self.time_bound / self.dt)
         self.episode_len = int(self.time_bound / self.dt)
         self.t = np.arange(0, self.time_bound, self.dt)
 
@@ -355,7 +356,12 @@ class NeuralLanderEnv(gym.Env):
 
         # self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
         self.state = np.concatenate(
-            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
+            (
+                self.x_t,
+                self.xref[self.time_steps],
+                self.uref[self.time_steps],
+                [self.time_steps / self.max_episode_len],
+            )
         )
         self.time_steps += 1
 
@@ -400,9 +406,13 @@ class NeuralLanderEnv(gym.Env):
 
         self.x_t = self.x_0.copy()
         self.state = np.concatenate(
-            (self.x_t, self.xref[self.time_steps], self.uref[self.time_steps])
+            (
+                self.x_t,
+                self.xref[self.time_steps],
+                self.uref[self.time_steps],
+                [self.time_steps / self.max_episode_len],
+            )
         )
-        # self.state = np.concatenate((self.x_t, self.xref[self.time_steps]))
 
         return self.state, {"x": self.x_t}
 

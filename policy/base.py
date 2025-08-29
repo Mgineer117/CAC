@@ -108,9 +108,10 @@ class Base(nn.Module):
         # state trimming
         x = state[:, : self.x_dim].requires_grad_()
         xref = state[:, self.x_dim : 2 * self.x_dim].requires_grad_()
-        uref = state[:, -self.action_dim :].requires_grad_()
+        uref = state[:, -self.action_dim : -1].requires_grad_()
+        t = state[:, -1].unsqueeze(-1)
 
-        return x, xref, uref
+        return x, xref, uref, t
 
     def get_matrix_eig(self, A: torch.Tensor):
         with torch.no_grad():
@@ -241,7 +242,7 @@ class Base(nn.Module):
         return norm_dict
 
     def get_rewards(self, states: torch.Tensor, actions: torch.Tensor):
-        x, xref, uref = self.trim_state(states)
+        x, xref, uref, t = self.trim_state(states)
         with torch.no_grad():
             ### Compute the main rewards
             W, _ = self.W_func(x, deterministic=True)

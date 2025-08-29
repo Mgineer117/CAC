@@ -58,7 +58,7 @@ class LQR(Base):
             state = state.unsqueeze(0)  # shape: (1, state_dim)
 
         # Decompose state
-        x, xref, uref = self.trim_state(state)
+        x, xref, uref, t = self.trim_state(state)
 
         # Safely create leaf tensor for gradient tracking
         xref = xref.requires_grad_()

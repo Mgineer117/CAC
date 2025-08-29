@@ -117,7 +117,7 @@ class CAC(Base):
         if len(state.shape) == 1:
             state = state.unsqueeze(0)
 
-        x, xref, uref = self.trim_state(state)
+        x, xref, uref, t = self.trim_state(state)
         a, metaData = self.actor(x, xref, uref, deterministic=deterministic)
 
         return a, {
@@ -274,7 +274,7 @@ class CAC(Base):
 
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=100.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func],
             ["W_func"],
@@ -465,7 +465,7 @@ class CAC(Base):
         mb_old_logprobs: torch.Tensor,
         mb_advantages: torch.Tensor,
     ):
-        x, xref, uref = self.trim_state(mb_states)
+        x, xref, uref, t = self.trim_state(mb_states)
 
         _, metaData = self.actor(x, xref, uref)
         logprobs = self.actor.log_prob(metaData["dist"], mb_actions)

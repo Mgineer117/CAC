@@ -58,7 +58,7 @@ class SD_LQR(Base):
             state = state.unsqueeze(0)  # shape: (1, state_dim)
 
         # Decompose state
-        x, xref, uref = self.trim_state(state)
+        x, xref, uref, t = self.trim_state(state)
 
         if not deterministic:
             u = uref + torch.randn_like(uref) * 0.1
