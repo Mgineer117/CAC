@@ -407,8 +407,8 @@ class CarEnv(gym.Env):
             batch_size = ceil(buffer_size / n_control_per_x)
 
             # sample_mode = "Gaussian"
-            sample_mode = "Uniform"
-            # sample_mode = "Sampling"
+            # sample_mode = "Uniform"
+            sample_mode = "Sampling"
             if sample_mode == "Gaussian":
                 # Compute mean and std for Gaussian distribution
                 x_mean = (X_MAX.flatten() + X_MIN.flatten()) / 2.0
