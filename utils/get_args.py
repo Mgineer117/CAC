@@ -38,10 +38,10 @@ def get_args():
         help="Number of experiments for each algorithm.",
     )
     parser.add_argument(
-        "--actor-lr", type=float, default=1e-4, help="Actor learning rate."
+        "--actor-lr", type=float, default=5e-5, help="Actor learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=3e-4, help="Critic learning rate."
+        "--critic-lr", type=float, default=1e-4, help="Critic learning rate."
     )
     parser.add_argument(
         "--Dynamic-lr",
@@ -136,7 +136,7 @@ def get_args():
     parser.add_argument(
         "--dynamics-buffer-size",
         type=int,
-        default=10_000,
+        default=100_000,
         help="Number of mini-batches.",
     )
     parser.add_argument(
@@ -152,7 +152,7 @@ def get_args():
         "--minibatch-size", type=int, default=2048, help="Size of each mini-batch."
     )
     parser.add_argument(
-        "--K-epochs", type=int, default=5, help="Number of K epochs in PPO."
+        "--K-epochs", type=int, default=10, help="Number of K epochs in PPO."
     )
     parser.add_argument(
         "--target-kl",

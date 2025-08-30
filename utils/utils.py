@@ -162,6 +162,8 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             task=args.task,
         )
 
+        # actor = PPO_Actor(args.state_dim - 1, args.actor_dim, args.action_dim)
+
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
