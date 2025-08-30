@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=20
 #SBATCH --cpus-per-task=3
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:3
 #SBATCH --time=3-00:00:00
 #SBATCH --output=cac.o%j
 #SBATCH --mail-type=FAIL
@@ -26,15 +26,15 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project cac_new2 --algo-na
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project cac_new2 --algo-name ppo-approx & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project cac_new2 --algo-name ppo-approx & 
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project cac_new2 --algo-name cac-approx & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project cac_new2 --algo-name cac-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project cac_new2 --algo-name cac-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project cac_new2 --algo-name cac-approx & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project cac_new2 --algo-name cac-approx & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project cac_new2 --algo-name cac-approx &
 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --task car --project cac_new2 --algo-name c3m-approx & 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --task pvtol --project cac_new2 --algo-name c3m-approx & 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --task neurallander --project cac_new2 --algo-name c3m-approx & 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --task quadrotor --project cac_new2 --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project cac_new2 --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project cac_new2 --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project cac_new2 --algo-name c3m-approx & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project cac_new2 --algo-name c3m-approx & 
 
 CUDA_VISIBLE_DEVICES=3 python3 main.py --task car --project cac_new2 --algo-name lqr-approx & 
 CUDA_VISIBLE_DEVICES=3 python3 main.py --task pvtol --project cac_new2 --algo-name lqr-approx & 
