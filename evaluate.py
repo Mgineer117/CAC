@@ -5,13 +5,19 @@
 # =================================================== #
 
 import datetime
+import os
 import random
-import uuid
 import time
+import uuid
+
+import numpy as np
 import torch
-from trainer.evaluator import Evaluator
+
 import wandb
+from trainer.evaluator import Evaluator
 from utils.get_args import get_args
+from utils.get_dynamics import get_dynamics
+from utils.get_sdc import get_SDC
 from utils.misc import (
     concat_csv_columnwise_and_delete,
     override_args,
@@ -19,16 +25,10 @@ from utils.misc import (
     setup_logger,
 )
 from utils.utils import call_env
-from utils.get_dynamics import get_dynamics
-from utils.get_sdc import get_SDC
-
-import numpy as np
-import os
 
 os.environ["WANDB_MODE"] = "disabled"
 
-from policy.layers.c3m_networks import C3M_U, C3M_W
-from policy.layers.c3m_networks import C3M_U_Gaussian
+from policy.layers.c3m_networks import C3M_U, C3M_W, C3M_U_Gaussian
 from policy.lqr import LQR
 from policy.sd_lqr import SD_LQR
 
@@ -42,6 +42,7 @@ class Policy:
         self.policy = policy
 
     def __call__(self, obs, deterministic=False):
+        obs = torch.from_numpy(obs).unsqueeze(0).to(torch.float32)
         x, xref, uref, _ = self.trim_state(obs)
         return self.policy(x, xref, uref, deterministic=deterministic)
 
@@ -119,7 +120,6 @@ def evaluate(eval_env, algo_name, policy, seed):
         normalized_error_trajectory = [1.0]
         for t in range(1, eval_env.episode_len + 1):
             with torch.no_grad():
-                obs = torch.from_numpy(obs).unsqueeze(0).to(torch.float32)
                 t0 = time.time()
                 a, _ = policy(obs, deterministic=True)
                 t1 = time.time()
