@@ -47,7 +47,7 @@ def temp_seed(seed, pid):
     random.seed(seed + pid + rand_int)
 
 
-def setup_logger(args, unique_id, exp_time, seed):
+def setup_logger(args, unique_id, exp_time, seed, verbose=True):
     """
     setup logger both using WandB and Tensorboard
     Return: WandB logger, Tensorboard logger
@@ -76,10 +76,10 @@ def setup_logger(args, unique_id, exp_time, seed):
         log_dir=args.logdir,
         log_txt=True,
     )
-    logger.save_config(default_cfg, verbose=True)
+    logger.save_config(default_cfg, verbose=verbose)
 
     tensorboard_path = os.path.join(logger.log_dir, "tensorboard")
-    os.mkdir(tensorboard_path)
+    os.makedirs(tensorboard_path, exist_ok=True)
     writer = SummaryWriter(log_dir=tensorboard_path)
 
     return logger, writer
