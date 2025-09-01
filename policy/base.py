@@ -19,6 +19,13 @@ class Base(nn.Module):
         self.mse_loss = F.mse_loss
         self.huber_loss = F.smooth_l1_loss
 
+    def to_tensor(self, data):
+        return torch.from_numpy(data).to(self._dtype).to(self.device)
+
+    def to_device(self, device):
+        self.device = device
+        self.to(device)
+
     def extract_trajectories(self, x: torch.Tensor, terminals: torch.Tensor) -> list:
         traj_x_list = []
         x_list = []

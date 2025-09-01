@@ -11,7 +11,14 @@ from torch.linalg import matrix_norm
 from torch.optim.lr_scheduler import LambdaLR
 
 from policy.base import Base
-from utils.functions import estimate_advantages
+from utils.functions import (
+    compute_kl,
+    conjugate_gradients,
+    estimate_advantages,
+    flat_params,
+    hessian_vector_product,
+    set_flat_params,
+)
 
 
 class CAC(Base):
@@ -37,6 +44,9 @@ class CAC(Base):
         entropy_scaler: float = 1e-3,
         control_scaler: float = 0.0,
         l2_reg: float = 1e-8,
+        damping: float = 1e-1,
+        backtrack_iters: int = 10,
+        backtrack_coeff: float = 0.8,
         target_kl: float = 0.03,
         gamma: float = 0.99,
         gae: float = 0.9,
@@ -66,6 +76,9 @@ class CAC(Base):
         self.gae = gae
         self.K = K
         self.l2_reg = l2_reg
+        self.damping = damping
+        self.backtrack_iters = backtrack_iters
+        self.backtrack_coeff = backtrack_coeff
         self.target_kl = target_kl
         self.lbd = lbd
         self.eps_clip = eps_clip
@@ -135,10 +148,12 @@ class CAC(Base):
             loss_dict.update(W_loss_dict)
             update_time += W_update_time
 
-        ppo_loss_dict, timesteps, ppo_update_time = self.learn_ppo(batch)
+        policy_loss_dict, timesteps, policy_update_time = self.learn_ppo(batch)
+        # if one likes to use trpo
+        # policy_loss_dict, timesteps, policy_update_time = self.learn_trpo(batch)
 
-        loss_dict.update(ppo_loss_dict)
-        update_time += ppo_update_time
+        loss_dict.update(policy_loss_dict)
+        update_time += policy_update_time
 
         self.W_lr_scheduler.step()
         # self.ppo_lr_scheduler.step()
@@ -214,8 +229,6 @@ class CAC(Base):
 
             # find error between dot_x and dot_x_eval
             evaluation_error = F.l1_loss(dot_x, dot_x_eval)
-
-        #
 
         # contraction condition
         if detach:
@@ -330,21 +343,156 @@ class CAC(Base):
         update_time = time.time() - t0
         return loss_dict, update_time
 
+    def learn_odice(self, batch):
+        """Performs a single training step using ODICE."""
+        pass
+
+    def learn_trpo(self, batch):
+        """Performs a single training step using PPO, incorporating all reference training steps."""
+        self.train()
+        t0 = time.time()
+
+        # Ingredients: Convert batch data to tensors
+        states = self.to_tensor(batch["states"])
+        actions = self.to_tensor(batch["actions"])
+        original_rewards = self.to_tensor(batch["rewards"])
+        rewards = self.get_rewards(states, actions)
+        terminals = self.to_tensor(batch["terminals"])
+        old_logprobs = self.to_tensor(batch["logprobs"])
+
+        x, xref, uref, t = self.trim_state(states)
+        timesteps = states.shape[0]
+
+        # Compute advantages and returns
+        with torch.no_grad():
+            values = self.critic(states)
+            advantages, returns = estimate_advantages(
+                rewards,
+                terminals,
+                values,
+                gamma=self.gamma,
+                gae=self.gae,
+                device=self.device,
+            )
+
+        # === CRITIC UPDATE === #
+        critic_iteration = 5
+        batch_size = states.size(0) // critic_iteration
+        grad_dict_list = []
+        for _ in range(critic_iteration):
+            indices = torch.randperm(states.size(0))[:batch_size]
+            mb_states = states[indices]
+            mb_returns = returns[indices]
+
+            value_loss = self.critic_loss(mb_states, mb_returns)
+
+            self.optimizer.zero_grad()
+            value_loss.backward()
+            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
+            grad_dict = self.compute_gradient_norm(
+                [self.critic],
+                ["critic"],
+                dir=f"{self.name}",
+                device=self.device,
+            )
+            grad_dict_list.append(grad_dict)
+            self.optimizer.step()
+        grad_dict = self.average_dict_values(grad_dict_list)
+
+        # === ACTOR UPDATE === #
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        actor_loss, entropy_loss, _, _ = self.actor_loss(
+            states, actions, old_logprobs, advantages
+        )
+        loss = actor_loss + entropy_loss
+        actor_gradients = torch.autograd.grad(loss, self.actor.parameters())
+        grad_flat = torch.cat([g.view(-1) for g in actor_gradients]).detach()
+
+        old_actor = deepcopy(self.actor)
+
+        # KL function (closure)
+        def kl_fn():
+            return compute_kl(old_actor, self.actor, (x, xref, uref))
+
+        # Define HVP function
+        Hv = lambda v: hessian_vector_product(kl_fn, self.actor, self.damping, v)
+
+        # Compute step direction with CG
+        step_dir = conjugate_gradients(Hv, grad_flat, nsteps=10)
+
+        # Compute step size to satisfy KL constraint
+        sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
+        lm = torch.sqrt(sAs / self.target_kl)
+        full_step = step_dir / (lm + 1e-8)
+
+        # Line search
+        with torch.no_grad():
+            old_params = flat_params(self.actor)
+
+            # Backtracking line search
+            success = False
+            for i in range(self.backtrack_iters):
+                step_frac = self.backtrack_coeff**i
+                new_params = old_params - step_frac * full_step
+                set_flat_params(self.actor, new_params)
+                kl = compute_kl(old_actor, self.actor, (x, xref, uref))
+
+                if kl <= self.target_kl:
+                    success = True
+                    break
+
+            if not success:
+                set_flat_params(self.actor, old_params)
+
+        # Logging
+        loss_dict = {
+            f"{self.name}/loss/actor_loss": actor_loss.item(),
+            f"{self.name}/loss/value_loss": value_loss.item(),
+            f"{self.name}/loss/entropy_loss": entropy_loss.item(),
+            f"{self.name}/analytics/backtrack_iter": i,
+            f"{self.name}/analytics/backtrack_success": int(success),
+            f"{self.name}/analytics/klDivergence": kl.item(),
+            f"{self.name}/analytics/avg_rewards": torch.mean(original_rewards).item(),
+            f"{self.name}/analytics/corrected_avg_rewards": torch.mean(rewards).item(),
+            f"{self.name}/analytics/critic_lr": self.optimizer.param_groups[1]["lr"],
+            f"{self.name}/grad/actor": torch.linalg.norm(grad_flat).item(),
+            f"{self.name}/analytics/step_norm": torch.linalg.norm(
+                step_frac * full_step
+            ).item(),
+        }
+        norm_dict = self.compute_weight_norm(
+            [self.actor, self.critic],
+            ["actor", "critic"],
+            dir=f"{self.name}",
+            device=self.device,
+        )
+        loss_dict.update(norm_dict)
+        loss_dict.update(grad_dict)
+
+        # Cleanup
+        del states, actions, rewards, terminals, old_logprobs
+        self.eval()
+
+        update_time = time.time() - t0
+
+        # reduce target_kl for next iteration
+        # self.lr_scheduler()
+
+        return loss_dict, timesteps, update_time
+
     def learn_ppo(self, batch):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
 
         # Ingredients: Convert batch data to tensors
-        def to_tensor(data):
-            return torch.from_numpy(data).to(self._dtype).to(self.device)
-
-        states = to_tensor(batch["states"])
-        actions = to_tensor(batch["actions"])
-        original_rewards = to_tensor(batch["rewards"])
+        states = self.to_tensor(batch["states"])
+        actions = self.to_tensor(batch["actions"])
+        original_rewards = self.to_tensor(batch["rewards"])
         rewards = self.get_rewards(states, actions)
-        terminals = to_tensor(batch["terminals"])
-        old_logprobs = to_tensor(batch["logprobs"])
+        terminals = self.to_tensor(batch["terminals"])
+        old_logprobs = self.to_tensor(batch["logprobs"])
 
         # Compute advantages and returns
         with torch.no_grad():
@@ -436,7 +584,7 @@ class CAC(Base):
             f"{self.name}/analytics/avg_rewards": torch.mean(original_rewards).item(),
             f"{self.name}/analytics/corrected_avg_rewards": torch.mean(rewards).item(),
             f"{self.name}/learning_rate/actor_lr": self.optimizer.param_groups[0]["lr"],
-            f"{self.name}/learning_rate/critic_lr": self.optimizer.param_groups[0][
+            f"{self.name}/learning_rate/critic_lr": self.optimizer.param_groups[1][
                 "lr"
             ],
         }
@@ -454,9 +602,8 @@ class CAC(Base):
         del states, actions, rewards, terminals, old_logprobs
         self.eval()
 
-        timesteps = self.num_minibatch * self.minibatch_size
         update_time = time.time() - t0
-        return loss_dict, timesteps, update_time
+        return loss_dict, batch_size, update_time
 
     def actor_loss(
         self,

@@ -136,7 +136,7 @@ def get_args():
     parser.add_argument(
         "--dynamics-buffer-size",
         type=int,
-        default=10_000,
+        default=100_000,
         help="Number of mini-batches.",
     )
     parser.add_argument(
