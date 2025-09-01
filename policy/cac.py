@@ -148,9 +148,9 @@ class CAC(Base):
             loss_dict.update(W_loss_dict)
             update_time += W_update_time
 
-        # policy_loss_dict, timesteps, policy_update_time = self.learn_ppo(batch)
+        policy_loss_dict, timesteps, policy_update_time = self.learn_ppo(batch)
         # if one likes to use trpo
-        policy_loss_dict, timesteps, policy_update_time = self.learn_trpo(batch)
+        # policy_loss_dict, timesteps, policy_update_time = self.learn_trpo(batch)
 
         loss_dict.update(policy_loss_dict)
         update_time += policy_update_time
