@@ -14,6 +14,8 @@ import wandb
 from trainer.offline_trainer import C3MTrainer, DynamicsTrainer
 from trainer.online_trainer import OnlineTrainer
 from utils.get_args import get_args
+from utils.get_dynamics import get_dynamics
+from utils.get_sdc import get_SDC
 from utils.misc import (
     concat_csv_columnwise_and_delete,
     override_args,
@@ -22,8 +24,6 @@ from utils.misc import (
 )
 from utils.sampler import OnlineSampler
 from utils.utils import call_env, get_policy
-from utils.get_dynamics import get_dynamics
-from utils.get_sdc import get_SDC
 
 
 def run(args, seed, unique_id, exp_time):
