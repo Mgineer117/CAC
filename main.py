@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
     init_args = get_args()
     unique_id = str(uuid.uuid4())[:4]
-    exp_time = datetime.datetime.now().strftime("%m-%d_%H-%M-%S.%f")
+    exp_time = datetime.datetime.now().strftime("%m_%d_%H-%M_%S_%f")
 
     random.seed(init_args.seed)
     seeds = [random.randint(1, 10_000) for _ in range(init_args.num_runs)]

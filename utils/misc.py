@@ -65,6 +65,7 @@ def setup_logger(args, unique_id, exp_time, seed, verbose=True):
         args.project = args.task
 
     args.logdir = os.path.join(args.logdir, args.group)
+    args.expstarttime = exp_time.split("-")[0]
     args.unique_id = unique_id
 
     default_cfg = vars(args)
