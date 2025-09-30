@@ -1,6 +1,8 @@
 import time
+from collections import deque
 from typing import Callable
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -58,6 +60,7 @@ class C3M(Base):
             self.get_f_and_B.eval()
 
         self.lbd = lbd
+        self.delta = 10.0
         self.eps = eps
         self.w_ub = w_ub
 
@@ -69,6 +72,16 @@ class C3M(Base):
         )
 
         self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
+
+        #
+        self.slack_records = deque(maxlen=1000)
+
+        self.Cu_eigenvalues_records = []
+        self.dot_M_eigenvalues_records = []
+        self.sym_mabk_eigenvalues_records = []
+        self.C1_eigenvalues_records = []
+        self.C2_loss_records = []
+        self.overshoot_records = []
 
         #
         self.cmg_warmup = False
@@ -89,7 +102,7 @@ class C3M(Base):
             state = state.unsqueeze(0)
 
         x, xref, uref, t = self.trim_state(state)
-        a, _ = self.u_func(x, xref, uref)
+        a, _ = self.u_func(x, xref, uref, deterministic=deterministic)
 
         return a, {
             "probs": self.dummy,  # dummy for code consistency
@@ -98,14 +111,15 @@ class C3M(Base):
         }
 
     def learn(self):
-        detach = True if self.num_W_update < int(0.1 * self.nupdates) else False
-        loss_dict, update_time = self.learn_W(detach)
+        # detach = True if self.num_W_update < int(0.1 * self.nupdates) else False
+        # detach = False
+        loss_dict, supp_dict, update_time = self.learn_W()
 
         self.num_W_update += 1
 
-        return loss_dict, update_time
+        return loss_dict, supp_dict, update_time
 
-    def learn_W(self, detach: bool):
+    def learn_W(self):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
@@ -144,7 +158,17 @@ class C3M(Base):
 
         # since online we do not do below
         u, _ = self.u_func(x, xref, uref)
+        # entropy = 1e-3 * self.u_func.entropy(metaData["dist"]).mean()
         K = self.Jacobian(u, x)  # n, f_dim, x_dim
+
+        # bound K
+        # del_x = x - xref
+        # u_max = torch.tensor([[1.0, 1.0, 9.0]]).to(self._dtype).to(self.device) - uref
+        # K_f = matmul(K, del_x.unsqueeze(-1)).squeeze(-1)  # N, m, n @ N, n, 1 -> N, m, 1
+
+        # K_loss = torch.relu(K_f - u_max).mean()
+        # K2_loss = torch.relu(torch.abs(torch.linalg.eigvalsh(matmul(B, K))) - 10).mean()
+        # find infinity norm of K in a differentiable form
 
         #  DBDx[:, :, :, i]: n, x_dim, x_dim
         A = DfDx + sum(
@@ -155,24 +179,18 @@ class C3M(Base):
         )
 
         dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
-        dot_M = self.weighted_gradients(M, dot_x, x, detach)
+        dot_M = self.weighted_gradients(M, dot_x, x)
 
         # contraction condition
-        if detach:
-            ABK = A + matmul(B, K)
-            MABK = matmul(M.detach(), ABK)
-            sym_MABK = MABK + transpose(MABK, 1, 2)
-            C_u = dot_M + sym_MABK + 2 * self.lbd * M.detach()
-        else:
-            ABK = A + matmul(B, K)
-            MABK = matmul(M, ABK)
-            sym_MABK = MABK + transpose(MABK, 1, 2)
-            C_u = dot_M + sym_MABK + 2 * self.lbd * M
+        ABK = A + matmul(B, K)
+        MABK = matmul(M, ABK)
+        sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
+        Cu = dot_M + sym_MABK + 2 * self.lbd * M
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
         DfDxW = matmul(DfDx, W)
-        sym_DfDxW = DfDxW + transpose(DfDxW, 1, 2)
+        sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
         C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
@@ -190,18 +208,19 @@ class C3M(Base):
             C2_inners.append(C2_inner)
             C2s.append(C2)
 
+        ### DEFINE PD MATRICES ###
+        Cu = Cu + self.eps * torch.eye(Cu.shape[-1]).to(self.device)
+        C1 = C1 + self.eps * torch.eye(C1.shape[-1]).to(self.device)
+        C2 = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
+        overshoot = W - (self.w_ub * torch.eye(W.shape[-1])).unsqueeze(0).to(
+            self.device
+        )
+
         #### COMPUTE LOSS ####
-        pd_loss = self.loss_pos_matrix_random_sampling(
-            -C_u - self.eps * torch.eye(C_u.shape[-1]).to(self.device)
-        )
-        c1_loss = self.loss_pos_matrix_random_sampling(
-            -C1 - self.eps * torch.eye(C1.shape[-1]).to(self.device)
-        )
-        c2_loss = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
-        # c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
-        overshoot_loss = self.loss_pos_matrix_random_sampling(
-            (self.w_ub * torch.eye(W.shape[-1])).unsqueeze(0).to(self.device) - W
-        )
+        pd_loss = self.loss_pos_matrix_random_sampling(-Cu)
+        c1_loss = self.loss_pos_matrix_random_sampling(-C1)
+        overshoot_loss = self.loss_pos_matrix_random_sampling(-overshoot)
+        c2_loss = C2
 
         loss = pd_loss + c1_loss + c2_loss + overshoot_loss
 
@@ -216,31 +235,38 @@ class C3M(Base):
         )
         self.optimizer.step()
 
+        ### Find the optimal lbd ###
+        self.update_lbd(M, W, Bbot, dot_M, sym_MABK, DfW, sym_DfDxW)
+
         with torch.no_grad():
-            dot_M_pos_eig, dot_M_neg_eig = self.get_matrix_eig(dot_M)
-            sym_MABK_pos_eig, sym_MABK_neg_eig = self.get_matrix_eig(sym_MABK)
-            M_pos_eig, M_neg_eig = self.get_matrix_eig(M)
+            dot_M_eig = self.get_matrix_eig(dot_M)
+            sym_MABK_eig = self.get_matrix_eig(sym_MABK)
+            M_eig = self.get_matrix_eig(M)
+            BK_eig = self.get_matrix_eig(matmul(B, K))
+            overshoot_eig = self.get_matrix_eig(overshoot)
 
-            C_pos_eig, C_neg_eig = self.get_matrix_eig(C_u)
-            C1_pos_eig, C1_neg_eig = self.get_matrix_eig(C1)
+            Cu_eig = self.get_matrix_eig(Cu)
+            C1_eig = self.get_matrix_eig(C1)
 
-        # Logging
+            self.Cu_eigenvalues_records.append(Cu_eig)
+            self.dot_M_eigenvalues_records.append(dot_M_eig)
+            self.sym_mabk_eigenvalues_records.append(sym_MABK_eig)
+            self.C1_eigenvalues_records.append(C1_eig)
+            self.C2_loss_records.append(C2.cpu().numpy())
+            self.overshoot_records.append(overshoot_eig)
+
+        ### LOGGING ###
         loss_dict = {
-            "C3M/loss/loss": loss.item(),
-            "C3M/loss/pd_loss": pd_loss.item(),
-            "C3M/loss/c1_loss": c1_loss.item(),
-            "C3M/loss/c2_loss": c2_loss.item(),
-            "C3M/loss/overshoot_loss": overshoot_loss.item(),
-            "C3M/analytics/C_pos_eig": C_pos_eig.item(),
-            "C3M/analytics/C_neg_eig": C_neg_eig.item(),
-            "C3M/analytics/C1_pos_eig": C1_pos_eig.item(),
-            "C3M/analytics/C1_neg_eig": C1_neg_eig.item(),
-            "C3M/analytics/dot_M_pos_eig": dot_M_pos_eig.item(),
-            "C3M/analytics/dot_M_neg_eig": dot_M_neg_eig.item(),
-            "C3M/analytics/sym_MABK_pos_eig": sym_MABK_pos_eig.item(),
-            "C3M/analytics/sym_MABK_neg_eig": sym_MABK_neg_eig.item(),
-            "C3M/analytics/M_pos_eig": M_pos_eig.item(),
-            "C3M/analytics/M_neg_eig": M_neg_eig.item(),
+            f"{self.name}/loss/loss": loss.item(),
+            f"{self.name}/loss/pd_loss": pd_loss.item(),
+            f"{self.name}/loss/c1_loss": c1_loss.item(),
+            f"{self.name}/loss/c2_loss": c2_loss.item(),
+            f"{self.name}/loss/overshoot_loss": overshoot_loss.item(),
+            f"{self.name}/analytics/lbd": self.lbd,
+            f"{self.name}/analytics/M_eig_max": M_eig.max(),
+            f"{self.name}/analytics/M_eig_min": M_eig.min(),
+            f"{self.name}/analytics/BK_eig_max": BK_eig.max(),
+            f"{self.name}/analytics/BK_eig_min": BK_eig.min(),
         }
         norm_dict = self.compute_weight_norm(
             [self.W_func, self.u_func],
@@ -251,6 +277,116 @@ class C3M(Base):
         loss_dict.update(grad_dict)
         loss_dict.update(norm_dict)
 
+        ### DRAW THE FIGURE OF EIGENVALUES ###
+        num = 10
+        supp_dict = {}
+        if (
+            len(self.Cu_eigenvalues_records) >= num
+            and len(self.C1_eigenvalues_records) >= num
+        ):
+            # make plt figure of cu and c1 eigenvalues
+            x = list(range(0, len(self.Cu_eigenvalues_records), num))
+
+            Cu_eig_array = np.asarray(self.Cu_eigenvalues_records[::num])  # every 10th
+            dot_M_eig_array = np.asarray(
+                self.dot_M_eigenvalues_records[::num]
+            )  # every 10th
+            sym_MABK_eig_array = np.asarray(
+                self.sym_mabk_eigenvalues_records[::num]
+            )  # every 10th
+            C1_eig_array = np.asarray(self.C1_eigenvalues_records[::num])
+            C2_loss = np.asarray(self.C2_loss_records[::num])
+            overshoot_eig_array = np.asarray(self.overshoot_records[::num])
+
+            # find mean and 95% confidence interval
+            Cu_mean = Cu_eig_array.mean(axis=1)
+            Cu_max = Cu_eig_array.max(axis=1)
+            Cu_min = Cu_eig_array.min(axis=1)
+
+            dot_M_mean = dot_M_eig_array.mean(axis=1)
+            dot_M_max = dot_M_eig_array.max(axis=1)
+            dot_M_min = dot_M_eig_array.min(axis=1)
+
+            sym_MABK_mean = sym_MABK_eig_array.mean(axis=1)
+            sym_MABK_max = sym_MABK_eig_array.max(axis=1)
+            sym_MABK_min = sym_MABK_eig_array.min(axis=1)
+
+            C1_mean = C1_eig_array.mean(axis=1)
+            C1_max = C1_eig_array.max(axis=1)
+            C1_min = C1_eig_array.min(axis=1)
+            overshoot_mean = overshoot_eig_array.mean(axis=1)
+            overshoot_max = overshoot_eig_array.max(axis=1)
+            overshoot_min = overshoot_eig_array.min(axis=1)
+
+            fig, ax = plt.subplots(2, 3, figsize=(12, 6))
+
+            ax[0, 0].plot(
+                x,
+                Cu_mean,
+                label=f"Cu Mean (max={Cu_max[-1]:.3g}, min={Cu_min[-1]:.3g})",
+            )
+            ax[0, 0].fill_between(x, Cu_max, Cu_min, alpha=0.2)
+            ax[0, 0].set_title("Cu Eigenvalues")
+            ax[0, 0].legend()
+
+            ax[0, 1].plot(
+                x,
+                dot_M_mean,
+                label=f"Dot M Mean (max={dot_M_max[-1]:.3g}, min={dot_M_min[-1]:.3g})",
+            )
+            ax[0, 1].fill_between(x, dot_M_max, dot_M_min, alpha=0.2)
+            ax[0, 1].set_title("Dot M Eigenvalues")
+            ax[0, 1].legend()
+
+            ax[0, 2].plot(
+                x,
+                sym_MABK_mean,
+                label=f"Sym MABK Mean (max={sym_MABK_max[-1]:.3g}, min={sym_MABK_min[-1]:.3g})",
+            )
+            ax[0, 2].fill_between(x, sym_MABK_max, sym_MABK_min, alpha=0.2)
+            ax[0, 2].set_title("Sym MABK Eigenvalues")
+            ax[0, 2].legend()
+
+            ax[1, 0].plot(
+                x,
+                C1_mean,
+                label=f"C1 Mean (max={C1_max[-1]:.3g}, min={C1_min[-1]:.3g})",
+            )
+            ax[1, 0].fill_between(x, C1_max, C1_min, alpha=0.2)
+            ax[1, 0].set_title("C1 Eigenvalues")
+            ax[1, 0].legend()
+
+            supp_dict[f"{self.name}/analytics/C_eig"] = fig
+
+            ax[1, 1].plot(
+                x,
+                C2_loss,
+                label=f"C2 loss = {C2_loss[-1]:.3g}",
+            )
+            ax[1, 1].set_title("C2 Loss")
+            # set y log scale
+            ax[1, 1].set_yscale("log")
+            ax[1, 1].legend()
+
+            ax[1, 2].plot(
+                x,
+                overshoot_mean,
+                label=f"Overshoot Mean (max={overshoot_max[-1]:.3g}, min={overshoot_min[-1]:.3g})",
+            )
+            ax[1, 2].fill_between(x, overshoot_max, overshoot_min, alpha=0.2)
+            ax[1, 2].set_title("Overshoot Eigs")
+            ax[1, 2].legend()
+
+            ax[0, 0].grid(linestyle="--", alpha=0.5)
+            ax[0, 1].grid(linestyle="--", alpha=0.5)
+            ax[0, 2].grid(linestyle="--", alpha=0.5)
+            ax[1, 0].grid(linestyle="--", alpha=0.5)
+            ax[1, 1].grid(linestyle="--", alpha=0.5)
+            ax[1, 1].grid(linestyle="--", alpha=0.5)
+
+            plt.tight_layout()
+            plt.close(fig)
+
         # Cleanup
         self.eval()
         self.current_update += 1
@@ -258,4 +394,44 @@ class C3M(Base):
         update_time = time.time() - t0
         self.lr_scheduler.step()
 
-        return loss_dict, update_time
+        return loss_dict, supp_dict, update_time
+
+    def update_lbd(
+        self,
+        M: torch.Tensor,
+        W: torch.Tensor,
+        Bbot: torch.Tensor,
+        dot_M: torch.Tensor,
+        sym_MABK: torch.Tensor,
+        DfW: torch.Tensor,
+        sym_DfDxW: torch.Tensor,
+    ):
+        #### UPDATE THE CONTRACTION RATE ####
+        tau = 0.001
+        delta = self.delta * (1 - self.num_W_update / self.nupdates)
+        with torch.no_grad():
+            BWB = matmul(matmul(transpose(Bbot, 1, 2), W), Bbot)
+
+            eig_M = torch.max(torch.linalg.eigvalsh(M), dim=-1)[0].mean()
+            eig_gamma1 = torch.max(torch.linalg.eigvalsh(dot_M + sym_MABK), dim=-1)[
+                0
+            ].mean()
+            eig_BWB = torch.max(torch.linalg.eigvalsh(BWB), dim=-1)[0].mean()
+            eig_gamma2 = torch.max(torch.linalg.eigvalsh(-DfW + sym_DfDxW), dim=-1)[
+                0
+            ].mean()
+
+        optimal_contraction_rate = max(
+            torch.tensor(1e-6),
+            min(
+                (delta - eig_gamma1) / eig_M,
+                (delta - eig_gamma2) / eig_BWB,
+            ),
+        ).item()
+
+        # print(
+        #     f"Cu:({delta - eig_gamma1}) / {eig_M}, C1:({delta - eig_gamma2}) / {eig_BWB} | delta: {delta}, eig_gamma1: {eig_gamma1}, eig_M: {eig_M}, eig_gamma2: {eig_gamma2}, eig_BWB: {eig_BWB}"
+        # )
+
+        self.lbd = self.lbd * (1 - tau) + tau * optimal_contraction_rate
+        # self.lbd = optimal_contraction_rate

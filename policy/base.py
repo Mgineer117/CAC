@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -97,7 +98,77 @@ class Base(nn.Module):
                 .requires_grad_()
             )
 
-    def rewards_pos_matrix_random_sampling(self, A: torch.Tensor):
+    def cvar_upper(
+        self, eigvals: torch.Tensor, alpha: float = 0.5, dim: int = 0
+    ) -> torch.Tensor:
+        """
+        CVaR_alpha (upper-tail) of values in eigvals along `dim`.
+        Returns one CVaR per slice along `dim` (keeps batch dims).
+        """
+        with torch.no_grad():
+            # 1) VaR (alpha-quantile) along `dim`
+            # detach keeps gradients focused on the tail, not the whole spectrum.
+            q = torch.quantile(eigvals, alpha, dim=dim, keepdim=True)  # .detach()
+            # 2) Tail excess (x - q)_+ isolates the worst (1 - alpha) fraction
+            tail_excess = F.relu(eigvals - q)
+            # 3) Convert sum of excesses into the conditional mean over the tail:
+            #    CVaR = q + E[(x - q)_+]/(1 - alpha)
+            n = eigvals.size(dim)
+            cvar = q.squeeze(dim) + tail_excess.sum(dim=dim) / ((1.0 - alpha) * n)
+
+        return cvar.unsqueeze(0)
+
+    def loss_matrix_eig(self, A: torch.Tensor, name: str):
+        # A: n x d x d
+
+        # (batch, dim), real symmetric
+        eigvals = -torch.linalg.eigvalsh(A)
+
+        # loss = F.elu(eigvals).sum(-1)
+        # loss = eigvals.max()
+        # loss = torch.logsumexp(
+        #     eigvals,
+        #     dim=1,
+        # )
+        # cvar = self.cvar_upper(eigvals)
+        cvar = torch.quantile(eigvals, 0.8, dim=1, keepdim=True).mean(0)
+        print(cvar)
+
+        if name == "cu":
+            if hasattr(self, "cvar_cu"):
+                self.cvar_cu = 0.995 * self.cvar_cu + 0.005 * cvar.detach()
+            else:
+                self.cvar_cu = cvar.detach()
+            loss = torch.relu(eigvals - self.cvar_cu).sum(-1)
+        elif name == "c1":
+            if hasattr(self, "cvar_c1"):
+                self.cvar_c1 = 0.995 * self.cvar_c1 + 0.005 * cvar.detach()
+            else:
+                self.cvar_c1 = cvar.detach()
+            loss = torch.relu(eigvals - self.cvar_c1).sum(-1)
+        # loss = eigvals.max(-1)[0]
+
+        return loss.mean()
+
+    def loss_pos_matrix_eig(self, A: torch.Tensor):
+        # A: n x d x d
+
+        # (batch, dim), real symmetric
+        eigvals = -torch.linalg.eigvalsh(A)
+        eigvals = torch.relu(eigvals)
+
+        # loss = F.elu(eigvals)
+        # loss = eigvals.max()
+        # loss = torch.logsumexp(
+        #     eigvals,
+        #     dim=1,
+        # )
+        # loss = self.cvar_upper(eigvals)
+        loss = eigvals.sum(-1)
+
+        return loss.mean()
+
+    def loss_matrix_random_sampling(self, A: torch.Tensor):
         # A: n x d x d
         # z: K x d
         n, A_dim, _ = A.shape
@@ -109,7 +180,7 @@ class Base(nn.Module):
 
         # K x d @ d x d = n x K x d
         zTAz = matmul(matmul(zT, A), z)
-        return zTAz.squeeze(-1)
+        return -1.0 * zTAz.mean()
 
     def trim_state(self, state: torch.Tensor):
         # state trimming
@@ -125,9 +196,7 @@ class Base(nn.Module):
     def get_matrix_eig(self, A: torch.Tensor):
         with torch.no_grad():
             eigvals = torch.linalg.eigvalsh(A)  # (batch, dim), real symmetric
-            pos_eigvals = torch.relu(eigvals)
-            neg_eigvals = torch.relu(-eigvals)
-        return pos_eigvals.mean(dim=1).mean(), neg_eigvals.mean(dim=1).mean()
+        return eigvals.mean(0).cpu().numpy()
 
     def Jacobian(self, f: torch.Tensor, x: torch.Tensor):
         # NOTE that this function assume that data are independent of each other
@@ -172,20 +241,18 @@ class Base(nn.Module):
             DBDx[:, :, :, i] = self.Jacobian(B[:, :, i].unsqueeze(-1), x)
         return DBDx
 
-    def weighted_gradients(
-        self, W: torch.Tensor, v: torch.Tensor, x: torch.Tensor, detach: bool = False
-    ):
+    def weighted_gradients(self, W: torch.Tensor, v: torch.Tensor, x: torch.Tensor):
         # v, x: bs x n x 1
         # DWDx: bs x n x n x n
         assert v.size() == x.size()
 
         bs = x.shape[0]
-        if detach:
-            return (self.Jacobian_Matrix(W, x).detach() * v.view(bs, 1, 1, -1)).sum(
-                dim=3
-            )
-        else:
-            return (self.Jacobian_Matrix(W, x) * v.view(bs, 1, 1, -1)).sum(dim=3)
+        # if detach:
+        #     return (self.Jacobian_Matrix(W, x).detach() * v.view(bs, 1, 1, -1)).sum(
+        #         dim=3
+        #     )
+        # else:
+        return (self.Jacobian_Matrix(W, x) * v.view(bs, 1, 1, -1)).sum(dim=3)
 
     def average_dict_values(self, dict_list):
         if not dict_list:

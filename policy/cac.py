@@ -2,6 +2,7 @@ import time
 from copy import deepcopy
 from typing import Callable
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -111,6 +112,9 @@ class CAC(Base):
         self.W_lr_scheduler = LambdaLR(self.W_optimizer, lr_lambda=self.W_lr_lambda)
         self.ppo_lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.ppo_lr_lambda)
 
+        self.Cu_eigenvalues_records = []
+        self.C1_eigenvalues_records = []
+
         self.cmg_warmup = False
 
         self.to(self._dtype).to(self.device)
@@ -142,10 +146,11 @@ class CAC(Base):
     def learn(self, batch):
         detach = True if self.num_ppo_update < int(0.25 * self.nupdates) else False
 
-        loss_dict, update_time = {}, 0
+        loss_dict, supp_dict, update_time = {}, {}, 0
         if self.num_ppo_update % 3 == 0:
-            W_loss_dict, W_update_time = self.learn_W(batch, detach)
+            W_loss_dict, W_supp_dict, W_update_time = self.learn_W(batch, detach)
             loss_dict.update(W_loss_dict)
+            supp_dict.update(W_supp_dict)
             update_time += W_update_time
 
         policy_loss_dict, timesteps, policy_update_time = self.learn_ppo(batch)
@@ -160,7 +165,7 @@ class CAC(Base):
 
         self.num_ppo_update += 1
 
-        return loss_dict, timesteps, update_time
+        return loss_dict, supp_dict, timesteps, update_time
 
     def learn_W(self, policy_batch: dict, detach: bool):
         """Performs a single training step using PPO, incorporating all reference training steps."""
@@ -263,18 +268,19 @@ class CAC(Base):
             C2_inners.append(C2_inner)
             C2s.append(C2)
 
+        ### DEFINE PD MATRICES ###
+        Cu = Cu + self.eps * torch.eye(Cu.shape[-1]).to(self.device)
+        C1 = C1 + self.eps * torch.eye(C1.shape[-1]).to(self.device)
+        C2 = [(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s]
+        overshoot = W - (self.w_ub * torch.eye(W.shape[-1])).unsqueeze(0).to(
+            self.device
+        )
+
         #### COMPUTE LOSS ####
-        pd_loss = self.loss_pos_matrix_random_sampling(
-            -C_u - self.eps * torch.eye(C_u.shape[-1]).to(self.device)
-        )
-        c1_loss = self.loss_pos_matrix_random_sampling(
-            -C1 - self.eps * torch.eye(C1.shape[-1]).to(self.device)
-        )
-        c2_loss = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
-        # c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
-        overshoot_loss = self.loss_pos_matrix_random_sampling(
-            (self.w_ub * torch.eye(W.shape[-1])).unsqueeze(0).to(self.device) - W
-        )
+        pd_loss = self.loss_pos_matrix_random_sampling(-Cu)
+        c1_loss = self.loss_pos_matrix_random_sampling(-C1)
+        c2_loss = sum(C2)
+        overshoot_loss = self.loss_pos_matrix_random_sampling(-overshoot)
 
         ############# entropy loss ################
         mean_penalty = torch.exp(-rewards.mean())
@@ -298,12 +304,15 @@ class CAC(Base):
 
         ### for loggings
         with torch.no_grad():
-            dot_M_pos_eig, dot_M_neg_eig = self.get_matrix_eig(dot_M)
-            sym_MABK_pos_eig, sym_MABK_neg_eig = self.get_matrix_eig(sym_MABK)
-            M_pos_eig, M_neg_eig = self.get_matrix_eig(M)
+            dot_M_pos_eig, dot_M_neg_eig, _ = self.get_matrix_eig(dot_M)
+            sym_MABK_pos_eig, sym_MABK_neg_eig, _ = self.get_matrix_eig(sym_MABK)
+            M_pos_eig, M_neg_eig, _ = self.get_matrix_eig(M)
 
-            C_pos_eig, C_neg_eig = self.get_matrix_eig(C_u)
-            C1_pos_eig, C1_neg_eig = self.get_matrix_eig(C1)
+            _, _, Cu_eig = self.get_matrix_eig(Cu)
+            _, _, C1_eig = self.get_matrix_eig(C1)
+
+            self.Cu_eigenvalues_records.append(Cu_eig.cpu().numpy())
+            self.C1_eigenvalues_records.append(C1_eig.cpu().numpy())
 
         # Logging
         loss_dict = {
@@ -316,10 +325,6 @@ class CAC(Base):
             f"{self.name}/W_loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/W_loss/mean_penalty": mean_penalty.item(),
             f"{self.name}/W_loss/mean_entropy": mean_entropy.item(),
-            f"{self.name}/C_analytics/C_pos_eig": C_pos_eig.item(),
-            f"{self.name}/C_analytics/C_neg_eig": C_neg_eig.item(),
-            f"{self.name}/C_analytics/C1_pos_eig": C1_pos_eig.item(),
-            f"{self.name}/C_analytics/C1_neg_eig": C1_neg_eig.item(),
             f"{self.name}/C_analytics/dot_M_pos_eig": dot_M_pos_eig.item(),
             f"{self.name}/C_analytics/dot_M_neg_eig": dot_M_neg_eig.item(),
             f"{self.name}/C_analytics/sym_MABK_pos_eig": sym_MABK_pos_eig.item(),
@@ -337,11 +342,59 @@ class CAC(Base):
         loss_dict.update(grad_dict)
         loss_dict.update(norm_dict)
 
+        ### DRAW THE FIGURE OF EIGENVALUES ###
+        num = 10
+        supp_dict = {}
+        if (
+            len(self.Cu_eigenvalues_records) >= num
+            and len(self.C1_eigenvalues_records) >= num
+        ):
+            # make plt figure of cu and c1 eigenvalues
+            x = list(range(0, len(self.Cu_eigenvalues_records), num))
+            Cu_eig_array = np.asarray(self.Cu_eigenvalues_records[::num])  # every 10th
+            C1_eig_array = np.asarray(self.C1_eigenvalues_records[::num])
+
+            # find mean and 95% confidence interval
+            Cu_mean = Cu_eig_array.mean(axis=1)
+            Cu_max = Cu_eig_array.max(axis=1)
+            Cu_min = Cu_eig_array.min(axis=1)
+            C1_mean = C1_eig_array.mean(axis=1)
+            C1_max = C1_eig_array.max(axis=1)
+            C1_min = C1_eig_array.min(axis=1)
+
+            fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+
+            ax[0].plot(
+                x,
+                Cu_mean,
+                label=f"Cu Mean (max={Cu_max[-1]:.3g}, min={Cu_min[-1]:.3g})",
+            )
+            ax[0].fill_between(x, Cu_max, Cu_min, alpha=0.2)
+            ax[0].set_title("Cu Eigenvalues")
+            ax[0].legend()
+
+            ax[1].plot(
+                x,
+                C1_mean,
+                label=f"C1 Mean (max={C1_max[-1]:.3g}, min={C1_min[-1]:.3g})",
+            )
+            ax[1].fill_between(x, C1_max, C1_min, alpha=0.2)
+            ax[1].set_title("C1 Eigenvalues")
+            ax[1].legend()
+
+            supp_dict[f"{self.name}/analytics/C_eig"] = fig
+
+            ax[0].grid(linestyle="--", alpha=0.5)
+            ax[1].grid(linestyle="--", alpha=0.5)
+            plt.tight_layout()
+
+            plt.close(fig)
+
         # Cleanup
         self.eval()
 
         update_time = time.time() - t0
-        return loss_dict, update_time
+        return loss_dict, supp_dict, update_time
 
     def learn_odice(self, batch):
         """Performs a single training step using ODICE."""

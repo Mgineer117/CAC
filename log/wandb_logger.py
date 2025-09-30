@@ -1,9 +1,10 @@
 import uuid
 from typing import Iterable
 
+import matplotlib.pyplot as plt
 import numpy as np
-import wandb
 
+import wandb
 from log.base_logger import BaseLogger
 
 
@@ -78,21 +79,10 @@ class WandbLogger(BaseLogger):
         """Sending data to wandb without resetting the current stored stats."""
         wandb.log(self.stats_mean, step=step)
 
-    def write_images(self, step: int, images: list, logdir: str) -> None:
+    def write_images(self, step: int, image: plt.Figure, logdir: str) -> None:
         """Logs images to wandb."""
-        image_list = []
-        for img in images:
-            # img can be a path to an image file or a numpy array representing an image.
-            # You can also use wandb.Image to wrap the image data in case it's an array.
-            if isinstance(img, str):
-                # If the img is a file path, log it directly
-                image_list.append(wandb.Image(img))
-            else:
-                # If the img is an array (e.g., numpy array), log it as a wandb image
-                image_list.append(wandb.Image(img))
-
         # Log the list of images
-        wandb.log({f"{logdir}": image_list}, step=step)
+        wandb.log({f"{logdir}": wandb.Image(image)}, step=step)
 
     def write_videos(self, step: int, images: np.ndarray, logdir: str) -> None:
         """

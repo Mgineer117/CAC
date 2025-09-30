@@ -93,7 +93,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
 
     elif algo_name in ("c3m", "c3m-approx"):
         from policy.c3m import C3M
-        from policy.layers.c3m_networks import C3M_U, C3M_W
+        from policy.layers.c3m_networks import C3M_U, C3M_W, C3M_U_Gaussian
 
         W_func = C3M_W(
             x_dim=env.num_dim_x,
@@ -112,6 +112,13 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             task=args.task,
         )
 
+        # u_func = C3M_U_Gaussian(
+        #     x_dim=env.num_dim_x,
+        #     state_dim=args.state_dim,
+        #     action_dim=args.action_dim,
+        #     task=args.task,
+        # )
+
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         policy = C3M(
             x_dim=env.num_dim_x,
@@ -125,6 +132,8 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             lbd=args.lbd,
             eps=args.eps,
             w_ub=args.w_ub,
+            num_minibatch=args.num_minibatch,
+            minibatch_size=args.minibatch_size,
             nupdates=args.c3m_epochs,
             device=args.device,
         )
@@ -136,24 +145,24 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
 
         nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
-        # W_func = C3M_W_Gaussian(
-        #     x_dim=env.num_dim_x,
-        #     state_dim=args.state_dim,
-        #     hidden_dim=[128, 128],
-        #     w_lb=args.w_lb,
-        #     activation=nn.Tanh(),
-        #     device=args.device,
-        # )
-        W_func = C3M_W(
+        W_func = C3M_W_Gaussian(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
-            action_dim=args.action_dim,
-            w_lb=args.w_lb,
-            task=args.task,
             hidden_dim=[128, 128],
+            w_lb=args.w_lb,
             activation=nn.Tanh(),
             device=args.device,
         )
+        # W_func = C3M_W(
+        #     x_dim=env.num_dim_x,
+        #     state_dim=args.state_dim,
+        #     action_dim=args.action_dim,
+        #     w_lb=args.w_lb,
+        #     task=args.task,
+        #     hidden_dim=[128, 128],
+        #     activation=nn.Tanh(),
+        #     device=args.device,
+        # )
 
         actor = C3M_U_Gaussian(
             x_dim=env.num_dim_x,
@@ -161,8 +170,6 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             action_dim=args.action_dim,
             task=args.task,
         )
-
-        # actor = PPO_Actor(args.state_dim - 1, args.actor_dim, args.action_dim)
 
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
