@@ -18,7 +18,7 @@ class DynamicLearner(Base):
         hidden_dim: list,
         nupdates: int,
         drop_out: float | None = None,
-        activation: nn.Module = nn.Tanh(),
+        activation: nn.Module = nn.ReLU(),
         Dynamic_lr: float = 1e-3,
         device: torch.device = torch.device("cpu"),
     ):
