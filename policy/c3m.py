@@ -161,18 +161,18 @@ class C3M(Base):
         if detach:
             ABK = A + matmul(B, K)
             MABK = matmul(M.detach(), ABK)
-            sym_MABK = MABK + transpose(MABK, 1, 2)
+            sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
             C_u = dot_M + sym_MABK + 2 * self.lbd * M.detach()
         else:
             ABK = A + matmul(B, K)
             MABK = matmul(M, ABK)
-            sym_MABK = MABK + transpose(MABK, 1, 2)
+            sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
             C_u = dot_M + sym_MABK + 2 * self.lbd * M
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
         DfDxW = matmul(DfDx, W)
-        sym_DfDxW = DfDxW + transpose(DfDxW, 1, 2)
+        sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
         C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
@@ -198,7 +198,6 @@ class C3M(Base):
             -C1 - self.eps * torch.eye(C1.shape[-1]).to(self.device)
         )
         c2_loss = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
-        # c2_loss = sum([(matrix_norm(C2) ** 2).mean() for C2 in C2s])
         overshoot_loss = self.loss_pos_matrix_random_sampling(
             (self.w_ub * torch.eye(W.shape[-1])).unsqueeze(0).to(self.device) - W
         )
