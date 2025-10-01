@@ -403,7 +403,7 @@ class CarEnv(gym.Env):
             )
 
             # === DATA FOR DYNAMICS LEARNING === #
-            n_control_per_x = 3
+            n_control_per_x = 1
             batch_size = ceil(buffer_size / n_control_per_x)
 
             # sample_mode = "Gaussian"
