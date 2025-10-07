@@ -89,9 +89,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         W_func = C3M_W(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
-            action_dim=args.action_dim,
             w_lb=args.w_lb,
-            task=args.task,
             hidden_dim=[128, 128],
             activation=nn.Tanh(),
             device=args.device,
@@ -127,7 +125,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
 
         nupdates = args.timesteps / (args.minibatch_size * args.num_minibatch)
 
-        W_func = C3M_W_Gaussian(
+        W_func = C3M_W(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
             hidden_dim=[128, 128],

@@ -168,9 +168,7 @@ class C3M_W(nn.Module):
         self,
         x_dim: int,
         state_dim: int,
-        action_dim: int,
         w_lb: float,
-        task: str,
         hidden_dim: list,
         activation: nn.Module = nn.Tanh(),
         device: str = "cpu",
@@ -179,10 +177,8 @@ class C3M_W(nn.Module):
 
         self.x_dim = x_dim
         self.state_dim = state_dim
-        self.action_dim = action_dim
         self.device = device
         self.w_lb = w_lb
-        self.task = task
 
         # Instantiate models for generating the W matrix and optional lower blocks
         self.model_W = MLP(
