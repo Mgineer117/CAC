@@ -211,7 +211,8 @@ if __name__ == "__main__":
     algo_names = [
         "cac-approx",
         "c3m-approx",
-        "ppo-approx",
+        # "c3m-approx_determinstic",
+        # "ppo-approx",
         "sd-lqr-approx",
         "lqr-approx",
     ]
