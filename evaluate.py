@@ -391,7 +391,13 @@ if __name__ == "__main__":
         label.set_fontsize(22)
 
     # Legend
-    ax.legend(title="mAUC", title_fontsize=28, fontsize=22, loc="best")
+    ax.legend(
+        title="mAUC",
+        title_fontsize=28,
+        fontsize=22,
+        loc="upper left",
+        bbox_to_anchor=(0.0, 0.7),
+    )
 
     # Grid and layout
     ax.grid(True, which="both", linestyle="--", linewidth=0.8)
