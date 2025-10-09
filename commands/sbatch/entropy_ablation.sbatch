@@ -20,7 +20,7 @@ source ~/.bashrc
 # Activate your conda environment
 conda activate cac
 
-# === Run CACeriments in Parallel ===
+# === Run Experiments in Parallel ===
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project CAC_Q --algo-name cac-approx & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project CAC_Q --algo-name cac-approx & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project CAC_Q --algo-name cac-approx & 

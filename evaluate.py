@@ -3,13 +3,14 @@
 # Email: minjae5@illinois.edu                         #
 # Affiliation: U of Illinois @ Urbana-Champaign       #
 # =================================================== #
-
 import datetime
 import os
 import random
 import time
 import uuid
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import torch
 
@@ -33,6 +34,57 @@ from policy.lqr import LQR
 from policy.sd_lqr import SD_LQR
 
 EVAL_EPISODES = 10
+COLORS = {
+    "cac-approx": "#F83C32",  # pastel red
+    "cac-approx-deterministic": "#F88A84",  # pale pastel red
+    "c3m-approx": "#1A62CF",  # pastel blue
+    "ppo-approx": "#646464",  # grey
+}
+
+LINESTYLES = {
+    "cac-approx": "-",
+    "cac-approx-deterministic": "--",
+    "c3m-approx": "-.",
+    "ppo-approx": ":",
+}
+# NAMES = {
+#     "cac-approx": r"CAC w/ $\mathcal{H}(\pi(\cdot\mid s))$",
+#     "cac-approx-deterministic": r"CAC w/o $\mathcal{H}(\pi(\cdot\mid s))$",
+#     "c3m-approx": "C3M",
+#     "ppo-approx": "PPO",
+# }
+
+NAMES_CAR = {
+    "cac-approx": 1.18,
+    "cac-approx-deterministic": 1.21,
+    "c3m-approx": 1.15,
+    "ppo-approx": 1.66,
+}
+NAMES_PVTOL = {
+    "cac-approx": 3.59,
+    "cac-approx-deterministic": 3.89,
+    "c3m-approx": 145,
+    "ppo-approx": 8.32,
+}
+NAMES_NEURALLANDER = {
+    "cac-approx": 2.55,
+    "cac-approx-deterministic": 2.60,
+    "c3m-approx": 2.65,
+    "ppo-approx": 2.98,
+}
+NAMES_QUADROTOR = {
+    "cac-approx": 3.70,
+    "cac-approx-deterministic": 3.91,
+    "c3m-approx": 4.97,
+    "ppo-approx": 5.68,
+}
+NAMES = {
+    "car": NAMES_CAR,
+    "pvtol": NAMES_PVTOL,
+    "neurallander": NAMES_NEURALLANDER,
+    "quadrotor": NAMES_QUADROTOR,
+}
+MAX_TIME = {"car": 6.0, "pvtol": 6.0, "neurallander": 3.0, "quadrotor": 6.0}
 
 
 class Policy:
@@ -56,6 +108,19 @@ class Policy:
         return x, xref, uref, t
 
 
+def smooth(
+    scalars: list[float], weight: float = 0.9
+) -> list[float]:  # Weight between 0 and 1
+    last = scalars[0]  # First value in the plot (first timestep)
+    smoothed = list()
+    for point in scalars:
+        smoothed_val = last * weight + (1 - weight) * point  # Calculate smoothed value
+        smoothed.append(smoothed_val)  # Save it
+        last = smoothed_val  # Anchor the last smoothed value
+
+    return smoothed
+
+
 def get_policy(eval_env, args, get_f_and_B, SDC_func, seed):
     env_name = args.task
 
@@ -77,7 +142,13 @@ def get_policy(eval_env, args, get_f_and_B, SDC_func, seed):
                 SDC_func=SDC_func,
             )
 
-    elif args.algo_name in ("ppo", "ppo-approx", "cac", "cac-approx"):
+    elif args.algo_name in (
+        "ppo",
+        "ppo-approx",
+        "cac",
+        "cac-approx",
+        "cac-approx-deterministic",
+    ):
         policy = C3M_U_Gaussian(
             x_dim=eval_env.num_dim_x,
             state_dim=args.state_dim,
@@ -106,6 +177,7 @@ def evaluate(eval_env, algo_name, policy, seed):
     """
 
     ep_buffer = []
+    ep_norm_tracking_error = []
     for _ in range(EVAL_EPISODES):
         ep_tracking_error, ep_control_effort, ep_inference_time = (
             0,
@@ -137,6 +209,10 @@ def evaluate(eval_env, algo_name, policy, seed):
 
             if done:
                 auc = np.trapezoid(normalized_error_trajectory, dx=eval_env.dt)
+                ep_norm_tracking_error.append(
+                    np.array(smooth(normalized_error_trajectory))
+                )
+
                 ep_buffer.append(
                     {
                         "avg_inference_time": ep_inference_time / t,
@@ -161,7 +237,18 @@ def evaluate(eval_env, algo_name, policy, seed):
         f"{algo_name}/control_effort_mean": ctr_mean,
     }
 
-    return eval_dict
+    # find the average of normalized_tracking error
+    # but ensure they are in different length so extend the shorter length to the maximum length by copying the last element
+    max_length = max(len(traj) for traj in ep_norm_tracking_error)
+    ep_norm_tracking_error = np.array(
+        [
+            np.pad(traj, (0, max_length - len(traj)), mode="edge")
+            for traj in ep_norm_tracking_error
+        ]
+    )
+    ep_norm_tracking_error = np.mean(ep_norm_tracking_error, axis=0)
+
+    return eval_dict, ep_norm_tracking_error
 
 
 def run(args, seed, unique_id, exp_time):
@@ -185,11 +272,11 @@ def run(args, seed, unique_id, exp_time):
 
     policy = get_policy(eval_env, args, get_f_and_B, SDC_func, seed)
 
-    eval_dict = evaluate(eval_env, args.algo_name, policy, seed)
+    eval_dict, ep_norm_tracking_error = evaluate(eval_env, args.algo_name, policy, seed)
 
     wandb.finish()
 
-    return eval_dict
+    return eval_dict, ep_norm_tracking_error
 
 
 if __name__ == "__main__":
@@ -210,22 +297,27 @@ if __name__ == "__main__":
 
     algo_names = [
         "cac-approx",
+        "cac-approx-deterministic",
         "c3m-approx",
-        # "c3m-approx_determinstic",
-        # "ppo-approx",
-        "sd-lqr-approx",
-        "lqr-approx",
+        "ppo-approx",
+        # "sd-lqr-approx",
+        # "lqr-approx",
     ]
+    tracking_error_mean_dict = {}
+    tracking_error_std_dict = {}
     for algo_name in algo_names:
         dict_list = []
+        tracking_error_list = []
         for seed in seeds:
             args = override_args(init_args)
             args.algo_name = algo_name
             args.seed = seed
 
-            eval_dict = run(args, seed, unique_id, exp_time)
+            eval_dict, ep_norm_tracking_error = run(args, seed, unique_id, exp_time)
             dict_list.append(eval_dict)
+            tracking_error_list.append(ep_norm_tracking_error)
 
+        # pull best result
         mean_dict = {}
         ci_dict = {}
 
@@ -246,3 +338,66 @@ if __name__ == "__main__":
         print(
             f"{algo_name}: 95% Confidence Intervals: {ci_dict[f"{algo_name}/mauc_mean"]}"
         )
+
+        # print tracking error
+        tracking_error_array = np.array(tracking_error_list)
+        tracking_error_mean_dict[algo_name] = np.mean(tracking_error_array, axis=0)
+        tracking_error_std_dict[algo_name] = (
+            1.96
+            * np.std(tracking_error_array, axis=0)
+            / np.sqrt(len(tracking_error_list))
+        )
+
+    # draw the figure as plt.plot and fill_between
+    plt.figure(figsize=(9, 7))
+    ax = plt.gca()
+
+    # make y_label as log
+    for algo_name in algo_names:
+        x = np.linspace(
+            0, MAX_TIME[args.task], tracking_error_mean_dict[algo_name].shape[0]
+        )
+        ax.plot(
+            x,
+            tracking_error_mean_dict[algo_name],
+            label=NAMES[args.task][algo_name],
+            color=COLORS[algo_name],
+            linestyle=LINESTYLES[algo_name],
+            linewidth=5,
+            alpha=0.9,
+        )
+        ax.fill_between(
+            x,
+            tracking_error_mean_dict[algo_name] - tracking_error_std_dict[algo_name],
+            tracking_error_mean_dict[algo_name] + tracking_error_std_dict[algo_name],
+            alpha=0.2,
+            color=COLORS[algo_name],
+        )
+
+    ax.set_xlabel("Time (s)", fontsize=30)
+    ax.set_ylabel("Normalized Tracking Error", fontsize=30)
+
+    # Set log scale
+    ax.set_yscale("log")
+
+    # Control tick font sizes (both normal and mathtext subscripts/superscripts)
+    ax.tick_params(axis="x", labelsize=26)
+    ax.tick_params(axis="y", labelsize=26)
+
+    # Force scientific/mathtext style for log ticks so subscripts scale
+    # ax.yaxis.set_major_formatter(ticker.LogFormatterMathtext())
+    # Globally adjust minor tick font size
+    for label in ax.get_yminorticklabels():
+        label.set_fontsize(22)
+
+    # Legend
+    ax.legend(title="mAUC", title_fontsize=28, fontsize=22, loc="best")
+
+    # Grid and layout
+    ax.grid(True, which="both", linestyle="--", linewidth=0.8)
+    plt.tight_layout()
+
+    plt.savefig(f"{args.task}_tracking_error.pdf")
+    plt.savefig(f"{args.task}_tracking_error.svg")
+    plt.savefig(f"{args.task}_tracking_error.png")
+    plt.close()
