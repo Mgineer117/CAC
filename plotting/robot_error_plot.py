@@ -25,7 +25,7 @@ for algo_idx, algo in enumerate(algorithms):
     ref_state = ref_data["state"]
 
     # Prepare list to store error trajectories
-    mAUC = 0.0
+    mAUC = []
     error_trajectories = []
 
     # Collect tracking data files
@@ -53,15 +53,18 @@ for algo_idx, algo in enumerate(algorithms):
         smoothed_errors = smooth(normalized_errors, 0.9)
 
         error_trajectories.append(smoothed_errors)
-        mAUC += np.trapezoid(smoothed_errors, dx=0.1)
+        mAUC.append(np.trapezoid(smoothed_errors, dx=0.1))
         n += 1
+
+    confidence = 0.95
 
     # Convert to array (num_trajectories, time_steps)
     error_array = np.vstack(error_trajectories)
-    mAUC /= n
+    mAUC_mean = np.mean(mAUC)
+    mAUC_std = np.std(mAUC, ddof=1)  # sample std
+    mAUC_95_ci = stats.t.ppf((1 + confidence) / 2.0, n - 1) * mAUC_std / np.sqrt(n)
 
     # Compute mean and std across trajectories
-    confidence = 0.95
     mean_error = np.mean(error_array, axis=0)
     std = np.std(error_array, axis=0, ddof=1)
     n = error_array.shape[0]
@@ -82,7 +85,7 @@ for algo_idx, algo in enumerate(algorithms):
         color=COLORS[algo],
         linestyle=LINESTYLES[algo],
         # label=LABELS[algo],
-        label=f"{mAUC:.2f}",
+        label=f"{mAUC_mean:.2f} ± {mAUC_95_ci:.2f}",
     )
 
     # Plot shaded std deviation

@@ -67,7 +67,7 @@ NAMES_PVTOL = {
     "ppo-approx": 8.32,
 }
 NAMES_NEURALLANDER = {
-    "cac-approx": 2.55,
+    "cac-approx": 2.54,
     "cac-approx-deterministic": 2.60,
     "c3m-approx": 2.65,
     "ppo-approx": 2.98,
