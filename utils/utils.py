@@ -91,8 +91,9 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             device=args.device,
         )
 
-    elif algo_name in ("c3m", "c3m-approx"):
+    elif algo_name in ("c3m", "c3m-approx", "c3mv2", "c3mv2-approx"):
         from policy.c3m import C3M
+        from policy.c3mv2 import C3Mv2
         from policy.layers.c3m_networks import C3M_U, C3M_W, C3M_U_Gaussian
 
         W_func = C3M_W(
@@ -120,23 +121,42 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         # )
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        policy = C3M(
-            x_dim=env.num_dim_x,
-            action_dim=args.action_dim,
-            W_func=W_func,
-            u_func=u_func,
-            data=data,
-            get_f_and_B=get_f_and_B,
-            W_lr=args.W_lr,
-            u_lr=args.u_lr,
-            lbd=args.lbd,
-            eps=args.eps,
-            w_ub=args.w_ub,
-            num_minibatch=args.num_minibatch,
-            minibatch_size=args.minibatch_size,
-            nupdates=args.c3m_epochs,
-            device=args.device,
-        )
+        if algo_name in ("c3mv2", "c3mv2-approx"):
+            policy = C3Mv2(
+                x_dim=env.num_dim_x,
+                action_dim=args.action_dim,
+                W_func=W_func,
+                u_func=u_func,
+                data=data,
+                get_f_and_B=get_f_and_B,
+                W_lr=args.W_lr,
+                u_lr=args.u_lr,
+                lbd=args.lbd,
+                eps=args.eps,
+                w_ub=args.w_ub,
+                num_minibatch=args.num_minibatch,
+                minibatch_size=args.minibatch_size,
+                nupdates=args.c3m_epochs,
+                device=args.device,
+            )
+        else:
+            policy = C3M(
+                x_dim=env.num_dim_x,
+                action_dim=args.action_dim,
+                W_func=W_func,
+                u_func=u_func,
+                data=data,
+                get_f_and_B=get_f_and_B,
+                W_lr=args.W_lr,
+                u_lr=args.u_lr,
+                lbd=args.lbd,
+                eps=args.eps,
+                w_ub=args.w_ub,
+                num_minibatch=args.num_minibatch,
+                minibatch_size=args.minibatch_size,
+                nupdates=args.c3m_epochs,
+                device=args.device,
+            )
 
     elif algo_name in ("cac", "cac-approx"):
         from policy.cac import CAC

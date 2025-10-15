@@ -15,7 +15,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from policy.base import Base
 
 
-class C3M(Base):
+class C3Mv2(Base):
     def __init__(
         self,
         x_dim: int,
@@ -34,7 +34,7 @@ class C3M(Base):
         nupdates: int = 0,
         device: str = "cpu",
     ):
-        super(C3M, self).__init__()
+        super(C3Mv2, self).__init__()
 
         # constants
         self.name = "C3M"
@@ -60,7 +60,15 @@ class C3M(Base):
             self.get_f_and_B.eval()
 
         # make lbd and nu a trainable parameter
-        self.lbd = lbd
+        self.lbd = nn.Parameter(
+            torch.tensor(lbd, dtype=torch.float32, device=self.device)
+        )
+        self.nu = nn.Parameter(
+            torch.ones(3, dtype=torch.float32, device=self.device) + 1e-2
+        )
+        self.zeta = nn.Parameter(
+            torch.ones(1, dtype=torch.float32, device=self.device) + 1e-2
+        )
 
         self.eps = eps
         self.w_ub = w_ub
@@ -69,10 +77,15 @@ class C3M(Base):
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
                 {"params": self.u_func.parameters(), "lr": u_lr},
+                {"params": [self.lbd], "lr": 1e-3},
             ]
         )
+        self.dual_optimizer = torch.optim.Adam(
+            [{"params": [self.nu], "lr": 3e-3}, {"params": [self.zeta], "lr": 3e-3}]
+        )
 
-        self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler1 = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler2 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
 
         self.Cu_eigenvalues_records = []
         self.dot_M_eigenvalues_records = []
@@ -199,18 +212,52 @@ class C3M(Base):
         overshoot_loss = self.loss_pos_matrix_random_sampling(-overshoot)
         c2_loss = C2
 
-        loss = overshoot_loss + pd_loss + c1_loss + c2_loss
+        nu = self.nu.detach()
+        zeta = self.zeta.detach()
+        loss = (
+            -self.lbd
+            + nu[0] * overshoot_loss
+            + nu[1] * pd_loss
+            + nu[2] * c1_loss
+            + zeta * c2_loss
+        )
 
         self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
-            [self.W_func, self.u_func],
-            ["W_func", "u_func"],
+            [self.W_func, self.u_func, self.lbd],
+            ["W_func", "u_func", "lbd"],
             dir="C3M",
             device=self.device,
         )
         self.optimizer.step()
+
+        dual_loss = -(
+            self.nu[0] * overshoot_loss.detach()
+            + self.nu[1] * pd_loss.detach()
+            + self.nu[2] * c1_loss.detach()
+            + self.zeta * c2_loss.detach()
+        )
+        self.dual_optimizer.zero_grad()
+        dual_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            self.dual_optimizer.param_groups[0]["params"], max_norm=10.0
+        )
+        grad_dict.update(
+            self.compute_gradient_norm(
+                [self.nu, self.zeta],
+                ["nu", "zeta"],
+                dir=f"{self.name}",
+                device=self.device,
+            )
+        )
+        self.dual_optimizer.step()
+
+        # ensure lbd and nu are positive
+        with torch.no_grad():
+            self.lbd.clamp_(min=1e-6, max=1e6)
+            self.nu.clamp_(min=0.0, max=1e6)
 
         with torch.no_grad():
             dot_M_eig = self.get_matrix_eig(dot_M)
@@ -236,18 +283,23 @@ class C3M(Base):
             f"{self.name}/loss/c1_loss": c1_loss.item(),
             f"{self.name}/loss/c2_loss": c2_loss.item(),
             f"{self.name}/loss/overshoot_loss": overshoot_loss.item(),
-            f"{self.name}/analytics/lbd": self.lbd,
+            f"{self.name}/analytics/lbd": self.lbd.item(),
+            f"{self.name}/analytics/nu1": self.nu[0].item(),
+            f"{self.name}/analytics/nu2": self.nu[1].item(),
+            f"{self.name}/analytics/nu3": self.nu[2].item(),
+            f"{self.name}/analytics/zeta": self.zeta.item(),
             f"{self.name}/analytics/M_eig_max": M_eig.max(),
             f"{self.name}/analytics/M_eig_min": M_eig.min(),
             f"{self.name}/analytics/BK_eig_max": BK_eig.max(),
             f"{self.name}/analytics/BK_eig_min": BK_eig.min(),
-            f"{self.name}/lr/W_lr": self.lr_scheduler.get_last_lr()[0],
-            f"{self.name}/lr/u_lr": self.lr_scheduler.get_last_lr()[1],
+            f"{self.name}/lr/W_lr": self.lr_scheduler1.get_last_lr()[0],
+            f"{self.name}/lr/u_lr": self.lr_scheduler1.get_last_lr()[1],
+            f"{self.name}/lr/dual_lr": self.lr_scheduler2.get_last_lr()[0],
         }
         norm_dict = self.compute_weight_norm(
             [self.W_func, self.u_func],
             ["W_func", "u_func"],
-            dir="C3M",
+            dir=f"{self.name}",
             device=self.device,
         )
         loss_dict.update(grad_dict)
@@ -260,7 +312,8 @@ class C3M(Base):
         self.current_update += 1
 
         update_time = time.time() - t0
-        self.lr_scheduler.step()
+        self.lr_scheduler1.step()
+        self.lr_scheduler2.step()
 
         return loss_dict, supp_dict, update_time
 
