@@ -241,18 +241,20 @@ class Base(nn.Module):
             DBDx[:, :, :, i] = self.Jacobian(B[:, :, i].unsqueeze(-1), x)
         return DBDx
 
-    def weighted_gradients(self, W: torch.Tensor, v: torch.Tensor, x: torch.Tensor):
+    def weighted_gradients(
+        self, W: torch.Tensor, v: torch.Tensor, x: torch.Tensor, detach: bool = False
+    ):
         # v, x: bs x n x 1
         # DWDx: bs x n x n x n
         assert v.size() == x.size()
 
         bs = x.shape[0]
-        # if detach:
-        #     return (self.Jacobian_Matrix(W, x).detach() * v.view(bs, 1, 1, -1)).sum(
-        #         dim=3
-        #     )
-        # else:
-        return (self.Jacobian_Matrix(W, x) * v.view(bs, 1, 1, -1)).sum(dim=3)
+        if detach:
+            return (self.Jacobian_Matrix(W, x).detach() * v.view(bs, 1, 1, -1)).sum(
+                dim=3
+            )
+        else:
+            return (self.Jacobian_Matrix(W, x) * v.view(bs, 1, 1, -1)).sum(dim=3)
 
     def average_dict_values(self, dict_list):
         if not dict_list:

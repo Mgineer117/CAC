@@ -95,7 +95,7 @@ class C3Mv2(Base):
         self.overshoot_records = []
 
         #
-        self.cmg_warmup = False
+        self.num_W_update = 0
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
 
@@ -120,7 +120,14 @@ class C3Mv2(Base):
             "entropy": self.dummy,
         }
 
-    def learn(self):
+    # def learn(self):
+    #     detach = True if self.num_W_update < int(0.05 * self.nupdates) else False
+    #     loss_dict, supp_dict, update_time = self.learn_W(detach)
+    #     self.num_W_update += 1
+
+    #     return loss_dict, supp_dict, update_time
+
+    def learn(self, detach: bool = False):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
@@ -169,13 +176,19 @@ class C3Mv2(Base):
         )
 
         dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
-        dot_M = self.weighted_gradients(M, dot_x, x)
+        dot_M = self.weighted_gradients(M, dot_x, x, detach)
 
         # contraction condition
-        ABK = A + matmul(B, K)
-        MABK = matmul(M, ABK)
-        sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        Cu = dot_M + sym_MABK + 2 * self.lbd * M
+        if detach:
+            ABK = A + matmul(B, K)
+            MABK = matmul(M.detach(), ABK)
+            sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
+            Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
+        else:
+            ABK = A + matmul(B, K)
+            MABK = matmul(M, ABK)
+            sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
+            Cu = dot_M + sym_MABK + 2 * self.lbd * M
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
