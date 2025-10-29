@@ -21,15 +21,15 @@ source ~/.bashrc
 conda activate cac
 
 # === Run CACeriments in Parallel ===
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.99 &
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --gamma 0.999 &
 
 # === Wait for all background jobs to finish ===
 wait
