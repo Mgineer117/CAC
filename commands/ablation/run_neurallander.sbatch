@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=cac
+#SBATCH --job-name=c3m-nlr-lbd-test
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1

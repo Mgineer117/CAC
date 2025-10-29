@@ -34,14 +34,14 @@ def get_args():
     parser.add_argument(
         "--num-runs",
         type=int,
-        default=5,
+        default=10,
         help="Number of experiments for each algorithm.",
     )
     parser.add_argument(
-        "--actor-lr", type=float, default=1e-4, help="Actor learning rate."
+        "--actor-lr", type=float, default=1e-5, help="Actor learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=3e-4, help="Critic learning rate."
+        "--critic-lr", type=float, default=1e-4, help="Critic learning rate."
     )
     parser.add_argument(
         "--Dynamic-lr",
