@@ -22,7 +22,7 @@ from utils.functions import (
 )
 
 
-class CAC(Base):
+class CACv2(Base):
     def __init__(
         self,
         # Learning parameters
@@ -59,7 +59,7 @@ class CAC(Base):
         nupdates: int = 1,
         device: str = "cpu",
     ):
-        super(CAC, self).__init__()
+        super(CACv2, self).__init__()
 
         # constants
         self.name = "CAC"
@@ -80,7 +80,6 @@ class CAC(Base):
         self.gae = gae
         self.K = K
         self.l2_reg = l2_reg
-        self.lbd = lbd
         self.damping = damping
         self.backtrack_iters = backtrack_iters
         self.backtrack_coeff = backtrack_coeff
@@ -101,10 +100,15 @@ class CAC(Base):
         self.actor = actor
         self.critic = critic
 
-        self.W_optimizer = torch.optim.Adam(
-            [
-                {"params": self.W_func.parameters(), "lr": W_lr},
-            ]
+        # make lbd and nu a trainable parameter
+        self.lbd = nn.Parameter(
+            torch.tensor(lbd, dtype=torch.float32, device=self.device)
+        )
+        self.nu = nn.Parameter(
+            torch.ones(3, dtype=torch.float32, device=self.device) + 1e-2
+        )
+        self.zeta = nn.Parameter(
+            torch.ones(1, dtype=torch.float32, device=self.device) + 1e-2
         )
 
         self.RL_optimizer = torch.optim.Adam(
@@ -114,8 +118,19 @@ class CAC(Base):
             ]
         )
 
+        self.W_optimizer = torch.optim.Adam(
+            [
+                {"params": self.W_func.parameters(), "lr": W_lr},
+                {"params": [self.lbd], "lr": 1e-3},
+            ]
+        )
+        self.dual_optimizer = torch.optim.Adam(
+            [{"params": [self.nu], "lr": 3e-3}, {"params": [self.zeta], "lr": 3e-3}]
+        )
+
         self.lr_scheduler1 = LambdaLR(self.W_optimizer, lr_lambda=self.lr_lambda)
         self.lr_scheduler2 = LambdaLR(self.RL_optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler3 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
 
         self.to(self._dtype).to(self.device)
 
@@ -229,10 +244,26 @@ class CAC(Base):
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        loss = overshoot_loss + pd_loss + c1_loss + c2_loss
+        nu = self.nu.detach()
+        zeta = self.zeta.detach()
+        primal_loss = (
+            -self.lbd
+            + nu[0] * overshoot_loss
+            + nu[1] * pd_loss
+            + nu[2] * c1_loss
+            + zeta * c2_loss
+        )
+
+        dual_loss = -(
+            self.nu[0] * overshoot_loss.detach()
+            + self.nu[1] * pd_loss.detach()
+            + self.nu[2] * c1_loss.detach()
+            + self.zeta * c2_loss.detach()
+        )
 
         return (
-            loss,
+            primal_loss,
+            dual_loss,
             {
                 "pd_loss": pd_loss,
                 "c1_loss": c1_loss,
@@ -241,10 +272,10 @@ class CAC(Base):
             },
         )
 
-    def optimize_W_params(self, loss: torch.Tensor):
+    def optimize_W_params(self, primal_loss: torch.Tensor, dual_loss: torch.Tensor):
         # === OPTIMIZATION STEP === #
         self.W_optimizer.zero_grad()
-        loss.backward()
+        primal_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
             [self.W_func, self.lbd],
@@ -254,14 +285,35 @@ class CAC(Base):
         )
         self.W_optimizer.step()
 
+        self.dual_optimizer.zero_grad()
+        dual_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            self.dual_optimizer.param_groups[0]["params"], max_norm=10.0
+        )
+        grad_dict.update(
+            self.compute_gradient_norm(
+                [self.nu, self.zeta],
+                ["nu", "zeta"],
+                dir=f"{self.name}",
+                device=self.device,
+            )
+        )
+        self.dual_optimizer.step()
+
+        # ensure the primal and dual feasibility
+        with torch.no_grad():
+            self.lbd.clamp_(min=1e-6, max=1e6)
+            self.nu.clamp_(min=0.0, max=1e6)
+
         return grad_dict
 
     def learn(self, batch):
         W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
-        RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+        RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
 
         self.lr_scheduler1.step()
         self.lr_scheduler2.step()
+        self.lr_scheduler3.step()
 
         loss_dict = {}
         loss_dict.update(W_loss_dict)
@@ -280,21 +332,29 @@ class CAC(Base):
         t0 = time.time()
 
         # === PERFORM OPTIMIZATION STEP === #
-        loss, infos = self.compute_W_loss()
-        grad_dict = self.optimize_W_params(loss)
+        primal_loss, dual_loss, infos = self.compute_W_loss()
+        grad_dict = self.optimize_W_params(primal_loss, dual_loss)
 
         # === LOGGING === #
         fig = self.get_eigenvalue_plot()
         supp_dict = {"CAC/plot/eigenvalues": fig}
 
         loss_dict = {
-            f"{self.name}/loss/loss": loss.item(),
+            f"{self.name}/loss/loss": primal_loss.item(),
             f"{self.name}/loss/pd_loss": infos["pd_loss"].item(),
             f"{self.name}/loss/c1_loss": infos["c1_loss"].item(),
             f"{self.name}/loss/c2_loss": infos["c2_loss"].item(),
             f"{self.name}/loss/overshoot_loss": infos["overshoot_loss"].item(),
-            f"{self.name}/analytics/lbd": self.lbd,
+            f"{self.name}/loss/dual_loss": dual_loss.item(),
+            f"{self.name}/analytics/lbd": self.lbd.item(),
+            f"{self.name}/analytics/nu1": self.nu[0].item(),
+            f"{self.name}/analytics/nu2": self.nu[1].item(),
+            f"{self.name}/analytics/nu3": self.nu[2].item(),
+            f"{self.name}/analytics/zeta": self.zeta.item(),
             f"{self.name}/lr/W_lr": self.lr_scheduler1.get_last_lr()[0],
+            f"{self.name}/lr/lbd_lr": self.lr_scheduler1.get_last_lr()[1],
+            f"{self.name}/lr/nu_lr": self.lr_scheduler3.get_last_lr()[0],
+            f"{self.name}/lr/zeta_lr": self.lr_scheduler3.get_last_lr()[1],
         }
         norm_dict = self.compute_weight_norm(
             [self.W_func],

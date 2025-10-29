@@ -42,7 +42,14 @@ def run(args, seed, unique_id, exp_time):
 
     policy = get_policy(env, eval_env, args, get_f_and_B, SDC_func)
 
-    if args.algo_name in ("cac", "cac-approx", "ppo", "ppo-approx"):
+    if args.algo_name in (
+        "cac",
+        "cac-approx",
+        "cacv2",
+        "cacv2-approx",
+        "ppo",
+        "ppo-approx",
+    ):
         sampler = OnlineSampler(
             state_dim=args.state_dim,
             action_dim=args.action_dim,

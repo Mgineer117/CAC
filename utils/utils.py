@@ -113,53 +113,30 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             task=args.task,
         )
 
-        # u_func = C3M_U_Gaussian(
-        #     x_dim=env.num_dim_x,
-        #     state_dim=args.state_dim,
-        #     action_dim=args.action_dim,
-        #     task=args.task,
-        # )
-
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        if algo_name in ("c3mv2", "c3mv2-approx"):
-            policy = C3Mv2(
-                x_dim=env.num_dim_x,
-                action_dim=args.action_dim,
-                W_func=W_func,
-                u_func=u_func,
-                data=data,
-                get_f_and_B=get_f_and_B,
-                W_lr=args.W_lr,
-                u_lr=args.u_lr,
-                lbd=args.lbd,
-                eps=args.eps,
-                w_ub=args.w_ub,
-                num_minibatch=args.num_minibatch,
-                minibatch_size=args.minibatch_size,
-                nupdates=args.c3m_epochs,
-                device=args.device,
-            )
-        else:
-            policy = C3M(
-                x_dim=env.num_dim_x,
-                action_dim=args.action_dim,
-                W_func=W_func,
-                u_func=u_func,
-                data=data,
-                get_f_and_B=get_f_and_B,
-                W_lr=args.W_lr,
-                u_lr=args.u_lr,
-                lbd=args.lbd,
-                eps=args.eps,
-                w_ub=args.w_ub,
-                num_minibatch=args.num_minibatch,
-                minibatch_size=args.minibatch_size,
-                nupdates=args.c3m_epochs,
-                device=args.device,
-            )
+        C3M_class = C3Mv2 if algo_name in ("c3mv2", "c3mv2-approx") else C3M
 
-    elif algo_name in ("cac", "cac-approx"):
+        policy = C3M_class(
+            x_dim=env.num_dim_x,
+            action_dim=args.action_dim,
+            W_func=W_func,
+            u_func=u_func,
+            data=data,
+            get_f_and_B=get_f_and_B,
+            W_lr=args.W_lr,
+            u_lr=args.u_lr,
+            lbd=args.lbd,
+            eps=args.eps,
+            w_ub=args.w_ub,
+            num_minibatch=args.num_minibatch,
+            minibatch_size=args.minibatch_size,
+            nupdates=args.c3m_epochs,
+            device=args.device,
+        )
+
+    elif algo_name in ("cac", "cac-approx", "cacv2", "cacv2-approx"):
         from policy.cac import CAC
+        from policy.cacv2 import CACv2
         from policy.layers.c3m_networks import C3M_W, C3M_U_Gaussian, C3M_W_Gaussian
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 
@@ -173,16 +150,6 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             activation=nn.Tanh(),
             device=args.device,
         )
-        # W_func = C3M_W(
-        #     x_dim=env.num_dim_x,
-        #     state_dim=args.state_dim,
-        #     action_dim=args.action_dim,
-        #     w_lb=args.w_lb,
-        #     task=args.task,
-        #     hidden_dim=[128, 128],
-        #     activation=nn.Tanh(),
-        #     device=args.device,
-        # )
 
         actor = C3M_U_Gaussian(
             x_dim=env.num_dim_x,
@@ -194,11 +161,12 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        policy = CAC(
+        policy_class = CAC if algo_name in ("cac", "cac-approx") else CACv2
+
+        policy = policy_class(
             x_dim=env.num_dim_x,
             W_func=W_func,
             get_f_and_B=get_f_and_B,
-            true_get_f_and_B=eval_env.get_f_and_B,
             data=data,
             actor=actor,
             critic=critic,
@@ -219,7 +187,6 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             gae=args.gae,
             K=args.K_epochs,
             nupdates=nupdates,
-            dt=env.dt,
             device=args.device,
         )
 

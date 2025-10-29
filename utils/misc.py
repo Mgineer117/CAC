@@ -40,11 +40,14 @@ def temp_seed(seed, pid):
     Without this, the samples from each multiprocessor will be same since the seed was fixed
     """
     rand_int = random.randint(0, 1_000_000)  # create a random integer
+    seed = seed + pid + rand_int
 
     # Set the temporary seed
-    torch.manual_seed(seed + pid + rand_int)
-    np.random.seed(seed + pid + rand_int)
-    random.seed(seed + pid + rand_int)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+    return seed
 
 
 def setup_logger(args, unique_id, exp_time, seed, verbose=True):

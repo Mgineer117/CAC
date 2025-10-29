@@ -76,12 +76,10 @@ class OnlineTrainer(BaseTrainer):
                     env=self.env, policy=self.policy, seed=self.seed
                 )
 
-                loss_dict, supp_dict, ppo_timesteps, update_time = self.policy.learn(
-                    batch
-                )
+                loss_dict, supp_dict, update_time = self.policy.learn(batch)
 
                 # Calculate expected remaining time
-                pbar.update(ppo_timesteps)
+                pbar.update(batch["rewards"].shape[0])
 
                 elapsed_time = time.time() - start_time
                 avg_time_per_iter = elapsed_time / step
@@ -111,19 +109,14 @@ class OnlineTrainer(BaseTrainer):
 
                     eval_dict_list = []
                     for i in range(self.eval_num):
-                        eval_dict, traj_plot = self.evaluate()
+                        eval_dict, supp_dict = self.evaluate()
                         eval_dict_list.append(eval_dict)
 
                     eval_dict = self.average_dict_values(eval_dict_list)
 
                     # Manual logging
                     self.write_log(eval_dict, step=step, eval_log=True)
-                    self.write_image(
-                        traj_plot,
-                        step=step,
-                        logdir=f"eval",
-                        name="traj_plot",
-                    )
+                    self.write_image(supp_dict, step=step)
 
                     self.last_auc_mean.append(eval_dict[f"eval/mauc_mean"])
 

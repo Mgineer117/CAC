@@ -145,9 +145,6 @@ class PPO(Base):
 
                 # advantages
                 mb_advantages = advantages[indices]
-                mb_advantages = (
-                    mb_advantages - mb_advantages.mean()
-                ) / mb_advantages.std()
 
                 # 1. Critic Loss (with optional regularization)
                 value_loss, l2_loss = self.critic_loss(mb_states, mb_returns)

@@ -31,7 +31,7 @@ class C3M(Base):
         w_ub: float = 1e-2,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
-        nupdates: int = 0,
+        nupdates: int = 1,
         device: str = "cpu",
     ):
         super(C3M, self).__init__()
@@ -47,7 +47,6 @@ class C3M(Base):
         self.minibatch_size = minibatch_size
 
         self.nupdates = nupdates
-        self.current_update = 0
 
         # trainable networks
         self.W_func = W_func
@@ -59,10 +58,9 @@ class C3M(Base):
             # set to eval mode due to dropout
             self.get_f_and_B.eval()
 
-        # make lbd and nu a trainable parameter
-        self.lbd = lbd
         self.eps = eps
         self.w_ub = w_ub
+        self.lbd = lbd
 
         self.optimizer = torch.optim.Adam(
             [
@@ -72,13 +70,6 @@ class C3M(Base):
         )
 
         self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
-
-        self.Cu_eigenvalues_records = []
-        self.dot_M_eigenvalues_records = []
-        self.sym_mabk_eigenvalues_records = []
-        self.C1_eigenvalues_records = []
-        self.C2_loss_records = []
-        self.overshoot_records = []
 
         #
         self.num_W_update = 0
@@ -106,19 +97,8 @@ class C3M(Base):
             "entropy": self.dummy,
         }
 
-    def learn(self):
-        detach = True if self.num_W_update < int(0.1 * self.nupdates) else False
-        loss_dict, supp_dict, update_time = self.learn_W(detach)
-        self.num_W_update += 1
-
-        return loss_dict, supp_dict, update_time
-
-    def learn_W(self, detach: bool):
-        """Performs a single training step using PPO, incorporating all reference training steps."""
-        self.train()
-        t0 = time.time()
-
-        # first sample batch (size of 1024) from the data
+    def compute_loss(self):
+        # === SAMPLE BATCH === #
         batch = dict()
         buffer_size, batch_size = self.data["x"].shape[0], 1024
         indices = np.random.choice(buffer_size, size=batch_size, replace=False)
@@ -126,14 +106,10 @@ class C3M(Base):
             # Sample a batch of 1024
             batch[key] = self.data[key][indices]
 
-        # Ingredients: Convert batch data to tensors
-        def to_tensor(data):
-            return torch.from_numpy(data).to(self._dtype).to(self.device)
-
-        #### COMPUTE INGREDIENTS ####
-        x = to_tensor(batch["x"]).requires_grad_()
-        xref = to_tensor(batch["xref"])
-        uref = to_tensor(batch["uref"])
+        # === PREPARE TENSORS === #
+        x = self.to_tensor(batch["x"]).requires_grad_()
+        xref = self.to_tensor(batch["xref"])
+        uref = self.to_tensor(batch["uref"])
 
         W, _ = self.W_func(x)  # n, x_dim, x_dim
         M = inverse(W)  # n, x_dim, x_dim
@@ -162,19 +138,13 @@ class C3M(Base):
         )
 
         dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
-        dot_M = self.weighted_gradients(M, dot_x, x, detach)
+        dot_M = self.weighted_gradients(M, dot_x, x)
 
         # contraction condition
-        if detach:
-            ABK = A + matmul(B, K)
-            MABK = matmul(M.detach(), ABK)
-            sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-            Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
-        else:
-            ABK = A + matmul(B, K)
-            MABK = matmul(M, ABK)
-            sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-            Cu = dot_M + sym_MABK + 2 * self.lbd * M
+        ABK = A + matmul(B, K)
+        MABK = matmul(M, ABK)
+        sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
+        Cu = dot_M + sym_MABK + 2 * self.lbd * M
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -205,186 +175,76 @@ class C3M(Base):
             self.device
         )
 
-        #### COMPUTE LOSS ####
+        # === DEFINE LOSSES === #
         pd_loss = self.loss_pos_matrix_random_sampling(-Cu)
         c1_loss = self.loss_pos_matrix_random_sampling(-C1)
         overshoot_loss = self.loss_pos_matrix_random_sampling(-overshoot)
         c2_loss = C2
+        self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
         loss = overshoot_loss + pd_loss + c1_loss + c2_loss
 
+        return (
+            loss,
+            {
+                "pd_loss": pd_loss,
+                "c1_loss": c1_loss,
+                "c2_loss": c2_loss,
+                "overshoot_loss": overshoot_loss,
+            },
+        )
+
+    def optimize_params(self, loss: torch.Tensor):
+        # === OPTIMIZATION STEP === #
         self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
-            [self.W_func, self.u_func],
-            ["W_func", "u_func"],
+            [self.W_func, self.u_func, self.lbd],
+            ["W_func", "u_func", "lbd"],
             dir="C3M",
             device=self.device,
         )
         self.optimizer.step()
 
-        with torch.no_grad():
-            dot_M_eig = self.get_matrix_eig(dot_M)
-            sym_MABK_eig = self.get_matrix_eig(sym_MABK)
-            M_eig = self.get_matrix_eig(M)
-            BK_eig = self.get_matrix_eig(matmul(B, K))
-            overshoot_eig = self.get_matrix_eig(overshoot)
+        # lr scheduling
+        self.lr_scheduler.step()
 
-            Cu_eig = self.get_matrix_eig(Cu)
-            C1_eig = self.get_matrix_eig(C1)
+        return grad_dict
 
-            self.Cu_eigenvalues_records.append(Cu_eig)
-            self.dot_M_eigenvalues_records.append(dot_M_eig)
-            self.sym_mabk_eigenvalues_records.append(sym_MABK_eig)
-            self.C1_eigenvalues_records.append(C1_eig)
-            self.C2_loss_records.append(C2.cpu().numpy())
-            self.overshoot_records.append(overshoot_eig)
+    def learn(self):
+        """Performs a single training step using PPO, incorporating all reference training steps."""
+        self.train()
+        t0 = time.time()
 
-        ### LOGGING ###
+        # === PERFORM OPTIMIZATION STEP === #
+        loss, infos = self.compute_loss()
+        grad_dict = self.optimize_params(loss)
+
+        # === LOGGING === #
+        fig = self.get_eigenvalue_plot()
+        supp_dict = {"C3M/plot/eigenvalues": fig}
+
         loss_dict = {
             f"{self.name}/loss/loss": loss.item(),
-            f"{self.name}/loss/pd_loss": pd_loss.item(),
-            f"{self.name}/loss/c1_loss": c1_loss.item(),
-            f"{self.name}/loss/c2_loss": c2_loss.item(),
-            f"{self.name}/loss/overshoot_loss": overshoot_loss.item(),
-            f"{self.name}/analytics/lbd": self.lbd,
-            f"{self.name}/analytics/M_eig_max": M_eig.max(),
-            f"{self.name}/analytics/M_eig_min": M_eig.min(),
-            f"{self.name}/analytics/BK_eig_max": BK_eig.max(),
-            f"{self.name}/analytics/BK_eig_min": BK_eig.min(),
+            f"{self.name}/loss/pd_loss": infos["pd_loss"].item(),
+            f"{self.name}/loss/c1_loss": infos["c1_loss"].item(),
+            f"{self.name}/loss/c2_loss": infos["c2_loss"].item(),
+            f"{self.name}/loss/overshoot_loss": infos["overshoot_loss"].item(),
             f"{self.name}/lr/W_lr": self.lr_scheduler.get_last_lr()[0],
             f"{self.name}/lr/u_lr": self.lr_scheduler.get_last_lr()[1],
         }
         norm_dict = self.compute_weight_norm(
             [self.W_func, self.u_func],
             ["W_func", "u_func"],
-            dir="C3M",
+            dir=f"{self.name}",
             device=self.device,
         )
         loss_dict.update(grad_dict)
         loss_dict.update(norm_dict)
 
-        supp_dict = self.get_supp_dict()
-
-        # Cleanup
+        # === CLEANUP === #
         self.eval()
-        self.current_update += 1
-
         update_time = time.time() - t0
-        self.lr_scheduler.step()
 
         return loss_dict, supp_dict, update_time
-
-    def get_supp_dict(self):
-        ### DRAW THE FIGURE OF EIGENVALUES ###
-        num = 10
-        supp_dict = {}
-        if (
-            len(self.Cu_eigenvalues_records) >= num
-            and len(self.C1_eigenvalues_records) >= num
-        ):
-            # make plt figure of cu and c1 eigenvalues
-            x = list(range(0, len(self.Cu_eigenvalues_records), num))
-
-            Cu_eig_array = np.asarray(self.Cu_eigenvalues_records[::num])  # every 10th
-            dot_M_eig_array = np.asarray(
-                self.dot_M_eigenvalues_records[::num]
-            )  # every 10th
-            sym_MABK_eig_array = np.asarray(
-                self.sym_mabk_eigenvalues_records[::num]
-            )  # every 10th
-            C1_eig_array = np.asarray(self.C1_eigenvalues_records[::num])
-            C2_loss = np.asarray(self.C2_loss_records[::num])
-            overshoot_eig_array = np.asarray(self.overshoot_records[::num])
-
-            # find mean and 95% confidence interval
-            Cu_mean = Cu_eig_array.mean(axis=1)
-            Cu_max = Cu_eig_array.max(axis=1)
-            Cu_min = Cu_eig_array.min(axis=1)
-
-            dot_M_mean = dot_M_eig_array.mean(axis=1)
-            dot_M_max = dot_M_eig_array.max(axis=1)
-            dot_M_min = dot_M_eig_array.min(axis=1)
-
-            sym_MABK_mean = sym_MABK_eig_array.mean(axis=1)
-            sym_MABK_max = sym_MABK_eig_array.max(axis=1)
-            sym_MABK_min = sym_MABK_eig_array.min(axis=1)
-
-            C1_mean = C1_eig_array.mean(axis=1)
-            C1_max = C1_eig_array.max(axis=1)
-            C1_min = C1_eig_array.min(axis=1)
-            overshoot_mean = overshoot_eig_array.mean(axis=1)
-            overshoot_max = overshoot_eig_array.max(axis=1)
-            overshoot_min = overshoot_eig_array.min(axis=1)
-
-            fig, ax = plt.subplots(2, 3, figsize=(12, 6))
-
-            ax[0, 0].plot(
-                x,
-                Cu_mean,
-                label=f"Cu Mean (max={Cu_max[-1]:.3g}, min={Cu_min[-1]:.3g})",
-            )
-            ax[0, 0].fill_between(x, Cu_max, Cu_min, alpha=0.2)
-            ax[0, 0].set_title("Cu Eigenvalues")
-            ax[0, 0].legend()
-
-            ax[0, 1].plot(
-                x,
-                dot_M_mean,
-                label=f"Dot M Mean (max={dot_M_max[-1]:.3g}, min={dot_M_min[-1]:.3g})",
-            )
-            ax[0, 1].fill_between(x, dot_M_max, dot_M_min, alpha=0.2)
-            ax[0, 1].set_title("Dot M Eigenvalues")
-            ax[0, 1].legend()
-
-            ax[0, 2].plot(
-                x,
-                sym_MABK_mean,
-                label=f"Sym MABK Mean (max={sym_MABK_max[-1]:.3g}, min={sym_MABK_min[-1]:.3g})",
-            )
-            ax[0, 2].fill_between(x, sym_MABK_max, sym_MABK_min, alpha=0.2)
-            ax[0, 2].set_title("Sym MABK Eigenvalues")
-            ax[0, 2].legend()
-
-            ax[1, 0].plot(
-                x,
-                C1_mean,
-                label=f"C1 Mean (max={C1_max[-1]:.3g}, min={C1_min[-1]:.3g})",
-            )
-            ax[1, 0].fill_between(x, C1_max, C1_min, alpha=0.2)
-            ax[1, 0].set_title("C1 Eigenvalues")
-            ax[1, 0].legend()
-
-            supp_dict[f"{self.name}/analytics/C_eig"] = fig
-
-            ax[1, 1].plot(
-                x,
-                C2_loss,
-                label=f"C2 loss = {C2_loss[-1]:.3g}",
-            )
-            ax[1, 1].set_title("C2 Loss")
-            # set y log scale
-            ax[1, 1].set_yscale("log")
-            ax[1, 1].legend()
-
-            ax[1, 2].plot(
-                x,
-                overshoot_mean,
-                label=f"Overshoot Mean (max={overshoot_max[-1]:.3g}, min={overshoot_min[-1]:.3g})",
-            )
-            ax[1, 2].fill_between(x, overshoot_max, overshoot_min, alpha=0.2)
-            ax[1, 2].set_title("Overshoot Eigs")
-            ax[1, 2].legend()
-
-            ax[0, 0].grid(linestyle="--", alpha=0.5)
-            ax[0, 1].grid(linestyle="--", alpha=0.5)
-            ax[0, 2].grid(linestyle="--", alpha=0.5)
-            ax[1, 0].grid(linestyle="--", alpha=0.5)
-            ax[1, 1].grid(linestyle="--", alpha=0.5)
-            ax[1, 1].grid(linestyle="--", alpha=0.5)
-
-            plt.tight_layout()
-            plt.close(fig)
-
-        return supp_dict

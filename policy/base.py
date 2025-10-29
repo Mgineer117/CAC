@@ -1,5 +1,6 @@
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,10 +16,143 @@ class Base(nn.Module):
         self._dtype = torch.float32
         self.device = torch.device("cpu")
 
+        self.Cu_eigenvalues_records = []
+        self.dot_M_eigenvalues_records = []
+        self.sym_mabk_eigenvalues_records = []
+        self.C1_eigenvalues_records = []
+        self.C2_loss_records = []
+        self.overshoot_records = []
+
         # utils
         self.l1_loss = F.l1_loss
         self.mse_loss = F.mse_loss
         self.huber_loss = F.smooth_l1_loss
+
+    def record_eigenvalues(self, Cu, dot_M, sym_MABK, C1, C2, overshoot):
+        with torch.no_grad():
+            dot_M_eig = self.get_matrix_eig(dot_M)
+            sym_MABK_eig = self.get_matrix_eig(sym_MABK)
+            overshoot_eig = self.get_matrix_eig(overshoot)
+
+            Cu_eig = self.get_matrix_eig(Cu)
+            C1_eig = self.get_matrix_eig(C1)
+
+            self.Cu_eigenvalues_records.append(Cu_eig)
+            self.dot_M_eigenvalues_records.append(dot_M_eig)
+            self.sym_mabk_eigenvalues_records.append(sym_MABK_eig)
+            self.C1_eigenvalues_records.append(C1_eig)
+            self.C2_loss_records.append(C2.cpu().numpy())
+            self.overshoot_records.append(overshoot_eig)
+
+    def get_eigenvalue_plot(self):
+        ### DRAW THE FIGURE OF EIGENVALUES ###
+        num = 10
+        if (
+            len(self.Cu_eigenvalues_records) >= num
+            and len(self.C1_eigenvalues_records) >= num
+        ):
+            # make plt figure of cu and c1 eigenvalues
+            x = list(range(0, len(self.Cu_eigenvalues_records), num))
+
+            Cu_eig_array = np.asarray(self.Cu_eigenvalues_records[::num])  # every 10th
+            dot_M_eig_array = np.asarray(
+                self.dot_M_eigenvalues_records[::num]
+            )  # every 10th
+            sym_MABK_eig_array = np.asarray(
+                self.sym_mabk_eigenvalues_records[::num]
+            )  # every 10th
+            C1_eig_array = np.asarray(self.C1_eigenvalues_records[::num])
+            C2_loss = np.asarray(self.C2_loss_records[::num])
+            overshoot_eig_array = np.asarray(self.overshoot_records[::num])
+
+            # find mean and 95% confidence interval
+            Cu_mean = Cu_eig_array.mean(axis=1)
+            Cu_max = Cu_eig_array.max(axis=1)
+            Cu_min = Cu_eig_array.min(axis=1)
+
+            dot_M_mean = dot_M_eig_array.mean(axis=1)
+            dot_M_max = dot_M_eig_array.max(axis=1)
+            dot_M_min = dot_M_eig_array.min(axis=1)
+
+            sym_MABK_mean = sym_MABK_eig_array.mean(axis=1)
+            sym_MABK_max = sym_MABK_eig_array.max(axis=1)
+            sym_MABK_min = sym_MABK_eig_array.min(axis=1)
+
+            C1_mean = C1_eig_array.mean(axis=1)
+            C1_max = C1_eig_array.max(axis=1)
+            C1_min = C1_eig_array.min(axis=1)
+            overshoot_mean = overshoot_eig_array.mean(axis=1)
+            overshoot_max = overshoot_eig_array.max(axis=1)
+            overshoot_min = overshoot_eig_array.min(axis=1)
+
+            fig, ax = plt.subplots(2, 3, figsize=(12, 6))
+
+            ax[0, 0].plot(
+                x,
+                Cu_mean,
+                label=f"Cu Mean (max={Cu_max[-1]:.3g}, min={Cu_min[-1]:.3g})",
+            )
+            ax[0, 0].fill_between(x, Cu_max, Cu_min, alpha=0.2)
+            ax[0, 0].set_title("Cu Eigenvalues")
+            ax[0, 0].legend()
+
+            ax[0, 1].plot(
+                x,
+                dot_M_mean,
+                label=f"Dot M Mean (max={dot_M_max[-1]:.3g}, min={dot_M_min[-1]:.3g})",
+            )
+            ax[0, 1].fill_between(x, dot_M_max, dot_M_min, alpha=0.2)
+            ax[0, 1].set_title("Dot M Eigenvalues")
+            ax[0, 1].legend()
+
+            ax[0, 2].plot(
+                x,
+                sym_MABK_mean,
+                label=f"Sym MABK Mean (max={sym_MABK_max[-1]:.3g}, min={sym_MABK_min[-1]:.3g})",
+            )
+            ax[0, 2].fill_between(x, sym_MABK_max, sym_MABK_min, alpha=0.2)
+            ax[0, 2].set_title("Sym MABK Eigenvalues")
+            ax[0, 2].legend()
+
+            ax[1, 0].plot(
+                x,
+                C1_mean,
+                label=f"C1 Mean (max={C1_max[-1]:.3g}, min={C1_min[-1]:.3g})",
+            )
+            ax[1, 0].fill_between(x, C1_max, C1_min, alpha=0.2)
+            ax[1, 0].set_title("C1 Eigenvalues")
+            ax[1, 0].legend()
+
+            ax[1, 1].plot(
+                x,
+                C2_loss,
+                label=f"C2 loss = {C2_loss[-1]:.3g}",
+            )
+            ax[1, 1].set_title("C2 Loss")
+            # set y log scale
+            ax[1, 1].set_yscale("log")
+            ax[1, 1].legend()
+
+            ax[1, 2].plot(
+                x,
+                overshoot_mean,
+                label=f"Overshoot Mean (max={overshoot_max[-1]:.3g}, min={overshoot_min[-1]:.3g})",
+            )
+            ax[1, 2].fill_between(x, overshoot_max, overshoot_min, alpha=0.2)
+            ax[1, 2].set_title("Overshoot Eigs")
+            ax[1, 2].legend()
+
+            ax[0, 0].grid(linestyle="--", alpha=0.5)
+            ax[0, 1].grid(linestyle="--", alpha=0.5)
+            ax[0, 2].grid(linestyle="--", alpha=0.5)
+            ax[1, 0].grid(linestyle="--", alpha=0.5)
+            ax[1, 1].grid(linestyle="--", alpha=0.5)
+            ax[1, 1].grid(linestyle="--", alpha=0.5)
+
+            plt.tight_layout()
+            plt.close(fig)
+
+            return fig
 
     def to_tensor(self, data):
         return torch.from_numpy(data).to(self._dtype).to(self.device)
@@ -97,90 +231,6 @@ class Base(nn.Module):
                 .to(dtype=self._dtype, device=self.device)
                 .requires_grad_()
             )
-
-    def cvar_upper(
-        self, eigvals: torch.Tensor, alpha: float = 0.5, dim: int = 0
-    ) -> torch.Tensor:
-        """
-        CVaR_alpha (upper-tail) of values in eigvals along `dim`.
-        Returns one CVaR per slice along `dim` (keeps batch dims).
-        """
-        with torch.no_grad():
-            # 1) VaR (alpha-quantile) along `dim`
-            # detach keeps gradients focused on the tail, not the whole spectrum.
-            q = torch.quantile(eigvals, alpha, dim=dim, keepdim=True)  # .detach()
-            # 2) Tail excess (x - q)_+ isolates the worst (1 - alpha) fraction
-            tail_excess = F.relu(eigvals - q)
-            # 3) Convert sum of excesses into the conditional mean over the tail:
-            #    CVaR = q + E[(x - q)_+]/(1 - alpha)
-            n = eigvals.size(dim)
-            cvar = q.squeeze(dim) + tail_excess.sum(dim=dim) / ((1.0 - alpha) * n)
-
-        return cvar.unsqueeze(0)
-
-    def loss_matrix_eig(self, A: torch.Tensor, name: str):
-        # A: n x d x d
-
-        # (batch, dim), real symmetric
-        eigvals = -torch.linalg.eigvalsh(A)
-
-        # loss = F.elu(eigvals).sum(-1)
-        # loss = eigvals.max()
-        # loss = torch.logsumexp(
-        #     eigvals,
-        #     dim=1,
-        # )
-        # cvar = self.cvar_upper(eigvals)
-        cvar = torch.quantile(eigvals, 0.8, dim=1, keepdim=True).mean(0)
-        print(cvar)
-
-        if name == "cu":
-            if hasattr(self, "cvar_cu"):
-                self.cvar_cu = 0.995 * self.cvar_cu + 0.005 * cvar.detach()
-            else:
-                self.cvar_cu = cvar.detach()
-            loss = torch.relu(eigvals - self.cvar_cu).sum(-1)
-        elif name == "c1":
-            if hasattr(self, "cvar_c1"):
-                self.cvar_c1 = 0.995 * self.cvar_c1 + 0.005 * cvar.detach()
-            else:
-                self.cvar_c1 = cvar.detach()
-            loss = torch.relu(eigvals - self.cvar_c1).sum(-1)
-        # loss = eigvals.max(-1)[0]
-
-        return loss.mean()
-
-    def loss_pos_matrix_eig(self, A: torch.Tensor):
-        # A: n x d x d
-
-        # (batch, dim), real symmetric
-        eigvals = -torch.linalg.eigvalsh(A)
-        eigvals = torch.relu(eigvals)
-
-        # loss = F.elu(eigvals)
-        # loss = eigvals.max()
-        # loss = torch.logsumexp(
-        #     eigvals,
-        #     dim=1,
-        # )
-        # loss = self.cvar_upper(eigvals)
-        loss = eigvals.sum(-1)
-
-        return loss.mean()
-
-    def loss_matrix_random_sampling(self, A: torch.Tensor):
-        # A: n x d x d
-        # z: K x d
-        n, A_dim, _ = A.shape
-
-        z = torch.randn((n, A_dim)).to(dtype=self._dtype, device=self.device)
-        z = z / z.norm(dim=-1, keepdim=True)
-        z = z.unsqueeze(-1)
-        zT = transpose(z, 1, 2)
-
-        # K x d @ d x d = n x K x d
-        zTAz = matmul(matmul(zT, A), z)
-        return -1.0 * zTAz.mean()
 
     def trim_state(self, state: torch.Tensor):
         # state trimming

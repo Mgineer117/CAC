@@ -55,7 +55,6 @@ class WandbLogger(BaseLogger):
             if not wandb.run
             else wandb.run
         )
-        # wandb.run.save()
 
     def write(
         self,
@@ -79,20 +78,22 @@ class WandbLogger(BaseLogger):
         """Sending data to wandb without resetting the current stored stats."""
         wandb.log(self.stats_mean, step=step)
 
-    def write_images(self, step: int, image: plt.Figure, logdir: str) -> None:
+    def write_images(self, step: int, image: plt.Figure | None, logdir: str) -> None:
         """Logs images to wandb."""
-        # Log the list of images
-        wandb.log({f"{logdir}": wandb.Image(image)}, step=step)
+        if image is not None:
+            # Log the list of images
+            wandb.log({f"{logdir}": wandb.Image(image)}, step=step)
 
-    def write_videos(self, step: int, images: np.ndarray, logdir: str) -> None:
+    def write_videos(self, step: int, images: np.ndarray | None, logdir: str) -> None:
         """
         Logs a video to wandb using a list of images.
         """
-        # Convert images to the required shape: (time, channel, height, width)
-        images = np.transpose(images, (0, 3, 1, 2))  # Convert to (time, 3, H, W)
+        if images is not None:
+            # Convert images to the required shape: (time, channel, height, width)
+            images = np.transpose(images, (0, 3, 1, 2))  # Convert to (time, 3, H, W)
 
-        # Log the video to wandb
-        wandb.log({f"{logdir}": wandb.Video(images, fps=self.fps)}, step=step)
+            # Log the video to wandb
+            wandb.log({f"{logdir}": wandb.Video(images, fps=self.fps)}, step=step)
 
     def restore_data(self) -> None:
         """Not implemented yet"""
