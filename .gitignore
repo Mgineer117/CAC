@@ -34,7 +34,6 @@ MANIFEST
 *.manifest
 *.spec
 *.npz
-*.json
 *.svg
 data/
 
