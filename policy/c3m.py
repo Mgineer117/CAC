@@ -72,7 +72,7 @@ class C3M(Base):
         self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
 
         #
-        self.num_W_update = 0
+        self.num_updates = 0
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
 
@@ -222,8 +222,10 @@ class C3M(Base):
         grad_dict = self.optimize_params(loss)
 
         # === LOGGING === #
-        fig = self.get_eigenvalue_plot()
-        supp_dict = {"C3M/plot/eigenvalues": fig}
+        supp_dict = {}
+        if self.num_updates % 300 == 0:
+            fig = self.get_eigenvalue_plot()
+            supp_dict["C3M/plot/eigenvalues"] = fig
 
         loss_dict = {
             f"{self.name}/loss/loss": loss.item(),
@@ -246,5 +248,6 @@ class C3M(Base):
         # === CLEANUP === #
         self.eval()
         update_time = time.time() - t0
+        self.num_updates += 1
 
         return loss_dict, supp_dict, update_time

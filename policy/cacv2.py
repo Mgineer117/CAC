@@ -93,7 +93,7 @@ class CACv2(Base):
             self.get_f_and_B.eval()
 
         self.nupdates = nupdates
-        self.num_ppo_update = 0
+        self.num_updates = 0
 
         # trainable networks
         self.W_func = W_func
@@ -324,6 +324,8 @@ class CACv2(Base):
 
         update_time = W_update_time + RL_update_time
 
+        self.num_updates += 1
+
         return loss_dict, supp_dict, update_time
 
     def learn_W(self):
@@ -336,8 +338,10 @@ class CACv2(Base):
         grad_dict = self.optimize_W_params(primal_loss, dual_loss)
 
         # === LOGGING === #
-        fig = self.get_eigenvalue_plot()
-        supp_dict = {"CAC/plot/eigenvalues": fig}
+        supp_dict = {}
+        if self.num_updates % 300 == 0:
+            fig = self.get_eigenvalue_plot()
+            supp_dict["CAC/plot/eigenvalues"] = fig
 
         loss_dict = {
             f"{self.name}/loss/loss": primal_loss.item(),
