@@ -293,18 +293,18 @@ def least_square_regression(
         plt.plot(x_vals, y_vals, color="red", linewidth=2, label="Fitted Line")
 
         # what is x being plotted?
-        # plt.xlabel("x_hat_dot", fontsize=12)
+
         plt.ylabel(LABELS[i], fontsize=12)
-        # plt.legend()
         plt.grid(True, linestyle=":", alpha=0.7, linewidth=1.5)
+    plt.xlabel("x_hat_dot", fontsize=12)
     plt.suptitle("Least Squares Regression for Each State Dimension", fontsize=18)
     plt.tight_layout()
     plt.savefig(f"least_squares_fit.svg")
     plt.close()
 
     print(f"[INFO] Solved for VECTOR v and INTERCEPT c")
-    print(f"  v (scaling) = {np.array_str(v_hat, precision=4, suppress_small=True)}")
-    print(f"  c (intercept) = {np.array_str(c_hat, precision=4, suppress_small=True)}")
+    print(f"  v = {np.array_str(v_hat, precision=4, suppress_small=True)}")
+    print(f"  c = {np.array_str(c_hat, precision=4, suppress_small=True)}")
     print(f"[INFO] Total Residual: {total_residuals:.4f}")
 
     return v_hat, c_hat
