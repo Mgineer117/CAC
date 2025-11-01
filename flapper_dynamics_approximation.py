@@ -9,6 +9,7 @@ from math import ceil, floor
 import matplotlib.pyplot as plt  # <-- Import plotting
 import numpy as np  # <-- Import numpy for vector operations
 from numpy.linalg import lstsq  # <-- Import least squares solver
+from scipy import stats
 
 from read import MAX_THRUST, MIN_THRUST, TIME_INTERVAL
 
@@ -16,6 +17,19 @@ from read import MAX_THRUST, MIN_THRUST, TIME_INTERVAL
 N = 299
 STATE_DIM = 10
 ACTION_DIM = 4
+
+LABELS = [
+    r"x ($m$)",
+    r"y ($m$)",
+    r"z ($m$)",
+    r"vx ($m/s$)",
+    r"vy ($m/s$)",
+    r"vz ($m/s$)",
+    r"thrust ($1/s^2$)",
+    r"roll ($rad$)",
+    r"pitch ($rad$)",
+    r"yaw ($rad$)",
+]
 
 m = 0.102  # mass of the flapper in kg (102g)
 g = 9.81
@@ -158,7 +172,10 @@ def compute_x_hat_dot(states: list, actions: list, ratios: list = [0.8, 0.2]) ->
 
 
 def least_square_regression(
-    x_dots: list, x_hat_dots: list
+    x_dots: list,
+    x_hat_dots: list,
+    outlier_removal: bool = False,
+    threshold: float = 2.5,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Fits the model x_dot = (v * h(x,u)) + c element-wise, where v and c are
@@ -186,6 +203,36 @@ def least_square_regression(
     # A_matrix is all h(x,u) regressors, shape (Total_Samples, 10)
     A_matrix = np.vstack([np.array(traj) for traj in x_hat_dots])
 
+    if outlier_removal:
+        # === Outlier Removal Implemented === #
+
+        # 1. Define the indices of the columns we know are noisy
+        #    x_dots[3,4,5] (velocity derivatives) and x_dots[6] (thrust derivative)
+        noisy_indices = [3, 4, 5, 6]
+
+        # 2. Calculate Z-scores for the ENTIRE Y_matrix
+        z_scores = np.abs(stats.zscore(Y_matrix, axis=0))
+
+        # 3. Select ONLY the Z-scores for our noisy columns
+        z_scores_to_check = z_scores[:, noisy_indices]
+
+        # 4. Create a boolean mask for all rows that are NOT outliers.
+        #    A row is kept (True) only if ALL of its "noisy" dimensions
+        #    have a Z-score less than 3. Outliers in "clean" mocap
+        #    columns (0,1,2,7,8,9) will be ignored.
+        is_not_outlier = np.all(z_scores_to_check < threshold, axis=1)
+
+        # 5. Filter both your data and regressor matrices using this mask
+        Y_matrix_clean = Y_matrix[is_not_outlier]
+        A_matrix_clean = A_matrix[is_not_outlier]
+
+        print(f"[INFO] Outlier Removal: Original data had {len(Y_matrix)} points.")
+        print(
+            f"  Filtered data has {len(Y_matrix_clean)} points ({len(Y_matrix) - len(Y_matrix_clean)} removed)."
+        )
+        Y_matrix = Y_matrix_clean
+        A_matrix = A_matrix_clean
+
     if Y_matrix.shape != A_matrix.shape:
         raise ValueError(
             f"Shape mismatch: x_dots matrix is {Y_matrix.shape} but "
@@ -198,6 +245,12 @@ def least_square_regression(
     total_residuals = 0
 
     # Solve 10 independent 1D linear regressions (y = m*x + b)
+    plt.subplots(
+        nrows=5,
+        ncols=2,
+        figsize=(16, 8),
+    )
+
     for i in range(state_dim):
         # Y_i = [A_i, 1] @ [v_i, c_i]^T
 
@@ -223,10 +276,36 @@ def least_square_regression(
             v_hat[i] = np.nan
             c_hat[i] = np.nan
 
-    print(f"--- Solved for VECTOR v and INTERCEPT c ---")
-    print(f"v (scaling) = {np.array_str(v_hat, precision=4, suppress_small=True)}")
-    print(f"c (intercept) = {np.array_str(c_hat, precision=4, suppress_small=True)}")
-    print(f"Total Residual: {total_residuals:.4f}")
+        # plot the least squares plot for each dimension
+        plt.subplot(5, 2, i + 1)
+        plt.scatter(
+            A_i_regressor,
+            Y_i,
+            alpha=0.3,
+            label="Data Points",
+            s=10,
+            color="blue",
+        )
+
+        # Plot the fitted line
+        x_vals = np.array([A_i_regressor.min(), A_i_regressor.max()])
+        y_vals = v_hat[i] * x_vals + c_hat[i]
+        plt.plot(x_vals, y_vals, color="red", linewidth=2, label="Fitted Line")
+
+        # what is x being plotted?
+        # plt.xlabel("x_hat_dot", fontsize=12)
+        plt.ylabel(LABELS[i], fontsize=12)
+        # plt.legend()
+        plt.grid(True, linestyle=":", alpha=0.7, linewidth=1.5)
+    plt.suptitle("Least Squares Regression for Each State Dimension", fontsize=18)
+    plt.tight_layout()
+    plt.savefig(f"least_squares_fit.svg")
+    plt.close()
+
+    print(f"[INFO] Solved for VECTOR v and INTERCEPT c")
+    print(f"  v (scaling) = {np.array_str(v_hat, precision=4, suppress_small=True)}")
+    print(f"  c (intercept) = {np.array_str(c_hat, precision=4, suppress_small=True)}")
+    print(f"[INFO] Total Residual: {total_residuals:.4f}")
 
     return v_hat, c_hat
 
@@ -250,7 +329,9 @@ def predict_next_state(
 
 def simulate(test_indices: list, v_hat: np.ndarray, c_hat: np.ndarray):
     # === Run simulation on the test trajectory === #
-    print(f"--- Simulating and Plotting Error for Test Trajectory {test_indices} ---")
+    print(
+        f"[INFO] Simulating and Plotting Error for Test Trajectory {test_indices} ---"
+    )
     error_matrices = []
     for idx in test_indices:
         # reconstruct the full trajectory
@@ -314,18 +395,6 @@ def plot_prediction_error(error_matrices: list):
         figsize=(16, 8),
         sharex=True,  # constrained_layout=True
     )
-    labels = [
-        "x (m)",
-        "y (m)",
-        "z (m)",
-        "vx (m/s)",
-        "vy (m/s)",
-        "vz (m/s)",
-        "thrust (%)",
-        "roll (rad)",
-        "pitch (rad)",
-        "yaw (rad)",
-    ]
     for i in range(STATE_DIM):
         time_steps = np.arange(avg_error_matrix.shape[0]) * TIME_INTERVAL
 
@@ -338,7 +407,7 @@ def plot_prediction_error(error_matrices: list):
             color="b",
             alpha=0.2,
         )
-        plt.ylabel(labels[i], fontsize=14)
+        plt.ylabel(LABELS[i], fontsize=14)
         plt.grid(True, linestyle=":", alpha=0.7, linewidth=1.5)
 
     plt.xlabel("Time (s)")
@@ -352,10 +421,10 @@ if __name__ == "__main__":
     states, actions, next_states, terminals = call_data()
     x_dots = compute_x_dot(states, next_states)
     x_hat_dots, train_indices, test_indices = compute_x_hat_dot(
-        states, actions, ratios=[0.5, 0.5]
+        states, actions, ratios=[0.9, 0.1]
     )
     v_hat, c_hat = least_square_regression(
-        [x_dots[i] for i in train_indices], x_hat_dots
+        [x_dots[i] for i in train_indices], x_hat_dots, outlier_removal=True
     )
     error_matrices = simulate(test_indices, v_hat, c_hat)
     plot_prediction_error(error_matrices)

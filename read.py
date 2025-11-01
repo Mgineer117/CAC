@@ -21,9 +21,7 @@ def compose_state(flight_data: dict, index: int) -> list:
         vel["stateEstimate.vx"],  # x velocity
         vel["stateEstimate.vy"],  # y velocity
         vel["stateEstimate.vz"],  # z velocity
-        cmd["controller.cmd_thrust"]
-        / (MAX_THRUST - MIN_THRUST)
-        * 100,  # normalized thrust
+        cmd["controller.cmd_thrust"] / (MAX_THRUST - MIN_THRUST),  # normalized thrust
         pose[3],  # roll
         pose[4],  # pitch
         pose[5],  # yaw
@@ -109,16 +107,16 @@ if __name__ == "__main__":
         sharex=True,  # constrained_layout=True
     )
     labels = [
-        "x (m)",
-        "y (m)",
-        "z (m)",
-        "vx (m/s)",
-        "vy (m/s)",
-        "vz (m/s)",
-        "thrust (%)",
-        "roll (rad)",
-        "pitch (rad)",
-        "yaw (rad)",
+        r"x ($m$)",
+        r"y ($m$)",
+        r"z ($m$)",
+        r"vx ($m/s$)",
+        r"vy ($m/s$)",
+        r"vz ($m/s$)",
+        r"thrust ($m/s^2$)",
+        r"roll ($rad$)",
+        r"pitch ($rad$)",
+        r"yaw ($rad$)",
     ]
     for i in range(len(mdp_data["states"])):
         states = np.array(mdp_data["states"][i])
