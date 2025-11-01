@@ -252,9 +252,9 @@ class QuadRotorEnv(gym.Env):
                 uref += np.array(
                     [
                         weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                        weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                        weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                        weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
+                        weight[1] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
+                        weight[2] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
+                        weight[3] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
                     ]
                 )
             uref = np.clip(uref, 0.75 * UREF_MIN.flatten(), 0.75 * UREF_MAX.flatten())
