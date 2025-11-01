@@ -339,7 +339,7 @@ class CACv2(Base):
 
         # === LOGGING === #
         supp_dict = {}
-        if self.num_updates % 100 == 0:
+        if self.num_updates % 300 == 0:
             fig = self.get_eigenvalue_plot()
             supp_dict["CAC/plot/eigenvalues"] = fig
 
