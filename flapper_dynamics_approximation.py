@@ -17,6 +17,7 @@ N = 299
 STATE_DIM = 10
 ACTION_DIM = 4
 
+m = 0.102  # mass of the flapper in kg (102g)
 g = 9.81
 
 
@@ -178,12 +179,6 @@ def least_square_regression(
     # Ensure the input lists are not empty
     if not x_dots or not x_hat_dots:
         raise ValueError("Input lists are empty.")
-
-    for x, x_hat in zip(x_dots, x_hat_dots):
-        print(f"True: {len(x)}, Predicted: {len(x_hat)}")
-        # True: 298, Predicted: 298
-        # True: 298, Predicted: 298
-        # True: 298, Predicted: 298
 
     # Stack all data points from all trajectories into two giant matrices
     # Y_matrix is all x_dot targets, shape (Total_Samples, 10)
@@ -347,6 +342,7 @@ def plot_prediction_error(error_matrices: list):
         plt.grid(True, linestyle=":", alpha=0.7, linewidth=1.5)
 
     plt.xlabel("Time (s)")
+    plt.suptitle("Prediction Error with 95% Confidence Interval", fontsize=18)
     plt.tight_layout()
     plt.savefig("prediction_error.svg")
     plt.close()
