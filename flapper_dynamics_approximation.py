@@ -11,10 +11,9 @@ import numpy as np  # <-- Import numpy for vector operations
 from numpy.linalg import lstsq  # <-- Import least squares solver
 from scipy import stats
 
-from read import MAX_THRUST, MIN_THRUST, TIME_INTERVAL
+from read import MAX_THRUST, MIN_THRUST, TIME_INTERVAL, N
 
 # === Parameters === #
-N = 299
 STATE_DIM = 10
 ACTION_DIM = 4
 
@@ -96,14 +95,12 @@ def compute_x_dot(states: list, next_states: list) -> list:
 
         try:
             # The full trajectory is the list of states + the final "next_state"
-            full_trajectory = [np.array(s) for s in states[i]] + [
-                np.array(next_states[i][-1])
-            ]
+            full_trajectory = [np.array(s) for s in states[i]]
         except IndexError:
             # Handle cases where a trajectory might be empty
             raise ValueError(f"Trajectory {i} is empty or malformed.")
 
-        # 2. Validate the assumption that N=299
+        # 2. Validate the assumption that N=600
         if len(full_trajectory) != N:
             raise ValueError(
                 f"Trajectory {i} length is {len(full_trajectory)}, but we assumed N={N}."
@@ -156,9 +153,7 @@ def compute_x_hat_dot(states: list, actions: list, ratios: list = [0.8, 0.2]) ->
         x_hat_dot = []
 
         # Reconstruct the full trajectory
-        full_trajectory = [np.array(s) for s in states[j]] + [
-            np.array(next_states[j][-1])
-        ]
+        full_trajectory = [np.array(s) for s in states[j]]
 
         for t in range(N - 1):  # Loop from t=0 to N-2
             x_t = full_trajectory[t]
@@ -175,7 +170,7 @@ def least_square_regression(
     x_dots: list,
     x_hat_dots: list,
     outlier_removal: bool = False,
-    threshold: float = 2.5,
+    threshold: float = 3.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Fits the model x_dot = (v * h(x,u)) + c element-wise, where v and c are
@@ -208,7 +203,8 @@ def least_square_regression(
 
         # 1. Define the indices of the columns we know are noisy
         #    x_dots[3,4,5] (velocity derivatives) and x_dots[6] (thrust derivative)
-        noisy_indices = [3, 4, 5, 6]
+        # noisy_indices = [3, 4, 5, 6]
+        noisy_indices = range(STATE_DIM)
 
         # 2. Calculate Z-scores for the ENTIRE Y_matrix
         z_scores = np.abs(stats.zscore(Y_matrix, axis=0))
@@ -278,14 +274,25 @@ def least_square_regression(
 
         # plot the least squares plot for each dimension
         plt.subplot(5, 2, i + 1)
-        plt.scatter(
-            A_i_regressor,
-            Y_i,
-            alpha=0.3,
-            label="Data Points",
-            s=10,
-            color="blue",
-        )
+        # do not plot if there are too many points
+        if len(A_i_regressor) > 10000:
+            plt.scatter(
+                A_i_regressor[::10],
+                Y_i[::10],
+                alpha=0.3,
+                label="Data Points (subsampled)",
+                s=10,
+                color="blue",
+            )
+        else:
+            plt.scatter(
+                A_i_regressor,
+                Y_i,
+                alpha=0.3,
+                label="Data Points",
+                s=10,
+                color="blue",
+            )
 
         # Plot the fitted line
         x_vals = np.array([A_i_regressor.min(), A_i_regressor.max()])
@@ -335,9 +342,7 @@ def simulate(test_indices: list, v_hat: np.ndarray, c_hat: np.ndarray):
     error_matrices = []
     for idx in test_indices:
         # reconstruct the full trajectory
-        test_traj_states = [np.array(s) for s in states[idx]] + [
-            np.array(next_states[idx][-1])
-        ]
+        test_traj_states = [np.array(s) for s in states[idx]]
         test_traj_actions = [np.array(u) for u in actions[idx]]
 
         # Initialize the predicted trajectory with the true initial state

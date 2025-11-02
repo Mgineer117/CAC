@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from envs.car import CarEnv
+from envs.flapper import FlapperEnv
 from envs.neurallander import NeuralLanderEnv
 from envs.pvtol import PvtolEnv
 from envs.quadrotor import QuadRotorEnv
@@ -11,13 +12,15 @@ def call_env(args):
     task = args.task
 
     if task == "car":
-        env = CarEnv(sigma=args.sigma)
+        env = CarEnv()
     elif task == "pvtol":
-        env = PvtolEnv(sigma=args.sigma)
+        env = PvtolEnv()
     elif task == "quadrotor":
-        env = QuadRotorEnv(sigma=args.sigma)
+        env = QuadRotorEnv()
     elif task == "neurallander":
-        env = NeuralLanderEnv(sigma=args.sigma)
+        env = NeuralLanderEnv()
+    elif task == "flapper":
+        env = FlapperEnv()
     else:
         raise NotImplementedError(f"{task} is not implemented.")
 

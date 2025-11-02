@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 MIN_THRUST, MAX_THRUST = 10001, 60000
-TIME_INTERVAL = 0.1  # seconds
+TIME_INTERVAL = 0.05  # seconds
+N = 600  # number of time steps
 
 
 def compose_state(flight_data: dict, index: int) -> list:
@@ -54,10 +55,10 @@ def read_flight_data(file_path):
     with open(file_path, "r") as file:
         data = json.load(file)
 
-    # check their length is over 300
-    if len(data["pose"]) < 299:
+    # check their length is over 600
+    if len(data["pose"]) < N:
         raise ValueError(
-            f"Flight data in {file_path} is too short in length {len(data['pose'])} < 299."
+            f"Flight data in {file_path} is too short in length {len(data['pose'])} < {N}."
         )
     return data
 
@@ -79,11 +80,13 @@ if __name__ == "__main__":
         flight_data = read_flight_data(os.path.join(data_dir, file_name))
         states, actions, next_states, terminals = [], [], [], []
 
-        for i in range(len(flight_data["pose"]) - 1):
+        for i in range(N):
             state = compose_state(flight_data, i)
+            if i == 0:
+                print(state)
             next_state = compose_state(flight_data, i + 1)
             action = compose_action(flight_data, i, state, next_state)
-            terminal = False if i < len(flight_data["pose"]) - 2 else True
+            terminal = False if i < N - 1 else True
 
             states.append(state)
             actions.append(action)
