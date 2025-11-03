@@ -1,3 +1,8 @@
+import json
+import os
+import random
+from math import ceil
+
 import numpy as np
 import torch
 
@@ -29,9 +34,9 @@ XREF_INIT_MIN = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.8, 0, 0, 0])
 XREF_INIT_MAX = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.8, 0, 0, 0])
 
 # perturbation to the reference state
-lim = 0.1
+lim = 0.15
 XE_INIT_MIN = np.array([-lim, -lim, 0, 0, 0, 0, 0, 0, 0, 0])  # .reshape(-1, 1)
-XE_INIT_MAX = np.array([lim, lim, 0, 0, 0, 0, 0, 0, 0, np.pi / 2])  # .reshape(-1, 1)
+XE_INIT_MAX = np.array([lim, lim, 0, 0, 0, 0, 0, 0, 0, np.pi / 4])  # .reshape(-1, 1)
 
 # reference state perturbation bounds for c3m
 lim = 1.0
@@ -41,8 +46,8 @@ XE_MIN = np.array([-lim, -lim, -lim, -lim, -lim, -lim, -lim, -lim, -lim, -lim]).
 XE_MAX = np.array([lim, lim, lim, lim, lim, lim, lim, lim, lim, lim]).reshape(-1, 1)
 
 # reference control bounds
-UREF_MIN = np.array([-1.0, -50.0, -50.0, -50.0]).reshape(-1, 1)
-UREF_MAX = np.array([1.0, 50.0, 50.0, 50.0]).reshape(-1, 1)
+UREF_MIN = np.array([-1.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
+UREF_MAX = np.array([1.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
 
 
 env_config = {
@@ -68,7 +73,7 @@ env_config = {
 
 
 class FlapperEnv(BaseEnv):
-    def __init__(self, sample_mode: str = "uniform"):
+    def __init__(self, sample_mode: str = "uniform", eval_env: bool = False):
         """
         State: tracking error between current and reference trajectory
         Reward: 1 / (The 2-norm of tracking error + 1)
@@ -76,38 +81,39 @@ class FlapperEnv(BaseEnv):
 
         # env specific parameters
         self.task = "flapper"
+        self.eval_env = eval_env
         self.v = np.array(
             [
-                0.4776,
-                0.767,
-                0.2251,
-                -9.7609,
-                -2.0317,
-                -1.1271,
-                0.0027,
-                -0.0004,
-                -0.0003,
-                0.0002,
+                1.0,
+                1.0,
+                1.0,
+                -3.4639,
+                1.6968,
+                -1.5691,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
             ]
         )
         self.c = np.array(
             [
-                0.002,
-                0.0022,
-                0.0216,
-                0.1162,
-                0.0021,
-                10.2837,
-                0.0012,
-                0.0002,
-                -0.0009,
-                -0.0075,
+                0.0,
+                0.0,
+                0.0,
+                0.0335,
+                -0.0047,
+                14.3153,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
             ]
         )
 
         # initialize the base environment
-        env_config["sample_mode"] = sample_mode
         env_config["Bbot_func"] = None
+        env_config["sample_mode"] = sample_mode
 
         super(FlapperEnv, self).__init__(env_config)
 
@@ -196,30 +202,86 @@ class FlapperEnv(BaseEnv):
 
     def system_reset(self):
         """Resets the system to an initial state and generates a reference trajectory."""
-        xref_0, xe_0, x_0 = self.define_initial_state()
+        # call json files in data/train/ using os
+        if self.eval_env:
+            json_file = "system_identifications/data/mdp_data/test_data.json"
+        else:
+            json_file = "system_identifications/data/mdp_data/train_data.json"
 
-        # Generate reference trajectory
-        freqs = [0.1 * i for i in range(1, 11)]  # flapper is vulnerable to high freq
-        weights = np.random.randn(len(freqs), len(self.UREF_MIN))
-        weights = (weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))).tolist()
+        # read json
+        with open(json_file, "r") as file:
+            data = json.load(file)
 
-        xref_list, uref_list = [xref_0], []
-        for i, _t in enumerate(self.t):
-            uref_t = self.sample_reference_controls(freqs, weights, _t)
-            xref_t, term, trunc = self.get_transition(xref_list[-1].copy(), uref_t)
+        num_traj = len(data["states"])
 
-            xref_list.append(xref_t)
-            uref_list.append(uref_t)
+        # randomly pick one between 0 and num_traj -1
+        traj_index = random.randint(0, num_traj - 1)
 
-            if term or trunc:
-                break
+        states = data["states"][traj_index]
+        actions = data["actions"][traj_index]
 
-        return (
-            x_0,
-            np.array(xref_list),
-            np.array(uref_list),
-            i,
-        )
+        _, xe_0, _ = self.define_initial_state()
+        x_0 = np.array(states[0]) + xe_0
+
+        return x_0, np.array(states), np.array(actions), self.episode_len
 
     def render(self, mode="human"):
         pass
+
+    def get_rollout(self, buffer_size: int, mode: str):
+        """
+        Mode: Specifies whether the rollout is for training or evaluation.
+            - Offline: fully offline case where we use reference control to generate data.
+        """
+        if mode == "c3m":
+            c3m_data = dict(
+                x=np.full((buffer_size, self.num_dim_x), np.nan, dtype=np.float32),
+                xref=np.full((buffer_size, self.num_dim_x), np.nan, dtype=np.float32),
+                uref=np.full(
+                    (buffer_size, self.num_dim_control), np.nan, dtype=np.float32
+                ),
+            )
+
+            # Sample all references at once
+            xref = (self.X_MAX - self.X_MIN).flatten() * np.random.rand(
+                buffer_size, self.num_dim_x
+            ) + self.X_MIN.flatten()
+            uref = (self.UREF_MAX - self.UREF_MIN).flatten() * np.random.rand(
+                buffer_size, self.num_dim_control
+            ) + self.UREF_MIN.flatten()
+            xe = (self.XE_MAX - self.XE_MIN).flatten() * np.random.rand(
+                buffer_size, self.num_dim_x
+            ) + self.XE_MIN.flatten()
+
+            # Compose states
+            x = xe + xref
+            x = np.clip(x, self.X_MIN.flatten(), self.X_MAX.flatten())
+
+            # Store
+            c3m_data["x"] = x.astype(np.float32)
+            c3m_data["xref"] = xref.astype(np.float32)
+            c3m_data["uref"] = uref.astype(np.float32)
+
+            # Check for NaNs
+            if np.any(np.isnan(c3m_data["x"])):
+                print("NaN values found in x")
+
+            return c3m_data
+
+        else:
+            print(
+                "\n[INFO] Flapper Env only supports trajectory as data collection method."
+            )
+            # call json files in data/train/ using os
+            json_file = "system_identifications/data/mdp_data/train_data.json"
+
+            # read json
+            with open(json_file, "r") as file:
+                data = json.load(file)
+
+            # concat all trajectories
+            x = np.concatenate(data["states"], axis=0)
+            u = np.concatenate(data["actions"], axis=0)
+            x_dot = np.concatenate(data["dynamics"], axis=0)
+
+        return dict(x=x, u=u, x_dot=x_dot)

@@ -8,7 +8,7 @@ from envs.pvtol import PvtolEnv
 from envs.quadrotor import QuadRotorEnv
 
 
-def call_env(args):
+def call_env(args, eval_env=False):
     task = args.task
 
     if task == "car":
@@ -20,7 +20,7 @@ def call_env(args):
     elif task == "neurallander":
         env = NeuralLanderEnv()
     elif task == "flapper":
-        env = FlapperEnv()
+        env = FlapperEnv(eval_env=eval_env)
     else:
         raise NotImplementedError(f"{task} is not implemented.")
 

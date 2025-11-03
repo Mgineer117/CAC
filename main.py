@@ -32,7 +32,7 @@ def run(args, seed, unique_id, exp_time):
 
     # get env
     env = call_env(args)  # can use approximated dynamics
-    eval_env = call_env(args)  # always uses true dynamics
+    eval_env = call_env(args, eval_env=True)  # always uses true dynamics
     logger, writer = setup_logger(args, unique_id, exp_time, seed)
 
     # get dynamics and use it for simulation
