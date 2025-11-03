@@ -25,7 +25,7 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --a
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name c3m & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name ppo & 
 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name cac-approx -- & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name cac-approx & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name c3m-approx & 
 
 # === Wait for all background jobs to finish ===
