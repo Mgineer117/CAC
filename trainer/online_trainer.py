@@ -182,6 +182,7 @@ class OnlineTrainer:
             fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 6))
 
         # Dynamically create the coordinate list and plot the reference trajectory
+        obs, infos = self.eval_env.reset(seed=self.seed)
         coords = [self.eval_env.xref[:, i] for i in range(dimension)]
         first_point = [c[0] for c in coords]
         ax1.scatter(

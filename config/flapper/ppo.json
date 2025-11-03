@@ -1,3 +1,4 @@
 {
-    "timesteps": 1e8
+    "timesteps": 1e8,
+    "gamma": 0.999
 }

@@ -178,7 +178,7 @@ def get_args():
         default=0.0,
         help="Control scaling factor to reward.",
     )
-    parser.add_argument("--gamma", type=float, default=0.9, help="Discount factor.")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor.")
     parser.add_argument(
         "--load-pretrained-model",
         action="store_true",

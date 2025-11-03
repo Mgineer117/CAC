@@ -112,8 +112,6 @@ class BaseEnv(gym.Env):
 
     def step(self, u):
         """Run one timestep of the environment's dynamics."""
-        self.time_steps += 1
-
         # Construct u and apply u clipping
         u = self.uref[self.time_steps] + u
         u = np.clip(u, self.UREF_MIN.flatten(), self.UREF_MAX.flatten())
@@ -135,6 +133,9 @@ class BaseEnv(gym.Env):
 
         # Get reward
         reward, infos = self.get_reward(u)
+
+        # Update time step
+        self.time_steps += 1
 
         return (
             self.state,
@@ -256,7 +257,7 @@ class BaseEnv(gym.Env):
         ) or np.any(
             x[: self.pos_dimension] >= self.X_MAX.flatten()[: self.pos_dimension]
         )
-        truncation = self.time_steps == self.episode_len
+        truncation = self.time_steps == self.episode_len - 1
 
         x = np.clip(x, self.X_MIN.flatten(), self.X_MAX.flatten())
         return x, termination, truncation

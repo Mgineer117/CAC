@@ -1,3 +1,4 @@
 {
-    "c3m_epochs": 50000
+    "c3m_epochs": 50000,
+    "gamma": 0.999
 }
