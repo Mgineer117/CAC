@@ -3,8 +3,8 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=IllinoisComputes-GPU 
 #SBATCH --nodes=1
-#SBATCH --ntasks=6
-#SBATCH --cpus-per-task=10
+#SBATCH --ntasks=5
+#SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:1
 #SBATCH --time=3-00:00:00
 #SBATCH --output=cac.o%j
@@ -25,9 +25,8 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --a
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name c3m & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name ppo & 
 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name cac-approx & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name cac-approx -- & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name c3m-approx & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task flapper --project R2CL_flapper --algo-name ppo-approx & 
 
 # === Wait for all background jobs to finish ===
 wait
