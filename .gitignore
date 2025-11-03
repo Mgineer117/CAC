@@ -33,7 +33,6 @@ MANIFEST
 *.manifest
 *.spec
 *.npz
-data/
 
 # Installer logs
 pip-log.txt
