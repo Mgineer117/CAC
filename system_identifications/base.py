@@ -19,40 +19,41 @@ def FD_second_order(points: list, method: str = "central") -> list:
 
 def compute_dynamics(states: list) -> list:
     # === Generate x_dot using finite difference === #
-    x_dots = []
-    for i in range(len(states)):
-        x_dot_trajectory = []
+    # x_dots = []
+    # for i in range(len(states)):
+    x_dot_trajectory = []
 
-        try:
-            # The full trajectory is the list of states + the final "next_state"
-            full_trajectory = [np.array(s) for s in states[i]]
-        except IndexError:
-            # Handle cases where a trajectory might be empty
-            raise ValueError(f"Trajectory {i} is empty or malformed.")
+    try:
+        # The full trajectory is the list of states + the final "next_state"
+        full_trajectory = [np.array(s) for s in states]
+    except IndexError:
+        # Handle cases where a trajectory might be empty
+        raise ValueError(f"Trajectory is empty or malformed.")
 
-        # 2. Validate the assumption that N=600
-        if len(full_trajectory) != N:
-            raise ValueError(
-                f"Trajectory {i} length is {len(full_trajectory)}, but we assumed N={N}."
-            )
-
-        # First point (t=0): Use second-order FORWARD difference
-        x_dot_0 = FD_second_order(
-            [full_trajectory[0], full_trajectory[1], full_trajectory[2]],
-            method="forward",
+    # 2. Validate the assumption that N=600 + 1
+    if len(full_trajectory) != N + 1:
+        raise ValueError(
+            f"Trajectory length is {len(full_trajectory)}, but we assumed N={N}."
         )
-        x_dot_trajectory.append(x_dot_0.tolist())
 
-        # Middle points (t=1 to N-2, i.e., 1 to 297): Use second-order CENTRAL difference
-        for t in range(1, N - 1):
-            x_dot_t = (full_trajectory[t + 1] - full_trajectory[t - 1]) / (
-                2 * TIME_INTERVAL
-            )
-            x_dot_trajectory.append(x_dot_t.tolist())
+    # First point (t=0): Use second-order FORWARD difference
+    x_dot_0 = FD_second_order(
+        [full_trajectory[0], full_trajectory[1], full_trajectory[2]],
+        method="forward",
+    )
+    x_dot_trajectory.append(x_dot_0.tolist())
 
-        x_dots.append(x_dot_trajectory)
+    # Middle points (t=1 to N-2, i.e., 1 to 297): Use second-order CENTRAL difference
+    for t in range(1, N):
+        x_dot_t = (full_trajectory[t + 1] - full_trajectory[t - 1]) / (
+            2 * TIME_INTERVAL
+        )
+        x_dot_trajectory.append(x_dot_t.tolist())
+    return x_dot_trajectory
+    #     print(len(x_dot_trajectory))
+    #     x_dots.append(x_dot_trajectory)
 
-    return x_dots
+    # return x_dots
 
 
 def compose_state(flight_data: dict, index: int) -> list:

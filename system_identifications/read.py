@@ -28,17 +28,23 @@ def read_flight_data(file_path):
 
 if __name__ == "__main__":
     # make it as a usable MDP dataset
-    mdp_data = {"states": [], "actions": [], "next_states": [], "terminals": []}
+    mdp_data = {
+        "states": [],
+        "actions": [],
+        "next_states": [],
+        "dynamics": [],
+        "terminals": [],
+    }
 
     # given data_dir, find all names of json files in a list
 
-    data_dir = BASE_DIR + "data/raw_data/test/"
+    data_dir = BASE_DIR + "data/raw_data/train/"
 
     json_files = [f for f in os.listdir(data_dir) if f.endswith(".json")]
 
     for file_name in json_files:
         flight_data = read_flight_data(os.path.join(data_dir, file_name))
-        states, actions, next_states, terminals = [], [], [], []
+        states, actions, next_states, dynamics, terminals = [], [], [], [], []
 
         for i in range(N):
             state = compose_state(flight_data, i)
@@ -51,12 +57,24 @@ if __name__ == "__main__":
             next_states.append(next_state)
             terminals.append(terminal)
 
+        dynamics = compute_dynamics(states + [next_states[-1]])
+
         mdp_data["states"].append(states)
         mdp_data["actions"].append(actions)
         mdp_data["next_states"].append(next_states)
+        mdp_data["dynamics"].append(dynamics)
         mdp_data["terminals"].append(terminals)
 
-    mdp_data["dynamics"] = compute_dynamics(mdp_data["states"])
+    # check they are in same length
+    for i in range(len(mdp_data["states"])):
+        assert (
+            len(mdp_data["states"][i])
+            == len(mdp_data["actions"][i])
+            == len(mdp_data["next_states"][i])
+            == len(mdp_data["terminals"][i])
+            == len(mdp_data["dynamics"][i])
+            == N
+        )
 
     # Save the MDP dataset to a JSON file
     with open(f"{BASE_DIR}/data/mdp_flight_data.json", "w") as outfile:
