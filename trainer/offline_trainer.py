@@ -373,6 +373,9 @@ class DynamicsTrainer:
 
         # Train loop
         data = self.env.get_rollout(self.buffer_size, mode="dynamics")
+        self.buffer_size = data["states"].shape[
+            0
+        ]  # update buffer size based on actual data
         self.Dynamic_func.train()
         with tqdm(
             total=self.epochs, desc=f"{self.Dynamic_func.name} Training (Epochs)"
