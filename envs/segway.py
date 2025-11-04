@@ -1,187 +1,159 @@
-import os
-import urllib.request
-
 import gymnasium as gym
 import numpy as np
 import torch
+from env_base import BaseEnv
 from gymnasium import spaces
 
-# QUADROTOR PARAMETERS
+# X bounds
 X_MIN = np.array([-5.0, -np.pi / 3, -1.0, -np.pi]).reshape(-1, 1)
 X_MAX = np.array([5.0, np.pi / 3, 1.0, np.pi]).reshape(-1, 1)
 
-UREF_MIN = np.array(
-    [
-        0.0,
-    ]
-).reshape(-1, 1)
-UREF_MAX = np.array(
-    [
-        0.0,
-    ]
-).reshape(-1, 1)
+# Initial reference state bounds
+XREF_INIT_MIN = np.array([0.0, 0, 0.0, 0])
+XREF_INIT_MAX = np.array([0.0, 0, 0.0, 0])
 
+# Initial perturbation to the reference state
+XE_INIT_MIN = np.array([-1.0, -np.pi / 3, -0.5, -np.pi])
+XE_INIT_MAX = np.array([1.0, np.pi / 3, 0.5, np.pi])
+
+# initial reference state perturbation bounds for c3m
 lim = 1.0
 XE_MIN = np.array([-lim, -lim, -lim, -lim]).reshape(-1, 1)
 XE_MAX = np.array([lim, lim, lim, lim]).reshape(-1, 1)
 
-X_INIT_MIN = np.array([0.0, 0, 0.0, 0])
-X_INIT_MAX = np.array([0.0, 0, 0.0, 0])
+# reference control bounds
+UREF_MIN = np.array(
+    [
+        -1.0,
+    ]
+).reshape(-1, 1)
+UREF_MAX = np.array(
+    [
+        1.0,
+    ]
+).reshape(-1, 1)
 
-XE_INIT_MIN = np.array([-1.0, -np.pi / 3, -0.5, -np.pi])
-XE_INIT_MAX = np.array([1.0, np.pi / 3, 0.5, np.pi])
+env_config = {
+    "x_min": X_MIN,
+    "x_max": X_MAX,
+    "xref_init_min": XREF_INIT_MIN,
+    "xref_init_max": XREF_INIT_MAX,
+    "xe_init_min": XE_INIT_MIN,
+    "xe_init_max": XE_INIT_MAX,
+    "xe_min": XE_MIN,
+    "xe_max": XE_MAX,
+    "uref_min": UREF_MIN,
+    "uref_max": UREF_MAX,
+    "num_dim_x": 4,
+    "num_dim_control": 1,
+    "pos_dimension": 1,
+    "dt": 0.03,
+    "time_bound": 6.0,
+    "use_learned_dynamics": False,
+    "q": 1.0,  # state cost weight
+    "r": 0.1,  # control cost weight
+}
 
-state_weights = np.array([1, 1, 1.0, 1.0])  # 1
 
-STATE_MIN = np.concatenate((X_MIN.flatten(), X_MIN.flatten(), UREF_MIN.flatten()))
-STATE_MAX = np.concatenate((X_MAX.flatten(), X_MAX.flatten(), UREF_MAX.flatten()))
-
-
-class SegwayEnv(gym.Env):
-    def __init__(self, sigma: float = 0.0):
-        super(SegwayEnv, self).__init__()
+class SegwayEnv(BaseEnv):
+    def __init__(self, sample_mode: str = "uniform"):
         """
         State: tracking error between current and reference trajectory
         Reward: 1 / (The 2-norm of tracking error + 1)
         """
-        self.num_dim_x = 4
-        self.num_dim_control = 1
-        self.pos_dimension = 2
 
-        self.tracking_scaler = 1.0
-        self.control_scaler = 0.0
+        # env specific parameters
+        self.task = "segway"
 
-        self.time_bound = 6.0
-        self.dt = 0.03
-        self.episode_len = int(self.time_bound / self.dt)
-        self.t = np.arange(0, self.time_bound, self.dt)
+        # initialize the base environment
+        env_config["sample_mode"] = sample_mode
+        env_config["Bbot_func"] = self._B_null_logic
 
-        self.state_weights = state_weights
-        self.sigma = sigma
-        self.d_up = 3 * sigma
+        super(SegwayEnv, self).__init__()
 
-        self.effective_indices = np.arange(1, 4)
-
-        self.disturbance_duration = 0.0
-        self.current_disturbance = np.zeros(self.num_dim_x)
-
-        self.observation_space = spaces.Box(
-            low=STATE_MIN.flatten(), high=STATE_MAX.flatten(), dtype=np.float64
-        )
-        self.action_space = spaces.Box(
-            low=UREF_MIN.flatten(), high=UREF_MAX.flatten(), dtype=np.float64
-        )
-
-    def Bbot_func(self, x: torch.Tensor):
+    def _f_logic(self, x, lib):
+        """
+        Calculates the drift dynamics f(x).
+        This logic is taken from your 'f_func_np'.
+        """
+        # Ensure x is 2D (batch_size, num_dim_x)
         if len(x.shape) == 1:
-            x = x.unsqueeze(0)
+            x = x.unsqueeze(0) if lib == torch else x[np.newaxis, :]
 
         n = x.shape[0]
-
-        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
-        Bbot = torch.zeros(
-            n, self.num_dim_x, self.num_dim_x - self.num_dim_control
-        ).type(x.type())
-
-        Bbot[:, 0, 0] = 1
-        Bbot[:, 1, 1] = 1
-        Bbot[:, 2, 2] = (9.3 * torch.cos(theta) + 38.6) / (torch.cos(theta) ** 2 - 24.7)
-        Bbot[:, 3, 2] = -(-1.8 * torch.cos(theta) - 10.9) / (torch.cos(theta) - 24.7)
-        return Bbot
-
-    def f_func_np(self, x: np.ndarray):
-        # x: bs x n x 1
-        # f: bs x n x 1
-        if len(x.shape) == 1:
-            x = x[np.newaxis, :]
-        n = x.shape[0]
-
         p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
 
-        f = np.zeros((n, self.num_dim_x))
+        f = lib.zeros((n, self.num_dim_x))
         f[:, 0] = v
         f[:, 1] = omega
+
+        # v_x_dot (state x[2])
         f[:, 2] = (
-            np.cos(theta) * (9.8 * np.sin(theta) + 11.5 * v)
+            lib.cos(theta) * (9.8 * lib.sin(theta) + 11.5 * v)
             + 68.4 * v
-            - 1.2 * (omega**2) * np.sin(theta)
-        ) / (np.cos(theta) - 24.7)
+            - 1.2 * (omega**2) * lib.sin(theta)
+        ) / (lib.cos(theta) - 24.7)
+
+        # omega_dot (state x[3])
         f[:, 3] = (
-            -58.8 * v * np.cos(theta)
+            -58.8 * v * lib.cos(theta)
             - 243.5 * v
-            - np.sin(theta) * (208.3 + (omega**2) * np.cos(theta))
-        ) / (np.cos(theta) ** 2 - 24.7)
-
-        return f.squeeze(0)
-
-    def f_func(self, x: torch.Tensor):
-        # x: bs x n x 1
-        # f: bs x n x 1
-        if len(x.shape) == 1:
-            x = x.unsqueeze(0)
-        n = x.shape[0]
-
-        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
-
-        f = torch.zeros((n, self.num_dim_x))
-        f[:, 0] = v
-        f[:, 1] = omega
-        f[:, 2] = (
-            torch.cos(theta) * (9.8 * torch.sin(theta) + 11.5 * v)
-            + 68.4 * v
-            - 1.2 * (omega**2) * torch.sin(theta)
-        ) / (torch.cos(theta) - 24.7)
-        f[:, 3] = (
-            -58.8 * v * torch.cos(theta)
-            - 243.5 * v
-            - torch.sin(theta) * (208.3 + (omega**2) * torch.cos(theta))
-        ) / (torch.cos(theta) ** 2 - 24.7)
+            - lib.sin(theta) * (208.3 + (omega**2) * lib.cos(theta))
+        ) / (lib.cos(theta) ** 2 - 24.7)
 
         return f
 
-    def B_func_np(self, x: np.ndarray):
+    def _B_logic(self, x, lib):
+        """
+        Calculates the control matrix B(x).
+        This logic is taken from your 'B_func'.
+        """
+        # Ensure x is 2D
         if len(x.shape) == 1:
-            x = x[np.newaxis, :]
-        n = x.shape[0]
+            x = x.unsqueeze(0) if lib == torch else x[np.newaxis, :]
 
+        n = x.shape[0]
         p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
 
-        B = np.zeros((n, self.num_dim_x, self.num_dim_control))
+        B = lib.zeros((n, self.num_dim_x, self.num_dim_control))
 
-        B[:, 2, 0] = (-1.8 * np.cos(theta) - 10.9) / (np.cos(theta) - 24.7)
-        B[:, 3, 0] = (9.3 * np.cos(theta) + 38.6) / (np.cos(theta) ** 2 - 24.7)
+        # v_x_dot term (state x[2])
+        B[:, 2, 0] = (-1.8 * lib.cos(theta) - 10.9) / (lib.cos(theta) - 24.7)
 
-        return B.squeeze(0)
-
-    def B_func(self, x: torch.Tensor):
-        if len(x.shape) == 1:
-            x = x.unsqueeze(0)
-        n = x.shape[0]
-
-        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
-
-        B = torch.zeros((n, self.num_dim_x, self.num_dim_control))
-
-        B[:, 2, 0] = (-1.8 * torch.cos(theta) - 10.9) / (torch.cos(theta) - 24.7)
-        B[:, 3, 0] = (9.3 * torch.cos(theta) + 38.6) / (torch.cos(theta) ** 2 - 24.7)
+        # omega_dot term (state x[3])
+        B[:, 3, 0] = (9.3 * lib.cos(theta) + 38.6) / (lib.cos(theta) ** 2 - 24.7)
 
         return B
 
-    def B_null(self, x: torch.Tensor):
+    def _B_null_logic(self, x, lib):
+        """
+        Calculates the orthogonal complement B_null(x) (or B_bot).
+        This logic is taken from your 'Bbot_func'.
+        """
+        # Ensure x is 2D
+        if len(x.shape) == 1:
+            x = x.unsqueeze(0) if lib == torch else x[np.newaxis, :]
+
         n = x.shape[0]
-        Bbot = torch.cat(
-            (
-                torch.eye(
-                    self.num_dim_x - self.num_dim_control,
-                    self.num_dim_x - self.num_dim_control,
-                ),
-                torch.zeros(
-                    self.num_dim_control, self.num_dim_x - self.num_dim_control
-                ),
-            ),
-            dim=0,
-        )
-        return Bbot.repeat(n, 1, 1)
+        p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
+
+        # B_null has (num_dim_x - num_dim_control) = 3 columns
+        B_null = lib.zeros((n, self.num_dim_x, self.num_dim_x - self.num_dim_control))
+
+        # Column 0 (corresponds to p_x)
+        B_null[:, 0, 0] = 1.0
+
+        # Column 1 (corresponds to theta)
+        B_null[:, 1, 1] = 1.0
+
+        # Column 2 (the complex one that makes B^T * B_null = 0)
+        # B_null[:, 2, 2] = B4(x)
+        B_null[:, 2, 2] = (9.3 * lib.cos(theta) + 38.6) / (lib.cos(theta) ** 2 - 24.7)
+
+        # B_null[:, 3, 2] = -B3(x)
+        B_null[:, 3, 2] = -(-1.8 * lib.cos(theta) - 10.9) / (lib.cos(theta) - 24.7)
+
+        return B_null
 
     def get_f_and_B(self, x: torch.Tensor):
         if self.Bbot_func is None:
