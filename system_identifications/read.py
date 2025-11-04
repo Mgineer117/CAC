@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     # given data_dir, find all names of json files in a list
 
-    data_dir = BASE_DIR + "data/raw_data/train/"
+    data_dir = BASE_DIR + "data/raw_data/test/"
 
     json_files = [f for f in os.listdir(data_dir) if f.endswith(".json")]
 

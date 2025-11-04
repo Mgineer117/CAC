@@ -171,6 +171,16 @@ def compute_nominal_dynamics(states: list, actions: list) -> list:
     return x_hat_dots
 
 
+def thrust_normalization(thrust: float) -> float:
+    """Normalize thrust value between 0 and 1."""
+    return (thrust - MIN_THRUST) / (MAX_THRUST - MIN_THRUST)
+
+
+def thrust_denormalization(norm_thrust: float) -> float:
+    """Denormalize thrust value from 0-1 back to actual thrust."""
+    return norm_thrust * (MAX_THRUST - MIN_THRUST) + MIN_THRUST
+
+
 def compose_state(flight_data: dict, index: int) -> list:
     """Compose a state vector from flight data at a given index."""
     # Velocity from using Kalman filter is too noisy so we resort to FD
@@ -235,7 +245,7 @@ def compose_state(flight_data: dict, index: int) -> list:
         vx,  # x velocity
         vy,  # y velocity
         vz,  # z velocity
-        cmd["controller.cmd_thrust"] / (MAX_THRUST - MIN_THRUST),  # normalized thrust
+        thrust_normalization(cmd["controller.cmd_thrust"]),  # normalized thrust
         pose[3],  # roll
         pose[4],  # pitch
         pose[5],  # yaw
@@ -257,14 +267,14 @@ def compose_action(flight_data: dict, index: int) -> list:
 
     # thrust dynamics using second-order finite difference
     if index == 0:
-        current_thrust = thrust_list[index]["controller.cmd_thrust"] / (
-            MAX_THRUST - MIN_THRUST
+        current_thrust = thrust_normalization(
+            thrust_list[index]["controller.cmd_thrust"]
         )
-        next_thrust_1 = thrust_list[index + 1]["controller.cmd_thrust"] / (
-            MAX_THRUST - MIN_THRUST
+        next_thrust_1 = thrust_normalization(
+            thrust_list[index + 1]["controller.cmd_thrust"]
         )
-        next_thrust_2 = thrust_list[index + 2]["controller.cmd_thrust"] / (
-            MAX_THRUST - MIN_THRUST
+        next_thrust_2 = thrust_normalization(
+            thrust_list[index + 2]["controller.cmd_thrust"]
         )
 
         current_angle = np.array(attitude_list[index][3:6])
@@ -284,11 +294,11 @@ def compose_action(flight_data: dict, index: int) -> list:
             [current_angle[2], next_angle_1[2], next_angle_2[2]], method="forward"
         )
     else:
-        before_thrust_1 = thrust_list[index - 1]["controller.cmd_thrust"] / (
-            MAX_THRUST - MIN_THRUST
+        before_thrust_1 = thrust_normalization(
+            thrust_list[index - 1]["controller.cmd_thrust"]
         )
-        next_thrust_1 = thrust_list[index + 1]["controller.cmd_thrust"] / (
-            MAX_THRUST - MIN_THRUST
+        next_thrust_1 = thrust_normalization(
+            thrust_list[index + 1]["controller.cmd_thrust"]
         )
 
         before_angle_1 = np.array(attitude_list[index - 1][3:6])
