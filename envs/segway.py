@@ -1,8 +1,7 @@
-import gymnasium as gym
 import numpy as np
 import torch
-from env_base import BaseEnv
-from gymnasium import spaces
+
+from envs.env_base import BaseEnv
 
 # X bounds
 X_MIN = np.array([-5.0, -np.pi / 3, -1.0, -np.pi]).reshape(-1, 1)
