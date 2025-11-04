@@ -275,7 +275,7 @@ class BaseEnv(gym.Env):
         return xref_0, xe_0, x_0
 
     @abstractmethod
-    def sample_reference_controls(self, freqs, weights, _t):
+    def sample_reference_controls(self, freqs, weights, _t, infos, add_noise):
         """Sample reference controls based on frequencies and weights."""
         pass
 
@@ -290,7 +290,9 @@ class BaseEnv(gym.Env):
 
         xref_list, uref_list = [xref_0], []
         for i, _t in enumerate(self.t):
-            uref_t = self.sample_reference_controls(freqs, weights, _t)
+            uref_t = self.sample_reference_controls(
+                freqs, weights, _t, {"xref_0": xref_0}
+            )
             xref_t, term, trunc = self.get_transition(xref_list[-1].copy(), uref_t)
 
             xref_list.append(xref_t)
@@ -457,7 +459,7 @@ class BaseEnv(gym.Env):
                     for i, _t in enumerate(self.t):
                         x_t = x_list[-1].copy()
                         u_t = self.sample_reference_controls(
-                            freqs, weights, _t, add_noise=True
+                            freqs, weights, _t, {"xref_0": xref_0}, add_noise=True
                         )
                         x_dot = self.get_dynamics(x_t, u_t)
                         x_t, term, _ = self.get_transition(x_t, u_t)

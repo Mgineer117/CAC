@@ -205,7 +205,7 @@ class NeuralLanderEnv(BaseEnv):
 
         return xref_0, xe_0, x_0
 
-    def sample_reference_controls(self, freqs, weights, _t, add_noise=False):
+    def sample_reference_controls(self, freqs, weights, _t, infos, add_noise=False):
         uref = np.array([0, 0, g]) - self.Fa / mass  # ref
         for freq, weight in zip(freqs, weights):
             uref += np.array(

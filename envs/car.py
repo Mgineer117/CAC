@@ -109,7 +109,7 @@ class CarEnv(BaseEnv):
             #    (np.newaxis adds the first dimension for repeating)
             return np.repeat(Bbot[np.newaxis, :, :], n, axis=0)
 
-    def sample_reference_controls(self, freqs, weights, _t, add_noise=False):
+    def sample_reference_controls(self, freqs, weights, _t, infos, add_noise=False):
         uref = np.array([0.0, 0])
         for freq, weight in zip(freqs, weights):
             uref += np.array(
