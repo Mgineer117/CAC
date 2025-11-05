@@ -4,12 +4,16 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from envs.car import CarEnv
-from envs.neurallander import NeuralLanderEnv
-from envs.pvtol import PvtolEnv
-from envs.quadrotor import QuadRotorEnv
-from envs.segway import SegwayEnv
-from envs.turtlebot import TurtlebotEnv
+from envs import (
+    CarEnv,
+    CartPoleEnv,
+    FlapperEnv,
+    NeuralLanderEnv,
+    PvtolEnv,
+    QuadRotorEnv,
+    SegwayEnv,
+    TurtlebotEnv,
+)
 
 
 def call_env(args):
@@ -27,6 +31,10 @@ def call_env(args):
         env = SegwayEnv()
     elif task == "turtlebot":
         env = TurtlebotEnv()
+    elif task == "cartpole":
+        env = CartPoleEnv()
+    elif task == "flapper":
+        env = FlapperEnv()
     else:
         raise NotImplementedError(f"{task} is not implemented.")
 
@@ -128,6 +136,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             lbd=args.lbd,
             eps=args.eps,
             w_ub=args.w_ub,
+            gamma=args.gamma,
             num_minibatch=args.num_minibatch,
             minibatch_size=args.minibatch_size,
             nupdates=args.c3m_epochs,

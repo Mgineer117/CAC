@@ -12,6 +12,7 @@ from torch.linalg import matrix_norm
 from torch.optim.lr_scheduler import LambdaLR
 
 from policy.base import Base
+from policy.cac import CAC
 from utils.functions import (
     compute_kl,
     conjugate_gradients,
@@ -22,7 +23,7 @@ from utils.functions import (
 )
 
 
-class CACv2(Base):
+class CACv2(CAC):
     def __init__(
         self,
         # Learning parameters
@@ -59,46 +60,36 @@ class CACv2(Base):
         nupdates: int = 1,
         device: str = "cpu",
     ):
-        super(CACv2, self).__init__()
-
-        # constants
-        self.name = "CAC"
-        self.device = device
-
-        self.x_dim = x_dim
-        self.action_dim = actor.action_dim
-
-        self.data = data
-        self.buffer_size = data["x"].shape[0]
-        self.num_minibatch = num_minibatch
-        self.minibatch_size = minibatch_size
-        self.W_entropy_scaler = W_entropy_scaler
-        self.entropy_scaler = entropy_scaler
-        self.control_scaler = control_scaler
-        self.eps = eps
-        self.gamma = gamma
-        self.gae = gae
-        self.K = K
-        self.l2_reg = l2_reg
-        self.damping = damping
-        self.backtrack_iters = backtrack_iters
-        self.backtrack_coeff = backtrack_coeff
-        self.target_kl = target_kl
-        self.eps_clip = eps_clip
-        self.w_ub = w_ub
-
-        self.get_f_and_B = get_f_and_B
-        if isinstance(self.get_f_and_B, nn.Module):
-            # set to eval mode due to dropout
-            self.get_f_and_B.eval()
-
-        self.nupdates = nupdates
-        self.num_updates = 0
-
-        # trainable networks
-        self.W_func = W_func
-        self.actor = actor
-        self.critic = critic
+        super(CACv2, self).__init__(
+            x_dim=x_dim,
+            data=data,
+            W_func=W_func,
+            get_f_and_B=get_f_and_B,
+            actor=actor,
+            critic=critic,
+            W_lr=W_lr,
+            actor_lr=actor_lr,
+            critic_lr=critic_lr,
+            num_minibatch=num_minibatch,
+            minibatch_size=minibatch_size,
+            w_ub=w_ub,
+            lbd=lbd,
+            eps=eps,
+            W_entropy_scaler=W_entropy_scaler,
+            damping=damping,
+            backtrack_iters=backtrack_iters,
+            backtrack_coeff=backtrack_coeff,
+            target_kl=target_kl,
+            eps_clip=eps_clip,
+            K=K,
+            entropy_scaler=entropy_scaler,
+            gamma=gamma,
+            gae=gae,
+            l2_reg=l2_reg,
+            control_scaler=control_scaler,
+            nupdates=nupdates,
+            device=device,
+        )
 
         # make lbd and nu a trainable parameter
         self.lbd = nn.Parameter(
@@ -109,13 +100,6 @@ class CACv2(Base):
         )
         self.zeta = nn.Parameter(
             torch.ones(1, dtype=torch.float32, device=self.device) + 1e-2
-        )
-
-        self.RL_optimizer = torch.optim.Adam(
-            [
-                {"params": self.actor.parameters(), "lr": actor_lr},
-                {"params": self.critic.parameters(), "lr": critic_lr},
-            ]
         )
 
         self.W_optimizer = torch.optim.Adam(
@@ -129,31 +113,9 @@ class CACv2(Base):
         )
 
         self.lr_scheduler1 = LambdaLR(self.W_optimizer, lr_lambda=self.lr_lambda)
-        self.lr_scheduler2 = LambdaLR(self.RL_optimizer, lr_lambda=self.lr_lambda)
         self.lr_scheduler3 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
 
         self.to(self._dtype).to(self.device)
-
-    def lr_lambda(self, step):
-        return 1.0 - float(step) / float(self.nupdates)
-
-    def to_device(self, device):
-        self.device = device
-        self.to(device)
-
-    def forward(self, state: np.ndarray, deterministic: bool = False):
-        state = torch.from_numpy(state).to(self._dtype).to(self.device)
-        if len(state.shape) == 1:
-            state = state.unsqueeze(0)
-
-        x, xref, uref, t = self.trim_state(state)
-        a, metaData = self.actor(x, xref, uref, deterministic=deterministic)
-
-        return a, {
-            "probs": metaData["probs"],
-            "logprobs": metaData["logprobs"],
-            "entropy": metaData["entropy"],
-        }
 
     def compute_W_loss(self):
         # === SAMPLE BATCH === #
@@ -374,282 +336,3 @@ class CACv2(Base):
         update_time = time.time() - t0
 
         return loss_dict, supp_dict, update_time
-
-    def learn_ppo(self, batch):
-        """Performs a single training step using PPO, incorporating all reference training steps."""
-        self.train()
-        t0 = time.time()
-
-        # Ingredients: Convert batch data to tensors
-        states = self.to_tensor(batch["states"])
-        actions = self.to_tensor(batch["actions"])
-        original_rewards = self.to_tensor(batch["rewards"])
-        rewards = self.get_rewards(states, actions)
-        terminals = self.to_tensor(batch["terminals"])
-        old_logprobs = self.to_tensor(batch["logprobs"])
-
-        # Compute advantages and returns
-        with torch.no_grad():
-            values = self.critic(states)
-            advantages, returns = estimate_advantages(
-                rewards,
-                terminals,
-                values,
-                gamma=self.gamma,
-                gae=self.gae,
-                device=self.device,
-            )
-
-        # Mini-batch training
-        batch_size = states.size(0)
-
-        # List to track actor loss over minibatches
-        losses, actor_losses, value_losses, entropy_losses = [], [], [], []
-        clip_fractions, target_kl, grad_dicts = [], [], []
-
-        for k in range(self.K):
-            for n in range(self.num_minibatch):
-                indices = torch.randperm(batch_size)[: self.minibatch_size]
-                mb_states, mb_actions = states[indices], actions[indices]
-                mb_old_logprobs, mb_returns = old_logprobs[indices], returns[indices]
-
-                # advantages
-                mb_advantages = advantages[indices]
-
-                # 1. Critic Loss (with optional regularization)
-                value_loss = self.critic_loss(mb_states, mb_returns)
-                critic_loss = 0.5 * value_loss
-
-                # Track value loss for logging
-                value_losses.append(value_loss.item())
-
-                # 2. actor Loss
-                actor_loss, entropy_loss, clip_fraction, kl_div = self.actor_loss(
-                    mb_states, mb_actions, mb_old_logprobs, mb_advantages
-                )
-
-                # Track actor loss for logging
-                actor_losses.append(actor_loss.item())
-                entropy_losses.append(entropy_loss.item())
-                clip_fractions.append(clip_fraction)
-                target_kl.append(kl_div.item())
-
-                if kl_div.item() > self.target_kl:
-                    break
-
-                # Total loss
-                loss = actor_loss - entropy_loss + 0.5 * critic_loss
-                losses.append(loss.item())
-
-                # Update parameters
-                self.RL_optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=0.5)
-                grad_dict = self.compute_gradient_norm(
-                    [self.actor, self.critic],
-                    ["actor", "critic"],
-                    dir=f"{self.name}",
-                    device=self.device,
-                )
-                grad_dicts.append(grad_dict)
-                self.RL_optimizer.step()
-
-            if kl_div.item() > self.target_kl:
-                break
-
-        # Logging
-        supp_dict = {}
-        loss_dict = {
-            f"{self.name}/loss/loss": np.mean(losses),
-            f"{self.name}/loss/actor_loss": np.mean(actor_losses),
-            f"{self.name}/loss/value_loss": np.mean(value_losses),
-            f"{self.name}/loss/entropy_loss": np.mean(entropy_losses),
-            f"{self.name}/analytics/clip_fraction": np.mean(clip_fractions),
-            f"{self.name}/analytics/klDivergence": target_kl[-1],
-            f"{self.name}/analytics/K-epoch": k + 1,
-            f"{self.name}/analytics/avg_rewards": torch.mean(original_rewards).item(),
-            f"{self.name}/analytics/corrected_avg_rewards": torch.mean(rewards).item(),
-            f"{self.name}/learning_rate/actor_lr": self.lr_scheduler2.get_last_lr()[0],
-            f"{self.name}/learning_rate/critic_lr": self.lr_scheduler2.get_last_lr()[1],
-        }
-        grad_dict = self.average_dict_values(grad_dicts)
-        norm_dict = self.compute_weight_norm(
-            [self.actor, self.critic],
-            ["actor", "critic"],
-            dir=f"{self.name}",
-            device=self.device,
-        )
-        loss_dict.update(grad_dict)
-        loss_dict.update(norm_dict)
-
-        # Cleanup
-        del states, actions, rewards, terminals, old_logprobs
-        self.eval()
-
-        update_time = time.time() - t0
-        return loss_dict, supp_dict, update_time
-
-    def learn_trpo(self, batch):
-        """Performs a single training step using PPO, incorporating all reference training steps."""
-        self.train()
-        t0 = time.time()
-
-        # Ingredients: Convert batch data to tensors
-        states = self.to_tensor(batch["states"])
-        actions = self.to_tensor(batch["actions"])
-        original_rewards = self.to_tensor(batch["rewards"])
-        rewards = self.get_rewards(states, actions)
-        terminals = self.to_tensor(batch["terminals"])
-        old_logprobs = self.to_tensor(batch["logprobs"])
-
-        x, xref, uref, t = self.trim_state(states)
-
-        # Compute advantages and returns
-        with torch.no_grad():
-            values = self.critic(states)
-            advantages, returns = estimate_advantages(
-                rewards,
-                terminals,
-                values,
-                gamma=self.gamma,
-                gae=self.gae,
-                device=self.device,
-            )
-
-        # === CRITIC UPDATE === #
-        critic_iteration = 5
-        batch_size = states.size(0) // critic_iteration
-        grad_dict_list = []
-        for _ in range(critic_iteration):
-            indices = torch.randperm(states.size(0))[:batch_size]
-            mb_states = states[indices]
-            mb_returns = returns[indices]
-
-            value_loss = self.critic_loss(mb_states, mb_returns)
-
-            self.RL_optimizer.zero_grad()
-            value_loss.backward()
-            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
-            grad_dict = self.compute_gradient_norm(
-                [self.critic],
-                ["critic"],
-                dir=f"{self.name}",
-                device=self.device,
-            )
-            grad_dict_list.append(grad_dict)
-            self.RL_optimizer.step()
-        grad_dict = self.average_dict_values(grad_dict_list)
-
-        # === ACTOR UPDATE === #
-        actor_loss, entropy_loss, _, _ = self.actor_loss(
-            states, actions, old_logprobs, advantages
-        )
-        loss = actor_loss + entropy_loss
-        actor_gradients = torch.autograd.grad(loss, self.actor.parameters())
-        grad_flat = torch.cat([g.view(-1) for g in actor_gradients]).detach()
-
-        old_actor = deepcopy(self.actor)
-
-        # KL function (closure)
-        def kl_fn():
-            return compute_kl(old_actor, self.actor, (x, xref, uref))
-
-        # Define HVP function
-        Hv = lambda v: hessian_vector_product(kl_fn, self.actor, self.damping, v)
-
-        # Compute step direction with CG
-        step_dir = conjugate_gradients(Hv, grad_flat, nsteps=10)
-
-        # Compute step size to satisfy KL constraint
-        sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
-        lm = torch.sqrt(sAs / self.target_kl)
-        full_step = step_dir / (lm + 1e-8)
-
-        # Line search
-        with torch.no_grad():
-            old_params = flat_params(self.actor)
-
-            # Backtracking line search
-            success = False
-            for i in range(self.backtrack_iters):
-                step_frac = self.backtrack_coeff**i
-                new_params = old_params - step_frac * full_step
-                set_flat_params(self.actor, new_params)
-                kl = compute_kl(old_actor, self.actor, (x, xref, uref))
-
-                if kl <= self.target_kl:
-                    success = True
-                    break
-
-            if not success:
-                set_flat_params(self.actor, old_params)
-
-        # Logging
-        supp_dict = {}
-        loss_dict = {
-            f"{self.name}/loss/actor_loss": actor_loss.item(),
-            f"{self.name}/loss/value_loss": value_loss.item(),
-            f"{self.name}/loss/entropy_loss": entropy_loss.item(),
-            f"{self.name}/analytics/backtrack_iter": i,
-            f"{self.name}/analytics/backtrack_success": int(success),
-            f"{self.name}/analytics/klDivergence": kl.item(),
-            f"{self.name}/analytics/avg_rewards": torch.mean(original_rewards).item(),
-            f"{self.name}/analytics/corrected_avg_rewards": torch.mean(rewards).item(),
-            f"{self.name}/analytics/critic_lr": self.lr_scheduler2.get_last_lr()[1],
-            f"{self.name}/grad/actor": torch.linalg.norm(grad_flat).item(),
-            f"{self.name}/analytics/step_norm": torch.linalg.norm(
-                step_frac * full_step
-            ).item(),
-        }
-        norm_dict = self.compute_weight_norm(
-            [self.actor, self.critic],
-            ["actor", "critic"],
-            dir=f"{self.name}",
-            device=self.device,
-        )
-        loss_dict.update(norm_dict)
-        loss_dict.update(grad_dict)
-
-        # Cleanup
-        del states, actions, rewards, terminals, old_logprobs
-        self.eval()
-        update_time = time.time() - t0
-
-        return loss_dict, supp_dict, update_time
-
-    def actor_loss(
-        self,
-        mb_states: torch.Tensor,
-        mb_actions: torch.Tensor,
-        mb_old_logprobs: torch.Tensor,
-        mb_advantages: torch.Tensor,
-    ):
-        x, xref, uref, t = self.trim_state(mb_states)
-
-        _, metaData = self.actor(x, xref, uref)
-        logprobs = self.actor.log_prob(metaData["dist"], mb_actions)
-        entropy = self.actor.entropy(metaData["dist"])
-        ratios = torch.exp(logprobs - mb_old_logprobs)
-
-        surr1 = ratios * mb_advantages
-        surr2 = (
-            torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * mb_advantages
-        )
-
-        actor_loss = -torch.min(surr1, surr2).mean()
-        entropy_loss = self.entropy_scaler * entropy.mean()
-
-        # Compute clip fraction (for logging)
-        clip_fraction = torch.mean(
-            (torch.abs(ratios - 1) > self.eps_clip).float()
-        ).item()
-
-        # Check if KL divergence exceeds target KL for early stopping
-        kl_div = torch.mean(mb_old_logprobs - logprobs)
-
-        return actor_loss, entropy_loss, clip_fraction, kl_div
-
-    def critic_loss(self, mb_states: torch.Tensor, mb_returns: torch.Tensor):
-        mb_values = self.critic(mb_states)
-        value_loss = self.mse_loss(mb_values, mb_returns)
-        return value_loss

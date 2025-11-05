@@ -29,6 +29,7 @@ class C3M(Base):
         lbd: float = 1e-2,
         eps: float = 1e-2,
         w_ub: float = 1e-2,
+        gamma: float = 0.99,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         nupdates: int = 1,
@@ -61,6 +62,7 @@ class C3M(Base):
         self.eps = eps
         self.w_ub = w_ub
         self.lbd = lbd
+        self.gamma = gamma
 
         self.optimizer = torch.optim.Adam(
             [

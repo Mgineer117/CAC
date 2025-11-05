@@ -258,7 +258,8 @@ class CAC(Base):
 
     def learn(self, batch):
         W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
-        RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+        RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
+        # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
 
         self.lr_scheduler1.step()
         self.lr_scheduler2.step()

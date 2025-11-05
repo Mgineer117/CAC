@@ -1,21 +1,17 @@
 import time
-from collections import deque
 from typing import Callable
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import inverse, matmul, transpose
-from torch.autograd import grad
-from torch.linalg import matrix_norm
 from torch.optim.lr_scheduler import LambdaLR
 
 from policy.base import Base
+from policy.c3m import C3M
 
 
-class C3Mv2(Base):
+class C3Mv2(C3M):
     def __init__(
         self,
         x_dim: int,
@@ -29,34 +25,30 @@ class C3Mv2(Base):
         lbd: float = 1e-2,
         eps: float = 1e-2,
         w_ub: float = 1e-2,
+        gamma: float = 0.99,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         nupdates: int = 1,
         device: str = "cpu",
     ):
-        super(C3Mv2, self).__init__()
-
-        # constants
-        self.name = "C3M"
-        self.device = device
-
-        self.x_dim = x_dim
-        self.action_dim = action_dim
-
-        self.num_minibatch = num_minibatch
-        self.minibatch_size = minibatch_size
-
-        self.nupdates = nupdates
-
-        # trainable networks
-        self.W_func = W_func
-        self.u_func = u_func
-
-        self.data = data
-        self.get_f_and_B = get_f_and_B
-        if isinstance(self.get_f_and_B, nn.Module):
-            # set to eval mode due to dropout
-            self.get_f_and_B.eval()
+        super(C3Mv2, self).__init__(
+            x_dim=x_dim,
+            action_dim=action_dim,
+            W_func=W_func,
+            u_func=u_func,
+            data=data,
+            get_f_and_B=get_f_and_B,
+            W_lr=W_lr,
+            u_lr=u_lr,
+            lbd=lbd,
+            eps=eps,
+            w_ub=w_ub,
+            gamma=gamma,
+            num_minibatch=num_minibatch,
+            minibatch_size=minibatch_size,
+            nupdates=nupdates,
+            device=device,
+        )
 
         # make lbd and nu a trainable parameter
         self.lbd = nn.Parameter(
@@ -68,9 +60,6 @@ class C3Mv2(Base):
         self.zeta = nn.Parameter(
             torch.ones(1, dtype=torch.float32, device=self.device) + 1e-2
         )
-
-        self.eps = eps
-        self.w_ub = w_ub
 
         self.optimizer = torch.optim.Adam(
             [
@@ -90,27 +79,6 @@ class C3Mv2(Base):
         self.num_updates = 0
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
-
-    def lr_lambda(self, step):
-        return 1.0 - float(step) / float(self.nupdates)
-
-    def to_device(self, device):
-        self.device = device
-        self.to(device)
-
-    def forward(self, state: np.ndarray, deterministic: bool = False):
-        state = torch.from_numpy(state).to(self._dtype).to(self.device)
-        if len(state.shape) == 1:
-            state = state.unsqueeze(0)
-
-        x, xref, uref, t = self.trim_state(state)
-        a, _ = self.u_func(x, xref, uref, deterministic=deterministic)
-
-        return a, {
-            "probs": self.dummy,  # dummy for code consistency
-            "logprobs": self.dummy,
-            "entropy": self.dummy,
-        }
 
     def compute_loss(self):
         # === SAMPLE BATCH === #
