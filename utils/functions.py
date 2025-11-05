@@ -2,11 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from envs.car import CarEnv
-from envs.neurallander import NeuralLanderEnv
-from envs.pvtol import PvtolEnv
-from envs.quadrotor import QuadRotorEnv
-
 
 def flat_params(model):
     return torch.cat([p.data.view(-1) for p in model.parameters()])
