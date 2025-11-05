@@ -83,12 +83,7 @@ class C3MTrainer(BaseTrainer):
                     self.policy.eval()
                     eval_idx += 1
 
-                    eval_dict_list = []
-                    for i in range(self.eval_num):
-                        eval_dict, supp_dict = self.evaluate()
-                        eval_dict_list.append(eval_dict)
-
-                    eval_dict = self.average_dict_values(eval_dict_list)
+                    eval_dict, supp_dict = self.evaluate()
 
                     # Manual logging
                     self.write_log(eval_dict, step=logging_step, eval_log=True)

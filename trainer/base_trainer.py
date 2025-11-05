@@ -16,16 +16,16 @@ from log.wandb_logger import WandbLogger
 from policy.base import Base
 
 COLORS = {
-    "0": "magenta",
-    "1": "red",
-    "2": "blue",
-    "3": "green",
-    "4": "yellow",
-    "5": "orange",
-    "6": "purple",
-    "7": "pink",
-    "8": "brown",
-    "9": "grey",
+    "0": "#4e79a7",  # Blue
+    "1": "#f28e2c",  # Orange
+    "2": "#e15759",  # Red
+    "3": "#76b7b2",  # Teal
+    "4": "#59a14f",  # Green
+    "5": "#edc949",  # Yellow
+    "6": "#af7aa1",  # Purple
+    "7": "#ff9da7",  # Pink
+    "8": "#9c755f",  # Brown
+    "9": "#bab0ab",  # Grey
 }
 
 
@@ -75,8 +75,8 @@ class BaseTrainer:
         dimension = self.eval_env.pos_dimension
         ep_buffers = []
 
-        # find mean and CI of data
-        for i in range(self.eval_num):
+        # find mean and CI of data with tqdm that disappears afterward
+        for i in tqdm(range(self.eval_num), desc="Evaluating", leave=False):
             track_traj, ref_traj, error_traj, ep_buffer = [], [], [], []
             # find mean of data
             for j in range(self.eval_episodes):
@@ -143,6 +143,7 @@ class BaseTrainer:
             ctrl_mean, _ = self.mean_confidence_interval(ctr_list)
 
             C, lbd = self.compute_contraction_rate(error_traj)
+
             if i == 0:
                 fig = self.plot_trajectories(track_traj, error_traj, dimension)
 
@@ -232,11 +233,11 @@ class BaseTrainer:
 
         # Set subplot parameters based on dimension
         if dimension == 3:
-            fig = plt.figure(figsize=(10, 6))
+            fig = plt.figure(figsize=(14, 6))
             ax1 = fig.add_subplot(1, 2, 1, projection="3d")
             ax2 = fig.add_subplot(1, 2, 2)  # 2D subplot
         else:
-            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 6))
+            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(14, 6))
 
         if dimension in [2, 3]:
             # Dynamically create the coordinate list and plot the reference trajectory
@@ -249,11 +250,11 @@ class BaseTrainer:
         ax1.scatter(
             *first_point,
             marker="*",
-            alpha=0.7,
+            # alpha=0.7,
             c="black",
             s=80.0,
         )
-        ax1.plot(*coords, linestyle="--", c="black", label="Reference")
+        ax1.plot(*coords, linewidth=2.0, linestyle="--", c="black", label="Reference")
 
         for num_episodes, trajectory in enumerate(trajectories):
             trajectory = np.array(trajectory)
@@ -265,41 +266,47 @@ class BaseTrainer:
             ax1.scatter(
                 *first_point,
                 marker="*",
-                alpha=0.7,
+                alpha=0.9,
                 c=COLORS[str(num_episodes)],
                 s=80.0,
             )
             ax1.plot(
                 *coords,
                 linestyle="-",
-                alpha=0.7,
+                alpha=0.9,
                 c=COLORS[str(num_episodes)],
                 label=str(num_episodes),
             )
 
         # Optional: Add axis labels
         if dimension in [2, 3]:
-            ax1.set_xlabel("X", labelpad=10)
-            ax1.set_ylabel("Y", labelpad=10)
+            ax1.set_xlabel("X", fontsize=16)
+            ax1.set_ylabel("Y", fontsize=16)
             if dimension == 3:
-                ax1.set_zlabel("Z", labelpad=10)
+                ax1.set_zlabel("Z", fontsize=16)
                 # Set a nice viewing angle for 3D
                 ax1.view_init(elev=25, azim=45)
         else:
-            ax1.set_xlabel("Time Steps", labelpad=10)
-            ax1.set_ylabel("Position", labelpad=10)
+            ax1.set_xlabel("Time Steps", fontsize=16)
+            ax1.set_ylabel("Position", fontsize=16)
+
+        ax1.set_title("Path Tracking Results", fontsize=18)
+        ax1.grid(True, linestyle="--", alpha=0.6)
 
         # calculate the mean and std of the traj norm error to make plot
         i = 0
-        for traj in zip(error_trajectories):
+        for traj in error_trajectories:
             ax2.plot(
                 traj,
-                alpha=0.7,
+                # alpha=0.7,
                 c=COLORS[str(i)],
             )
             i += 1
-        ax2.set_xlabel("Time Steps", labelpad=10)
-        ax2.set_ylabel(r"$||x(t)-x^*(t)||_2 / ||x(0) - x^*(0)||_2$", labelpad=10)
+        ax2.set_xlabel("Time Steps", fontsize=16)
+        ax2.set_ylabel(r"$||x(t)-x^*(t)||_2 / ||x(0) - x^*(0)||_2$", fontsize=16)
+
+        ax2.set_title("Normalized Tracking Error", fontsize=18)
+        ax2.grid(True, linestyle="--", alpha=0.6)
 
         plt.tight_layout()
         plt.close()
