@@ -33,28 +33,21 @@ class OnlineTrainer(BaseTrainer):
         eval_episodes: int = 10,
         seed: int = 0,
     ) -> None:
-        self.env = env
-        self.eval_env = eval_env
-        self.policy = policy
+        super().__init__(
+            env=env,
+            eval_env=eval_env,
+            policy=policy,
+            logger=logger,
+            writer=writer,
+            init_epochs=init_epochs,
+            epochs=timesteps,
+            log_interval=log_interval,
+            eval_num=eval_num,
+            eval_episodes=eval_episodes,
+            seed=seed,
+        )
+
         self.sampler = sampler
-        self.eval_num = eval_num
-        self.eval_episodes = eval_episodes
-
-        self.logger = logger
-        self.writer = writer
-
-        # training parameters
-        self.init_epochs = init_epochs
-        self.timesteps = timesteps
-        self.nupdates = self.policy.nupdates
-
-        self.log_interval = log_interval
-        self.eval_interval = int(self.timesteps / self.log_interval)
-
-        # initialize the essential training components
-        self.last_min_auc_mean = 1e10
-
-        self.seed = seed
 
     def train(self) -> dict[str, float]:
         start_time = time.time()
@@ -65,10 +58,10 @@ class OnlineTrainer(BaseTrainer):
         eval_idx = 0
         with tqdm(
             initial=self.init_epochs,
-            total=self.timesteps,
+            total=self.epochs + self.init_epochs,
             desc=f"{self.policy.name} Training (Timesteps)",
         ) as pbar:
-            while pbar.n < self.timesteps:
+            while pbar.n < self.epochs + self.init_epochs:
                 step = pbar.n + 1  # + 1 to avoid zero division
 
                 self.policy.train()
@@ -83,7 +76,7 @@ class OnlineTrainer(BaseTrainer):
 
                 elapsed_time = time.time() - start_time
                 avg_time_per_iter = elapsed_time / step
-                remaining_time = avg_time_per_iter * (self.timesteps - step)
+                remaining_time = avg_time_per_iter * (self.epochs - step)
 
                 # Update environment steps and calculate time metrics
                 loss_dict[f"{self.policy.name}/analytics/timesteps"] = step
@@ -101,7 +94,7 @@ class OnlineTrainer(BaseTrainer):
 
                 #### EVALUATIONS ####
                 if (step >= self.eval_interval * eval_idx) or (
-                    pbar.n >= self.timesteps
+                    pbar.n >= self.epochs + self.init_epochs
                 ):
                     ### Eval Loop
                     self.policy.eval()

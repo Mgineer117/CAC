@@ -30,25 +30,19 @@ class C3MTrainer(BaseTrainer):
         eval_episodes: int = 10,
         seed: int = 0,
     ) -> None:
-        self.env = env
-        self.eval_env = eval_env
-        self.policy = policy
-        self.logger = logger
-        self.writer = writer
-
-        # training parameters
-        self.init_epochs = init_epochs
-        self.epochs = epochs
-
-        self.log_interval = log_interval
-        self.eval_interval = int(epochs / self.log_interval)
-
-        # initialize the essential training components
-        self.last_min_auc_mean = 1e10
-
-        self.eval_num = eval_num
-        self.eval_episodes = eval_episodes
-        self.seed = seed
+        super().__init__(
+            env=env,
+            eval_env=eval_env,
+            policy=policy,
+            logger=logger,
+            writer=writer,
+            init_epochs=init_epochs,
+            epochs=epochs,
+            log_interval=log_interval,
+            eval_num=eval_num,
+            eval_episodes=eval_episodes,
+            seed=seed,
+        )
 
     def train(self) -> dict[str, float]:
         start_time = time.time()
