@@ -66,9 +66,8 @@ class SegwayEnv(BaseEnv):
 
         # initialize the base environment
         env_config["sample_mode"] = sample_mode
-        env_config["Bbot_func"] = self._B_null_logic
 
-        super(SegwayEnv, self).__init__()
+        super(SegwayEnv, self).__init__(env_config)
 
     def _f_logic(self, x, lib):
         """
@@ -124,7 +123,7 @@ class SegwayEnv(BaseEnv):
 
         return B
 
-    def _B_null_logic(self, x, lib):
+    def _B_null_logic(self, x, n, lib):
         """
         Calculates the orthogonal complement B_null(x) (or B_bot).
         This logic is taken from your 'Bbot_func'.
@@ -133,7 +132,6 @@ class SegwayEnv(BaseEnv):
         if len(x.shape) == 1:
             x = x.unsqueeze(0) if lib == torch else x[np.newaxis, :]
 
-        n = x.shape[0]
         p, theta, v, omega = [x[:, i] for i in range(self.num_dim_x)]
 
         # B_null has (num_dim_x - num_dim_control) = 3 columns

@@ -100,7 +100,6 @@ class NeuralLanderEnv(BaseEnv):
 
         # initialize the base environment
         env_config["sample_mode"] = sample_mode
-        env_config["Bbot_func"] = None
 
         super(NeuralLanderEnv, self).__init__(env_config)
 
@@ -164,31 +163,6 @@ class NeuralLanderEnv(BaseEnv):
         B[:, 4, 1] = 1
         B[:, 5, 2] = 1
         return B
-
-    def _B_null_logic(self, n, lib):
-        """Builds the B_null matrix batch using the provided library."""
-
-        # Calculate the dimensions for the component matrices
-        eye_dims = self.num_dim_x - self.num_dim_control
-        zero_dims = (self.num_dim_control, eye_dims)
-
-        if lib == torch:
-            # 1. Create the base 2D matrix
-            Bbot = torch.cat(
-                (torch.eye(eye_dims), torch.zeros(zero_dims)),
-                dim=0,
-            )
-            # 2. Repeat it 'n' times to create a 3D batch
-            return Bbot.repeat(n, 1, 1)
-        else:  # lib == np
-            # 1. Create the base 2D matrix
-            Bbot = np.concatenate(
-                (np.eye(eye_dims), np.zeros(zero_dims)),
-                axis=0,
-            )
-            # 2. Repeat it 'n' times to create a 3D batch
-            #    (np.newaxis adds the first dimension for repeating)
-            return np.repeat(Bbot[np.newaxis, :, :], n, axis=0)
 
     def define_initial_state(self):
         """Define the initial state of the environment."""

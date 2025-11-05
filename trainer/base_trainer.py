@@ -73,18 +73,18 @@ class BaseTrainer:
         Given one ref, show tracking performance
         """
         dimension = self.eval_env.pos_dimension
-        assert dimension in [2, 3], "Dimension must be 2 or 3"
 
         # Set subplot parameters based on dimension
         if dimension == 3:
             fig = plt.figure(figsize=(10, 6))
             ax1 = fig.add_subplot(1, 2, 1, projection="3d")
             ax2 = fig.add_subplot(1, 2, 2)  # 2D subplot
-        else:
+        elif dimension == 2:
             fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 6))
 
         # Dynamically create the coordinate list and plot the reference trajectory
         coords = [self.eval_env.xref[:, i] for i in range(dimension)]
+
         first_point = [c[0] for c in coords]
         ax1.scatter(
             *first_point,
@@ -259,6 +259,11 @@ class BaseTrainer:
         sem = np.std(data, ddof=1) / np.sqrt(n)  # standard error
         h = 1.96 * sem  # margin of error for 95% CI
         return mean, h
+
+    def plot_trajectories(
+        self, trajectories: list[np.ndarray], title: str = "Trajectories"
+    ):
+        pass
 
     @abstractmethod
     def save_model(self, e):

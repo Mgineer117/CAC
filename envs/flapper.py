@@ -112,7 +112,6 @@ class FlapperEnv(BaseEnv):
         )
 
         # initialize the base environment
-        env_config["Bbot_func"] = None
         env_config["sample_mode"] = sample_mode
 
         super(FlapperEnv, self).__init__(env_config)
@@ -146,31 +145,6 @@ class FlapperEnv(BaseEnv):
         B[:, 8, 2] = 1
         B[:, 9, 3] = 1
         return B
-
-    def _B_null_logic(self, n, lib):
-        """Builds the B_null matrix batch using the provided library."""
-
-        # Calculate the dimensions for the component matrices
-        eye_dims = self.num_dim_x - self.num_dim_control
-        zero_dims = (self.num_dim_control, eye_dims)
-
-        if lib == torch:
-            # 1. Create the base 2D matrix
-            Bbot = torch.cat(
-                (torch.eye(eye_dims), torch.zeros(zero_dims)),
-                dim=0,
-            )
-            # 2. Repeat it 'n' times to create a 3D batch
-            return Bbot.repeat(n, 1, 1)
-        else:  # lib == np
-            # 1. Create the base 2D matrix
-            Bbot = np.concatenate(
-                (np.eye(eye_dims), np.zeros(zero_dims)),
-                axis=0,
-            )
-            # 2. Repeat it 'n' times to create a 3D batch
-            #    (np.newaxis adds the first dimension for repeating)
-            return np.repeat(Bbot[np.newaxis, :, :], n, axis=0)
 
     def get_dynamics(self, x: np.ndarray, u: np.ndarray):
         """Compute the dynamics x_dot given current state x and action u."""

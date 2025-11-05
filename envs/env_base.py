@@ -70,7 +70,6 @@ class BaseEnv(gym.Env):
         self.t = np.arange(0, self.time_bound, self.dt)
 
         # dynamics parameters
-        self.Bbot_func = env_config["Bbot_func"]
         self.tracking_scaler = env_config["q"]
         self.control_scaler = env_config["r"]
 
@@ -167,10 +166,30 @@ class BaseEnv(gym.Env):
         """Logic for calculating B(x) given a library (torch or numpy)."""
         pass
 
-    @abstractmethod
-    def _B_null_logic(self, n: int, lib):
-        """Logic for calculating the null space of B given a library (torch or numpy)."""
-        pass
+    def _B_null_logic(self, x, n, lib):
+        """Builds the B_null matrix batch using the provided library."""
+
+        # Calculate the dimensions for the component matrices
+        eye_dims = self.num_dim_x - self.num_dim_control
+        zero_dims = (self.num_dim_control, eye_dims)
+
+        if lib == torch:
+            # 1. Create the base 2D matrix
+            Bbot = torch.cat(
+                (torch.eye(eye_dims), torch.zeros(zero_dims)),
+                dim=0,
+            )
+            # 2. Repeat it 'n' times to create a 3D batch
+            return Bbot.repeat(n, 1, 1)
+        else:  # lib == np
+            # 1. Create the base 2D matrix
+            Bbot = np.concatenate(
+                (np.eye(eye_dims), np.zeros(zero_dims)),
+                axis=0,
+            )
+            # 2. Repeat it 'n' times to create a 3D batch
+            #    (np.newaxis adds the first dimension for repeating)
+            return np.repeat(Bbot[np.newaxis, :, :], n, axis=0)
 
     def f_func(self, x: torch.Tensor | np.ndarray):
         """Calculates the drift dynamics f(x) for torch or numpy."""
@@ -185,7 +204,7 @@ class BaseEnv(gym.Env):
                 x = x[np.newaxis, :]
             result = self._f_logic(x, lib)
 
-        return result.squeeze()
+        return result.squeeze(0)
 
     def B_func(self, x: torch.Tensor | np.ndarray):
         """Calculates the control matrix B(x) for torch or numpy."""
@@ -200,7 +219,7 @@ class BaseEnv(gym.Env):
                 x = x[np.newaxis, :]
             result = self._B_logic(x, lib)
 
-        return result.squeeze()
+        return result.squeeze(0)
 
     def B_null(self, x: torch.Tensor | np.ndarray):
         """Calculates the null space of B for torch or numpy."""
@@ -209,14 +228,14 @@ class BaseEnv(gym.Env):
         if isinstance(x, torch.Tensor):
             lib = torch
             n = 1 if len(x.shape) == 1 else x.shape[0]
-            result = self._B_null_logic(n, lib)
+            result = self._B_null_logic(x, n, lib)
         else:
             lib = np
             n = 1 if len(x.shape) == 1 else x.shape[0]
-            result = self._B_null_logic(n, lib)
+            result = self._B_null_logic(x, n, lib)
 
         # .squeeze() removes the batch dimension if the input was 1D
-        return result.squeeze()
+        return result.squeeze(0)
 
     def get_f_and_B(self, x: torch.Tensor | np.ndarray):
         """Get f(x), B(x), and B_null(x) using either learned dynamics or analytical functions."""
@@ -229,10 +248,7 @@ class BaseEnv(gym.Env):
                 Bbot_x.cpu().squeeze(0).numpy(),
             )
         else:
-            if self.Bbot_func is None:
-                return self.f_func(x), self.B_func(x), self.B_null(x)
-            else:
-                return self.f_func(x), self.B_func(x), self.Bbot_func(x)
+            return self.f_func(x), self.B_func(x), self.B_null(x)
 
     def get_dynamics(self, x: np.ndarray, u: np.ndarray):
         """Compute the dynamics x_dot given current state x and action u."""
