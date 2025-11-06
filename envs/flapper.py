@@ -30,13 +30,13 @@ X_MAX = np.array(
 ).reshape(-1, 1)
 
 # Initial reference state bounds
-XREF_INIT_MIN = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.8, 0, 0, 0])
-XREF_INIT_MAX = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.8, 0, 0, 0])
+XREF_INIT_MIN = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.0, 0, 0, 0])
+XREF_INIT_MAX = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.0, 0, 0, 0])
 
 # perturbation to the reference state
 lim = 0.15
 XE_INIT_MIN = np.array([-lim, -lim, 0, 0, 0, 0, 0, 0, 0, 0])  # .reshape(-1, 1)
-XE_INIT_MAX = np.array([lim, lim, 0, 0, 0, 0, 0, 0, 0, np.pi / 4])  # .reshape(-1, 1)
+XE_INIT_MAX = np.array([lim, lim, 0, 0, 0, 0, 0.25, 0, 0, np.pi / 4])  # .reshape(-1, 1)
 
 # reference state perturbation bounds for c3m
 lim = 1.0
