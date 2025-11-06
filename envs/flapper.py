@@ -46,8 +46,9 @@ XE_MIN = np.array([-lim, -lim, -lim, -lim, -lim, -lim, -lim, -lim, -lim, -lim]).
 XE_MAX = np.array([lim, lim, lim, lim, lim, lim, lim, lim, lim, lim]).reshape(-1, 1)
 
 # reference control bounds
-UREF_MIN = np.array([-1.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
-UREF_MAX = np.array([1.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
+# 2500 thrusts / 0.05s and 1.5 degs / 0.05 s
+UREF_MIN = np.array([-1.0, -0.5, -0.5, -0.5]).reshape(-1, 1)
+UREF_MAX = np.array([1.0, 0.5, 0.5, 0.5]).reshape(-1, 1)
 
 
 env_config = {
@@ -68,7 +69,7 @@ env_config = {
     "time_bound": 30.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.1,  # control cost weight
+    "r": 0.3,  # control cost weight
 }
 
 
