@@ -114,9 +114,11 @@ class BaseEnv(gym.Env):
         """Run one timestep of the environment's dynamics."""
         # Construct u and apply u clipping
         u = self.uref[self.time_steps] + u
+
         # Get reward
         reward, infos = self.get_reward(u)
 
+        # Clip control to bounds
         u = np.clip(u, self.UREF_MIN.flatten(), self.UREF_MAX.flatten())
 
         # Get next state
