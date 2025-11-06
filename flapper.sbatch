@@ -4,7 +4,7 @@
 #SBATCH --partition=IllinoisComputes-GPU 
 #SBATCH --nodes=1
 #SBATCH --ntasks=5
-#SBATCH --cpus-per-task=12
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time=3-00:00:00
 #SBATCH --output=cac.o%j
