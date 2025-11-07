@@ -368,11 +368,21 @@ class BaseEnv(gym.Env):
 
         else:
             dynamics_data = dict(
-                x=np.full(((buffer_size, self.num_dim_x)), np.nan, dtype=np.float32),
-                u=np.full(
-                    ((buffer_size, self.num_dim_control)), np.nan, dtype=np.float32
+                x=np.full(
+                    ((buffer_size + self.max_episode_len, self.num_dim_x)),
+                    np.nan,
+                    dtype=np.float32,
                 ),
-                x_dot=np.full((buffer_size, self.num_dim_x), np.nan, dtype=np.float32),
+                u=np.full(
+                    ((buffer_size + self.max_episode_len, self.num_dim_control)),
+                    np.nan,
+                    dtype=np.float32,
+                ),
+                x_dot=np.full(
+                    (buffer_size + self.max_episode_len, self.num_dim_x),
+                    np.nan,
+                    dtype=np.float32,
+                ),
             )
 
             # === DATA FOR DYNAMICS LEARNING === #
@@ -413,9 +423,11 @@ class BaseEnv(gym.Env):
 
                 x_dot = self.get_dynamics(x, u)
 
-                dynamics_data["x"] = x[:buffer_size].astype(np.float32)
-                dynamics_data["u"] = u[:buffer_size].astype(np.float32)
-                dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
+                dynamics_data["x"][:buffer_size] = x[:buffer_size].astype(np.float32)
+                dynamics_data["u"][:buffer_size] = u[:buffer_size].astype(np.float32)
+                dynamics_data["x_dot"][:buffer_size] = x_dot[:buffer_size].astype(
+                    np.float32
+                )
 
             elif self.sample_mode == "Uniform":
                 # Original sampling
@@ -441,12 +453,14 @@ class BaseEnv(gym.Env):
 
                 x_dot = self.get_dynamics(x, u)
 
-                dynamics_data["x"] = x[:buffer_size].astype(np.float32)
-                dynamics_data["u"] = u[:buffer_size].astype(np.float32)
-                dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
+                dynamics_data["x"][:buffer_size] = x[:buffer_size].astype(np.float32)
+                dynamics_data["u"][:buffer_size] = u[:buffer_size].astype(np.float32)
+                dynamics_data["x_dot"][:buffer_size] = x_dot[:buffer_size].astype(
+                    np.float32
+                )
             else:
                 current_time = 0
-                while current_time < (buffer_size - self.max_episode_len):
+                while current_time < buffer_size:
                     xref_0, xe_0, x_0 = self.define_initial_state()
 
                     freqs = list(range(1, 11))
@@ -459,7 +473,7 @@ class BaseEnv(gym.Env):
                     for i, _t in enumerate(self.t):
                         x_t = x_list[-1].copy()
                         u_t = self.sample_reference_controls(
-                            freqs, weights, _t, add_noise=True
+                            freqs, weights, _t, {"xref_0": xref_0}, add_noise=True
                         )
                         x_dot = self.get_dynamics(x_t, u_t)
                         x_t, term, _ = self.get_transition(x_t, u_t)
@@ -478,5 +492,9 @@ class BaseEnv(gym.Env):
                             break
 
                     current_time += i + 1
+
+                dynamics_data["x"] = dynamics_data["x"][:buffer_size]
+                dynamics_data["u"] = dynamics_data["u"][:buffer_size]
+                dynamics_data["x_dot"] = dynamics_data["x_dot"][:buffer_size]
 
             return dynamics_data
