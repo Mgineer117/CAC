@@ -114,7 +114,7 @@ class BaseEnv(gym.Env):
         # Construct u and apply u clipping
         u = self.uref[self.time_steps] + u
         # Get reward
-        reward, infos = self.get_reward(u)
+        reward, infos = self.get_rewards(u)
         # Clip control to bounds
         u = np.clip(u, self.UREF_MIN.flatten(), self.UREF_MAX.flatten())
 
@@ -324,7 +324,7 @@ class BaseEnv(gym.Env):
             i,
         )
 
-    def get_reward(self, u):
+    def get_rewards(self, u):
         error = self.x_t - self.xref[self.time_steps]
 
         tracking_error = np.linalg.norm(
@@ -333,9 +333,10 @@ class BaseEnv(gym.Env):
         )
         control_effort = np.linalg.norm(u, ord=2)
 
-        reward = self.tracking_scaler / (tracking_error + 1) + self.control_scaler / (
-            control_effort + 1
-        )
+        tracking_reward = -self.tracking_scaler * tracking_error
+        control_reward = -self.control_scaler * control_effort
+
+        reward = (0.5 * tracking_reward) + (0.5 * control_reward)
 
         return reward, {
             "tracking_error": tracking_error,
@@ -462,7 +463,7 @@ class BaseEnv(gym.Env):
                 dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
             else:
                 current_time = 0
-                while current_time < buffer_size:
+                while current_time < (buffer_size - self.max_episode_len):
                     xref_0, xe_0, x_0 = self.define_initial_state()
 
                     freqs = list(range(1, 11))

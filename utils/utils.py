@@ -190,6 +190,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             eps_clip=args.eps_clip,
             W_entropy_scaler=args.W_entropy_scaler,
             entropy_scaler=args.entropy_scaler,
+            tracking_scaler=env.tracking_scaler,
             control_scaler=env.control_scaler,
             target_kl=args.target_kl,
             gamma=args.gamma,

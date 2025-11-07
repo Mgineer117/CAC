@@ -55,6 +55,7 @@ class CAC(Base):
         gamma: float = 0.99,
         gae: float = 0.95,
         l2_reg: float = 1e-8,
+        tracking_scaler: float = 1.0,
         control_scaler: float = 0.0,
         nupdates: int = 1,
         device: str = "cpu",
@@ -74,6 +75,7 @@ class CAC(Base):
         self.minibatch_size = minibatch_size
         self.W_entropy_scaler = W_entropy_scaler
         self.entropy_scaler = entropy_scaler
+        self.tracking_scaler = tracking_scaler
         self.control_scaler = control_scaler
         self.eps = eps
         self.gamma = gamma
