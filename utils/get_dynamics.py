@@ -1,8 +1,10 @@
 def get_dynamics(env, args, logger, writer):
 
     if args.algo_name in [
-        "cac-approx",
+        "cacv2-approx",
         "c3m-approx",
+        "cac-approx",
+        "c3mv2-approx",
         "ppo-approx",
         "sd-lqr-approx",
         "lqr-approx",

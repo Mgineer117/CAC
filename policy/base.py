@@ -380,30 +380,6 @@ class Base(Utilities, ABC):  # Inherit from Utilities and make abstract
         else:
             return (self.Jacobian_Matrix(W, x) * v.view(bs, 1, 1, -1)).sum(dim=3)
 
-    def get_rewards(self, states: torch.Tensor, actions: torch.Tensor):
-        x, xref, uref, t = self.trim_state(states)
-
-        tracking_error = (x - xref).unsqueeze(-1)
-        control_effort = torch.linalg.norm(actions, dim=-1, keepdim=True)
-
-        with torch.no_grad():
-            ### Compute the main rewards
-            W, _ = self.W_func(x, deterministic=True)
-            M = torch.inverse(W)
-
-            tracking_errorT = transpose(tracking_error, 1, 2)
-
-        tracking_reward = -self.tracking_scaler * (
-            tracking_errorT @ M @ tracking_error
-        ).squeeze(-1)
-        control_reward = -self.control_scaler * control_effort
-
-        ### Compute the aux rewards ###
-
-        rewards = 0.5 * tracking_reward + 0.5 * control_reward
-
-        return rewards
-
     # This method must be implemented by any child class
     @abstractmethod
     def learn(self):

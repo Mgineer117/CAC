@@ -559,6 +559,29 @@ class CAC(Base):
 
         return loss_dict, supp_dict, update_time
 
+    def get_rewards(self, states: torch.Tensor, actions: torch.Tensor):
+        x, xref, uref, t = self.trim_state(states)
+
+        tracking_error = (x - xref).unsqueeze(-1)
+        control_effort = torch.linalg.norm(actions, dim=-1, keepdim=True)
+
+        with torch.no_grad():
+            ### Compute the main rewards
+            W, _ = self.W_func(x, deterministic=True)
+            M = torch.inverse(W)
+
+            tracking_errorT = transpose(tracking_error, 1, 2)
+
+            tracking_reward = -self.tracking_scaler * (
+                tracking_errorT @ M @ tracking_error
+            ).squeeze(-1)
+
+            control_reward = -self.control_scaler * control_effort
+
+        rewards = 0.5 * tracking_reward + 0.5 * control_reward
+
+        return rewards
+
     def actor_loss(
         self,
         mb_states: torch.Tensor,
@@ -566,6 +589,7 @@ class CAC(Base):
         mb_old_logprobs: torch.Tensor,
         mb_advantages: torch.Tensor,
     ):
+        # Check if *any* element in the tensor is NaN
         x, xref, uref, t = self.trim_state(mb_states)
 
         _, metaData = self.actor(x, xref, uref)
