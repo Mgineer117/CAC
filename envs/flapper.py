@@ -88,9 +88,9 @@ class FlapperEnv(BaseEnv):
                 1.0,
                 1.0,
                 1.0,
-                -8.1434,
-                -2.2245,
-                -2.841,
+                1.6567,
+                1.6321,
+                6.5546,
                 1.0,
                 1.0,
                 1.0,
@@ -102,9 +102,9 @@ class FlapperEnv(BaseEnv):
                 0.0,
                 0.0,
                 0.0,
-                -0.0625,
-                0.0402,
-                26.4833,
+                -0.0336,
+                0.0101,
+                -3.1939,
                 0.0,
                 0.0,
                 0.0,
@@ -128,13 +128,21 @@ class FlapperEnv(BaseEnv):
         f[:, 0] = vx
         f[:, 1] = vy
         f[:, 2] = vz
-        f[:, 3] = -force * lib.sin(theta_y)
-        f[:, 4] = force * lib.cos(theta_y) * lib.sin(theta_x)
-        f[:, 5] = g - force * lib.cos(theta_y) * lib.cos(theta_x)
+        # vx_dot (state 3) depends on ROLL (theta_x) and PITCH (theta_y)
+        f[:, 3] = force * lib.cos(theta_y) * lib.sin(theta_x)
+
+        # vy_dot (state 4) depends on PITCH (theta_y)
+        f[:, 4] = -force * lib.sin(theta_y)
+
+        # vz_dot (state 5) depends on ROLL (theta_x) and PITCH (theta_y)
+        # This is the unitless regressor, (NO 'g'!)
+        f[:, 5] = force * lib.cos(theta_y) * lib.cos(theta_x)
+        # f[:, 5] = g - force * lib.cos(theta_y) * lib.cos(theta_x)
         f[:, 6] = 0
         f[:, 7] = 0
         f[:, 8] = 0
         f[:, 9] = 0
+
         return f
 
     def _B_logic(self, x, lib):
@@ -182,24 +190,6 @@ class FlapperEnv(BaseEnv):
         x_dot = self.v * (x_hat_dot) + self.c
 
         return x_dot
-
-    def sample_reference_controls(self, freqs, weights, _t, add_noise=False):
-        uref = np.array([0.0, 0.0, 0.0, 0.0])  # ref
-        for freq, weight in zip(freqs, weights):
-            uref += np.array(
-                [
-                    weight[0] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                    weight[1] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                    weight[2] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                    weight[3] * np.sin(freq * _t / self.time_bound * 2 * np.pi),
-                ]
-            )
-        if add_noise:
-            # add gaussian noise
-            uref += np.random.normal(0, np.abs(0.1 * uref), size=uref.shape)
-
-        uref = np.clip(uref, UREF_MIN.flatten(), UREF_MAX.flatten())
-        return uref
 
     def system_reset(self):
         """Resets the system to an initial state and generates a reference trajectory."""

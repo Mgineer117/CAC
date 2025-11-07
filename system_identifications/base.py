@@ -40,9 +40,25 @@ def f_nominal(x):
     f_nom[0] = x[3]  # x_dot = vx
     f_nom[1] = x[4]  # y_dot = vy
     f_nom[2] = x[5]  # z_dot = vz
-    f_nom[3] = -x[6] * np.sin(x[8])
-    f_nom[4] = x[6] * np.cos(x[8]) * np.sin(x[7])
-    f_nom[5] = g - x[6] * np.cos(x[8]) * np.cos(x[7])
+    # --- FIX THE PHYSICS TO BE Z-UP ---
+
+    # The X and Y acceleration equations need to swap
+    # to match the regression's findings (and a standard frame).
+
+    # vx_dot (state 3) depends on ROLL (x[7])
+    f_nom[3] = x[6] * np.cos(x[8]) * np.sin(x[7])
+
+    # vy_dot (state 4) depends on PITCH (x[8])
+    f_nom[4] = -x[6] * np.sin(x[8])
+
+    # vz_dot (state 5) is (Thrust) - (Gravity)
+    # f_nom[5] = x[6] * np.cos(x[8]) * np.cos(x[7]) - g
+    f_nom[5] = x[6] * np.cos(x[8]) * np.cos(x[7])  # REMOVE '- g'
+    # --- END FIX ---
+
+    # f_nom[3] = -x[6] * np.sin(x[8])
+    # f_nom[4] = x[6] * np.cos(x[8]) * np.sin(x[7])
+    # f_nom[5] = g - x[6] * np.cos(x[8]) * np.cos(x[7])
     return f_nom
 
 
@@ -126,9 +142,9 @@ def FD_fourth_order(points: list, method: str = "central") -> list:
 
 def FD_second_order(points: list, method: str = "central") -> list:
     if method == "forward":
-        return (-3 * points[0] + 4 * points[1] - 1 * points[2]) / 2 * TIME_INTERVAL
+        return (-3 * points[0] + 4 * points[1] - 1 * points[2]) / (2 * TIME_INTERVAL)
     elif method == "backward":
-        return (3 * points[-1] - 4 * points[-2] + 1 * points[-3]) / 2 * TIME_INTERVAL
+        return (3 * points[-1] - 4 * points[-2] + 1 * points[-3]) / (2 * TIME_INTERVAL)
     elif method == "central":
         return (points[2] - points[0]) / (2 * TIME_INTERVAL)
     else:
@@ -387,32 +403,32 @@ def lstq_regression(
     A_matrix = np.vstack([np.array(traj) for traj in x_hat_dots])
 
     if outlier_removal:
-        # === Outlier Removal Implemented === #
+        # === Outlier Removal Implemented (Checking X and Y) === #
 
-        # 1. Define the indices of the columns we know are noisy
-        #    x_dots[3,4,5] (velocity derivatives) and x_dots[6] (thrust derivative)
-        # noisy_indices = [3, 4, 5, 6]
-        noisy_indices = range(STATE_DIM)
+        # 1. Define the indices of the columns to check
+        noisy_indices = [5]  # We only care about state 5 (vz_dot)
 
-        # 2. Calculate Z-scores for the ENTIRE Y_matrix
-        z_scores = np.abs(stats.zscore(Y_matrix, axis=0))
+        # 2. Calculate Z-scores for the Y_matrix (the "true" derivatives)
+        z_scores_Y = np.abs(stats.zscore(Y_matrix, axis=0))
+        z_scores_to_check_Y = z_scores_Y[:, noisy_indices]
+        is_not_outlier_Y = np.all(z_scores_to_check_Y < threshold, axis=1)
 
-        # 3. Select ONLY the Z-scores for our noisy columns
-        z_scores_to_check = z_scores[:, noisy_indices]
+        # 3. Calculate Z-scores for the A_matrix (the "model" regressors)
+        z_scores_A = np.abs(stats.zscore(A_matrix, axis=0))
+        z_scores_to_check_A = z_scores_A[:, noisy_indices]
+        is_not_outlier_A = np.all(z_scores_to_check_A < threshold, axis=1)
 
-        # 4. Create a boolean mask for all rows that are NOT outliers.
-        #    A row is kept (True) only if ALL of its "noisy" dimensions
-        #    have a Z-score less than 3. Outliers in "clean" mocap
-        #    columns (0,1,2,7,8,9) will be ignored.
-        is_not_outlier = np.all(z_scores_to_check < threshold, axis=1)
+        # 4. Create a final mask. A point is kept ONLY if it is
+        #    NOT an outlier in Y AND NOT an outlier in A.
+        is_not_outlier = is_not_outlier_Y & is_not_outlier_A
 
-        # 5. Filter both your data and regressor matrices using this mask
+        # 5. Filter both your data and regressor matrices using this combined mask
         Y_matrix_clean = Y_matrix[is_not_outlier]
         A_matrix_clean = A_matrix[is_not_outlier]
 
         print(f"[INFO] Outlier Removal: Original data had {len(Y_matrix)} points.")
         print(
-            f"  Filtered data has {len(Y_matrix_clean)} points ({len(Y_matrix) - len(Y_matrix_clean)} removed)."
+            f"    Filtered data has {len(Y_matrix_clean)} points ({len(Y_matrix) - len(Y_matrix_clean)} removed)."
         )
         Y_matrix = Y_matrix_clean
         A_matrix = A_matrix_clean
@@ -463,7 +479,7 @@ def lstq_regression(
         # plot the least squares plot for each dimension
         plt.subplot(5, 2, i + 1)
         # do not plot if there are too many points
-        if len(A_i_regressor) > 10000:
+        if len(A_i_regressor) > 10000000:
             plt.scatter(
                 A_i_regressor[::10],
                 Y_i[::10],
