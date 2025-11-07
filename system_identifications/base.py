@@ -96,6 +96,34 @@ def smooth(scalars: list, weight: float) -> list:  # Weight between 0 and 1
     return smoothed
 
 
+def FD_fourth_order(points: list, method: str = "central") -> list:
+    if method == "forward":
+        return (
+            -(25 / 12) * points[0]
+            + (4) * points[1]
+            - 3 * points[2]
+            + (4 / 3) * points[3]
+            - (1 / 4) * points[4]
+        ) / TIME_INTERVAL
+    elif method == "backward":
+        return (
+            (25 / 12) * points[-1]
+            - 4 * points[-2]
+            + 3 * points[-3]
+            - (4 / 3) * points[-4]
+            + (1 / 4) * points[-5]
+        ) / TIME_INTERVAL
+    elif method == "central":
+        return (
+            (1 / 12) * points[0]
+            - (2 / 3) * points[1]
+            + (2 / 3) * points[3]
+            - (1 / 12) * points[4]
+        ) / TIME_INTERVAL
+    else:
+        raise ValueError("Invalid method for finite difference.")
+
+
 def FD_second_order(points: list, method: str = "central") -> list:
     if method == "forward":
         return (-3 * points[0] + 4 * points[1] - 1 * points[2]) / 2 * TIME_INTERVAL
@@ -189,23 +217,23 @@ def compose_state(flight_data: dict, index: int) -> list:
     # vel["stateEstimate.vy"],  # y velocity
     # vel["stateEstimate.vz"],  # z velocity
 
-    pose = flight_data["pose"][index]
+    pose = flight_data["mocap_pose"][index]
     cmd = flight_data["controller_cmd"][index]
 
     if index == 0:
         current_pos = np.array([pose[0], pose[1], pose[2]])
         next_pos_1 = np.array(
             [
-                flight_data["pose"][index + 1][0],
-                flight_data["pose"][index + 1][1],
-                flight_data["pose"][index + 1][2],
+                flight_data["mocap_pose"][index + 1][0],
+                flight_data["mocap_pose"][index + 1][1],
+                flight_data["mocap_pose"][index + 1][2],
             ]
         )
         next_pos_2 = np.array(
             [
-                flight_data["pose"][index + 2][0],
-                flight_data["pose"][index + 2][1],
-                flight_data["pose"][index + 2][2],
+                flight_data["mocap_pose"][index + 2][0],
+                flight_data["mocap_pose"][index + 2][1],
+                flight_data["mocap_pose"][index + 2][2],
             ]
         )
 
@@ -221,16 +249,16 @@ def compose_state(flight_data: dict, index: int) -> list:
     else:
         before_pos_1 = np.array(
             [
-                flight_data["pose"][index - 1][0],
-                flight_data["pose"][index - 1][1],
-                flight_data["pose"][index - 1][2],
+                flight_data["mocap_pose"][index - 1][0],
+                flight_data["mocap_pose"][index - 1][1],
+                flight_data["mocap_pose"][index - 1][2],
             ]
         )
         next_pos_1 = np.array(
             [
-                flight_data["pose"][index + 1][0],
-                flight_data["pose"][index + 1][1],
-                flight_data["pose"][index + 1][2],
+                flight_data["mocap_pose"][index + 1][0],
+                flight_data["mocap_pose"][index + 1][1],
+                flight_data["mocap_pose"][index + 1][2],
             ]
         )
 
@@ -263,7 +291,7 @@ def compose_action(flight_data: dict, index: int) -> list:
 
     # === action = [thrust_rate, roll_rate, pitch_rate, yaw_rate] === #
     thrust_list = flight_data["controller_cmd"]
-    attitude_list = flight_data["pose"]
+    attitude_list = flight_data["mocap_pose"]
 
     # thrust dynamics using second-order finite difference
     if index == 0:

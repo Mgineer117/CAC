@@ -19,7 +19,7 @@ def read_flight_data(file_path):
         data = json.load(file)
 
     # check their length is over 600
-    if len(data["pose"]) < N:
+    if len(data["mocap_pose"]) < N:
         raise ValueError(
             f"Flight data in {file_path} is too short in length {len(data['pose'])} < {N}."
         )
@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     # given data_dir, find all names of json files in a list
 
-    data_dir = BASE_DIR + "data/raw_data/test/"
+    data_dir = BASE_DIR + "data/raw_data/train/"
 
     json_files = [f for f in os.listdir(data_dir) if f.endswith(".json")]
 

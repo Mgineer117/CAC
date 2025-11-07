@@ -36,7 +36,7 @@ XREF_INIT_MAX = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.0, 0, 0, 0])
 # perturbation to the reference state
 lim = 0.15
 XE_INIT_MIN = np.array([-lim, -lim, 0, 0, 0, 0, 0, 0, 0, 0])  # .reshape(-1, 1)
-XE_INIT_MAX = np.array([lim, lim, 0, 0, 0, 0, 0.25, 0, 0, np.pi / 4])  # .reshape(-1, 1)
+XE_INIT_MAX = np.array([lim, lim, 0, 0, 0, 0, 0.25, 0, 0, np.pi / 2])  # .reshape(-1, 1)
 
 # reference state perturbation bounds for c3m
 lim = 1.0
@@ -69,7 +69,7 @@ env_config = {
     "time_bound": 30.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.3,  # control cost weight
+    "r": 1.0,  # control cost weight
 }
 
 
@@ -88,9 +88,9 @@ class FlapperEnv(BaseEnv):
                 1.0,
                 1.0,
                 1.0,
-                -4.8912,
-                2.3928,
-                -1.5823,
+                -8.1434,
+                -2.2245,
+                -2.841,
                 1.0,
                 1.0,
                 1.0,
@@ -102,9 +102,9 @@ class FlapperEnv(BaseEnv):
                 0.0,
                 0.0,
                 0.0,
-                0.0335,
-                -0.0047,
-                14.7521,
+                -0.0625,
+                0.0402,
+                26.4833,
                 0.0,
                 0.0,
                 0.0,
