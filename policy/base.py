@@ -252,19 +252,24 @@ class Base(nn.Module):
 
     def get_rewards(self, states: torch.Tensor, actions: torch.Tensor):
         x, xref, uref, t = self.trim_state(states)
+
+        tracking_error = (x - xref).unsqueeze(-1)
+        control_effort = self.control_scaler / (
+            torch.linalg.norm(actions, dim=-1, keepdim=True) + 1
+        )
+
         with torch.no_grad():
             ### Compute the main rewards
             W, _ = self.W_func(x, deterministic=True)
             M = torch.inverse(W)
 
-            error = (x - xref).unsqueeze(-1)
-            errorT = transpose(error, 1, 2)
+            tracking_errorT = transpose(tracking_error, 1, 2)
 
-            rewards = (1 / (errorT @ M @ error + 1)).squeeze(-1)
+            rewards = (1 / (tracking_errorT @ M @ tracking_error + 1)).squeeze(-1)
 
         ### Compute the aux rewards ###
-        fuel_efficiency = 1 / (torch.linalg.norm(actions, dim=-1, keepdim=True) + 1)
-        rewards = rewards + self.control_scaler * fuel_efficiency
+
+        rewards = 0.5 * rewards + 0.5 * control_effort
 
         return rewards
 

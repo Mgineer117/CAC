@@ -1,4 +1,5 @@
 {
     "timesteps": 1e8,
+    "minibatch_size": 8192,
     "gamma": 0.999
 }

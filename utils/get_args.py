@@ -172,12 +172,6 @@ def get_args():
     parser.add_argument(
         "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
     )
-    parser.add_argument(
-        "--control-scaler",
-        type=float,
-        default=0.0,
-        help="Control scaling factor to reward.",
-    )
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor.")
     parser.add_argument(
         "--load-pretrained-model",

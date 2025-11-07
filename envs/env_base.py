@@ -116,7 +116,7 @@ class BaseEnv(gym.Env):
         u = self.uref[self.time_steps] + u
 
         # Get reward
-        reward, infos = self.get_reward(u)
+        reward, infos = self.get_rewards(u)
 
         # Clip control to bounds
         u = np.clip(u, self.UREF_MIN.flatten(), self.UREF_MAX.flatten())
@@ -308,7 +308,7 @@ class BaseEnv(gym.Env):
             i,
         )
 
-    def get_reward(self, u):
+    def get_rewards(self, u):
         error = self.x_t - self.xref[self.time_steps]
 
         tracking_error = np.linalg.norm(
@@ -317,9 +317,9 @@ class BaseEnv(gym.Env):
         )
         control_effort = np.linalg.norm(u, ord=2)
 
-        reward = self.tracking_scaler / (tracking_error + 1) + self.control_scaler / (
-            control_effort + 1
-        )
+        reward = (0.5 * self.tracking_scaler) / (tracking_error + 1) + (
+            0.5 * self.control_scaler
+        ) / (control_effort + 1)
 
         return reward, {
             "tracking_error": tracking_error,
