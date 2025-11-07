@@ -35,8 +35,8 @@ XREF_INIT_MAX = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.0, 0, 0, 0])
 
 # perturbation to the reference state
 lim = 0.15
-XE_INIT_MIN = np.array([-lim, -lim, 0, 0, 0, 0, 0, 0, 0, 0])  # .reshape(-1, 1)
-XE_INIT_MAX = np.array([lim, lim, 0, 0, 0, 0, 0, 0, 0, np.pi / 2])  # .reshape(-1, 1)
+XE_INIT_MIN = np.array([-lim, -lim, -0.03, 0, 0, 0, 0, 0, 0, 0])  # .reshape(-1, 1)
+XE_INIT_MAX = np.array([lim, lim, 0.03, 0, 0, 0, 0, 0, 0, np.pi / 2])  # .reshape(-1, 1)
 
 # reference state perturbation bounds for c3m
 lim = 1.0
