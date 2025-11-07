@@ -446,7 +446,7 @@ class BaseEnv(gym.Env):
                 dynamics_data["x_dot"] = x_dot[:buffer_size].astype(np.float32)
             else:
                 current_time = 0
-                while current_time < buffer_size:
+                while current_time < (buffer_size - self.max_episode_len):
                     xref_0, xe_0, x_0 = self.define_initial_state()
 
                     freqs = list(range(1, 11))

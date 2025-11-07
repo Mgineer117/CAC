@@ -254,9 +254,7 @@ class Base(nn.Module):
         x, xref, uref, t = self.trim_state(states)
 
         tracking_error = (x - xref).unsqueeze(-1)
-        control_effort = self.control_scaler / (
-            torch.linalg.norm(actions, dim=-1, keepdim=True) + 1
-        )
+        control_effort = torch.linalg.norm(actions, dim=-1, keepdim=True)
 
         with torch.no_grad():
             ### Compute the main rewards
@@ -265,11 +263,14 @@ class Base(nn.Module):
 
             tracking_errorT = transpose(tracking_error, 1, 2)
 
-            rewards = (1 / (tracking_errorT @ M @ tracking_error + 1)).squeeze(-1)
+            tracking_reward = (
+                self.tracking_scaler / (tracking_errorT @ M @ tracking_error + 1)
+            ).squeeze(-1)
+            control_reward = self.control_scaler / (control_effort + 1)
 
         ### Compute the aux rewards ###
 
-        rewards = 0.5 * rewards + 0.5 * control_effort
+        rewards = 0.5 * tracking_reward + 0.5 * control_reward
 
         return rewards
 
