@@ -42,6 +42,7 @@ class CAC(Base):
         eps_clip: float = 0.2,
         W_entropy_scaler: float = 1e-3,
         entropy_scaler: float = 1e-3,
+        tracking_scaler: float = 0.0,
         control_scaler: float = 0.0,
         l2_reg: float = 1e-8,
         damping: float = 1e-1,
@@ -70,6 +71,7 @@ class CAC(Base):
         self.minibatch_size = minibatch_size
         self.W_entropy_scaler = W_entropy_scaler
         self.entropy_scaler = entropy_scaler
+        self.tracking_scaler = tracking_scaler
         self.control_scaler = control_scaler
         self.eps = eps
         self.gamma = gamma
