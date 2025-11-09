@@ -101,6 +101,33 @@ def call_mdp_data(data_type: str = "train"):
     return states, actions, next_states, terminals, dynamics
 
 
+def call_policy(algo_name: str) -> list:
+    # === Call policy.json data === #
+    if algo_name in ["c3m", "c3m-approx"]:
+        from policy.layers.c3m_networks import C3M_U
+
+        policy_class = C3M_U
+    elif algo_name in ["ppo", "cac", "cac-approx"]:
+        from policy.layers.c3m_networks import C3M_U_Gaussian
+
+        policy_class = C3M_U_Gaussian
+    else:
+        raise NotImplementedError(f"Policy {algo_name} is not implemented.")
+
+    policy = policy_class(x_dim=10, state_dim=24, action_dim=4, task="flapper")
+
+    # Define the path
+    model_path = f"system_identifications/policies/{algo_name}.pth"
+
+    # 1. Load the state dictionary from the file (using map_location is safer)
+    state_dict = torch.load(model_path, map_location=torch.device("cpu"))
+
+    # 2. Load the dictionary into the policy
+    policy.load_state_dict(state_dict)
+
+    return policy
+
+
 def smooth(scalars: list, weight: float) -> list:  # Weight between 0 and 1
     last = scalars[0]  # First value in the plot (first timestep)
     smoothed = list()

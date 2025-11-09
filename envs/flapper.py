@@ -30,13 +30,17 @@ X_MAX = np.array(
 ).reshape(-1, 1)
 
 # Initial reference state bounds
-XREF_INIT_MIN = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.0, 0, 0, 0])
-XREF_INIT_MAX = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.0, 0, 0, 0])
+XREF_INIT_MIN = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.6, 0, 0, 0])
+XREF_INIT_MAX = np.array([0, 0, flapper_height, 0.0, 0.0, 0.0, 0.6, 0, 0, 0])
 
 # perturbation to the reference state
 lim = 0.15
-XE_INIT_MIN = np.array([-lim, -lim, -0.03, 0, 0, 0, 0, 0, 0, 0])  # .reshape(-1, 1)
-XE_INIT_MAX = np.array([lim, lim, 0.03, 0, 0, 0, 0, 0, 0, np.pi / 2])  # .reshape(-1, 1)
+XE_INIT_MIN = np.array(
+    [-lim, -lim, -0.05, -0.1, -0.1, -0.1, -0.05, 0, 0, 0]
+)  # .reshape(-1, 1)
+XE_INIT_MAX = np.array(
+    [lim, lim, 0.05, 0.1, 0.1, 0.1, 0.05, 0.0, 0, np.pi / 2]
+)  # .reshape(-1, 1)
 
 # reference state perturbation bounds for c3m
 lim = 1.0
@@ -47,8 +51,8 @@ XE_MAX = np.array([lim, lim, lim, lim, lim, lim, lim, lim, lim, lim]).reshape(-1
 
 # reference control bounds
 # 2500 thrusts / 0.05s and 1.5 degs / 0.05 s
-UREF_MIN = np.array([-1.0, -0.5, -0.5, -0.5]).reshape(-1, 1)
-UREF_MAX = np.array([1.0, 0.5, 0.5, 0.5]).reshape(-1, 1)
+UREF_MIN = np.array([-1.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
+UREF_MAX = np.array([1.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
 
 
 env_config = {
@@ -69,7 +73,7 @@ env_config = {
     "time_bound": 30.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.1,  # control cost weight
+    "r": 0.5,  # control cost weight
 }
 
 
