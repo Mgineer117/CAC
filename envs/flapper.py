@@ -73,7 +73,7 @@ env_config = {
     "time_bound": 30.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.5,  # control cost weight
+    "r": 0.3,  # control cost weight
 }
 
 
@@ -114,6 +114,10 @@ class FlapperEnv(BaseEnv):
                 0.0,
                 0.0,
             ]
+        )
+
+        self.std = np.array(
+            [0.0, 0.0, 0.00, 0.5347, 0.3999, 0.2258, 0.0, 0.0, 0.0, 0.0]
         )
 
         # initialize the base environment
@@ -190,8 +194,16 @@ class FlapperEnv(BaseEnv):
         f_x, B_x, _ = self.get_f_and_B(x)
         x_hat_dot = f_x + np.matmul(B_x, u[:, np.newaxis]).squeeze()
 
-        # application of grey-box model
-        x_dot = self.v * (x_hat_dot) + self.c
+        # application of grey-box model (deterministic part)
+        x_dot_deterministic = self.v * (x_hat_dot) + self.c
+
+        # add process noise
+        # np.random.randn() creates samples from a standard normal distribution (mean 0, std 1)
+        # We scale these samples by our learned std (self.std)
+        process_noise = np.random.randn(*self.std.shape) * self.std
+
+        # The final stochastic dynamics
+        x_dot = x_dot_deterministic + process_noise
 
         return x_dot
 

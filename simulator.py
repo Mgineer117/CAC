@@ -23,7 +23,7 @@ if __name__ == "__main__":
             0.2,
             0.2,
             0.2,
-            0.05,
+            0.1,
             0.5,
             0.5,
             0.5,
@@ -35,16 +35,23 @@ if __name__ == "__main__":
     traj_index = 0  # you can change this to test different trajectories
     xref = torch.tensor(test_states[traj_index], dtype=torch.float32)
     next_xref = torch.tensor(test_next_states[traj_index], dtype=torch.float32)
+
+    # expand it to the same size as test data
+    gamma = 0.995
+    discounts = torch.pow(gamma, torch.arange(next_xref.shape[0], dtype=torch.float32))
+    noise_scale = noise_scale.expand_as(xref) * discounts.unsqueeze(1)
+    print("Noise scale per state dimension:", noise_scale.numpy())
+
     x = xref + torch.randn_like(xref) * noise_scale
     uref = torch.tensor(test_actions[traj_index], dtype=torch.float32)
 
     with torch.no_grad():
         actions = policy(x, xref, uref, deterministic=True)[0]
-        # u = actions + uref
-        u = uref
+        u = actions + uref
+        # u = uref
         # u = torch.zeros_like(actions)
 
-        u.clamp_(-0.1, 0.1)
+        u.clamp_(-1.0, 1.0)
     # --- ADDED UREF STATS ---
     # Convert uref to numpy for mean/std calculation
     print("--- Reference Action (uref) Statistics ---")
@@ -101,18 +108,14 @@ if __name__ == "__main__":
     plt.title(f"RMSE {torch.abs(next_xref[:, 7] - roll).mean().item():.4f}")
     plt.plot(time_steps, roll.numpy(), label="Roll")
     plt.plot(time_steps, next_xref[:, 7].numpy(), label="Next Roll", linestyle="--")
-    plt.ylabel(
-        f"Roll (rad): {torch.abs(next_xref[:, 7] - roll).mean().item():.4f} mean abs error"
-    )
+    plt.ylabel(f"Roll (rad)")
     plt.grid()
     plt.legend()
     plt.subplot(4, 1, 3)
     plt.title(f"RMSE {torch.abs(next_xref[:, 8] - pitch).mean().item():.4f}")
     plt.plot(time_steps, pitch.numpy(), label="Pitch")
     plt.plot(time_steps, next_xref[:, 8].numpy(), label="Next Pitch", linestyle="--")
-    plt.ylabel(
-        f"Pitch (rad): {torch.abs(next_xref[:, 8] - pitch).mean().item():.4f} mean abs error"
-    )
+    plt.ylabel(f"Pitch (rad)")
     plt.grid()
     plt.legend()
     plt.subplot(4, 1, 4)

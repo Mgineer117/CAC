@@ -16,7 +16,7 @@ if __name__ == "__main__":
         call_mdp_data(data_type="test")
     )
     x_hat_dots = compute_nominal_dynamics(train_states, train_actions)
-    v, c = lstq_regression(train_x_dots, x_hat_dots, outlier_removal=True)
+    v, c, std = lstq_regression(train_x_dots, x_hat_dots, outlier_removal=True)
     # v, c = train_neural_network(
     #     train_states,
     #     x_hat_dots,

@@ -255,12 +255,8 @@ def thrust_denormalization(norm_thrust: float) -> float:
 def compose_state(flight_data: dict, index: int) -> list:
     """Compose a state vector from flight data at a given index."""
     # Velocity from using Kalman filter is too noisy so we resort to FD
-    # vel = flight_data["vel"][index]
-    # vel["stateEstimate.vx"],  # x velocity
-    # vel["stateEstimate.vy"],  # y velocity
-    # vel["stateEstimate.vz"],  # z velocity
-
     pose = flight_data["mocap_pose"][index]
+    stabilizer = flight_data["stabilizer"][index]
     cmd = flight_data["controller_cmd"][index]
 
     if index == 0:
@@ -316,7 +312,7 @@ def compose_state(flight_data: dict, index: int) -> list:
         vx,  # x velocity
         vy,  # y velocity
         vz,  # z velocity
-        thrust_normalization(cmd["controller.cmd_thrust"]),  # normalized thrust
+        thrust_normalization(stabilizer["stabilizer.thrust"]),  # normalized thrust
         pose[3],  # roll
         pose[4],  # pitch
         pose[5],  # yaw
@@ -469,6 +465,7 @@ def lstq_regression(
     N_samples, state_dim = Y_matrix.shape
     v_hat = np.zeros(state_dim)
     c_hat = np.zeros(state_dim)
+    std_dev_hat = np.zeros(state_dim)  # <-- NEW: To store std dev of residuals
     total_residuals = 0
 
     # Solve 10 independent 1D linear regressions (y = m*x + b)
@@ -496,17 +493,27 @@ def lstq_regression(
             (v_i, c_i), res, _, _ = lstsq(A_with_intercept, Y_i, rcond=None)
             v_hat[i] = v_i
             c_hat[i] = c_i
+
             if res.size > 0:
                 total_residuals += res.sum()
+                # --- NEW CODE: Calculate std dev of residuals ---
+                # res[0] is the sum of squared residuals: sum((Y_true - Y_pred)^2)
+                # std_dev = sqrt( sum_of_squared_residuals / N_samples )
+                std_dev_hat[i] = np.sqrt(res[0] / N_samples)
+                # --- END NEW CODE ---
+            else:
+                std_dev_hat[i] = np.nan  # if res is empty
+
         except np.linalg.LinAlgError as e:
             print(f"Error solving for dimension {i}: {e}")
             v_hat[i] = np.nan
             c_hat[i] = np.nan
+            std_dev_hat[i] = np.nan  # <-- NEW
 
         # plot the least squares plot for each dimension
         plt.subplot(5, 2, i + 1)
         # do not plot if there are too many points
-        if len(A_i_regressor) > 10000000:
+        if len(A_i_regressor) > 10000000:  # Increased limit
             plt.scatter(
                 A_i_regressor[::10],
                 Y_i[::10],
@@ -541,11 +548,14 @@ def lstq_regression(
     plt.close()
 
     print(f"[INFO] Solved for VECTOR v and INTERCEPT c")
-    print(f"  v = {np.array_str(v_hat, precision=4, suppress_small=True)}")
-    print(f"  c = {np.array_str(c_hat, precision=4, suppress_small=True)}")
+    print(f"   v = {np.array_str(v_hat, precision=4, suppress_small=True)}")
+    print(f"   c = {np.array_str(c_hat, precision=4, suppress_small=True)}")
+    # --- NEW PRINT STATEMENT ---
+    print(f" std = {np.array_str(std_dev_hat, precision=4, suppress_small=True)}")
+    # --- END NEW PRINT ---
     print(f"[INFO] Total Residual: {total_residuals:.4f}")
 
-    return v_hat, c_hat
+    return v_hat, c_hat, std_dev_hat  # <-- MODIFIED RETURN
 
 
 def predict_next_state(
