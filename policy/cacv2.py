@@ -105,11 +105,11 @@ class CACv2(CAC):
         self.W_optimizer = torch.optim.Adam(
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
-                {"params": [self.lbd], "lr": 1e-3},
+                {"params": [self.lbd], "lr": 3e-3},
             ]
         )
         self.dual_optimizer = torch.optim.Adam(
-            [{"params": [self.nu], "lr": 3e-3}, {"params": [self.zeta], "lr": 3e-3}]
+            [{"params": [self.nu], "lr": 1e-2}, {"params": [self.zeta], "lr": 1e-2}]
         )
 
         self.lr_scheduler1 = LambdaLR(self.W_optimizer, lr_lambda=self.lr_lambda)
