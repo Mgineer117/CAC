@@ -257,7 +257,6 @@ def compose_state(flight_data: dict, index: int) -> list:
     # Velocity from using Kalman filter is too noisy so we resort to FD
     pose = flight_data["mocap_pose"][index]
     stabilizer = flight_data["stabilizer"][index]
-    cmd = flight_data["controller_cmd"][index]
 
     if index == 0:
         current_pos = np.array([pose[0], pose[1], pose[2]])
