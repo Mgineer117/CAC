@@ -1,4 +1,5 @@
 import os
+from abc import ABC, abstractmethod  # Added for abstract base class
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,7 +8,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import inverse, matmul, transpose
 from torch.autograd import grad
-from abc import ABC, abstractmethod  # Added for abstract base class
 
 
 # ===================================================================
@@ -300,7 +300,7 @@ class Base(Utilities, ABC):  # Inherit from Utilities and make abstract
 
         return B_perp_tensor
 
-    def loss_pos_matrix_random_sampling(self, A: torch.Tensor):
+    def loss_pos_matrix_random_sampling(self, A: torch.Tensor, reg: bool = True):
         """
         Calculates a loss for non-positive-definite matrices
         using random sampling. A is (n, d, d).
@@ -314,16 +314,13 @@ class Base(Utilities, ABC):  # Inherit from Utilities and make abstract
 
         zTAz = matmul(matmul(zT, A), z)
 
-        negative_index = zTAz.detach().cpu().numpy() < 0
-        if negative_index.sum() > 0:
-            negative_zTAz = zTAz[negative_index]
-            return -1.0 * (negative_zTAz.mean())
-        else:
-            return (
-                torch.tensor(0.0)
-                .to(dtype=self._dtype, device=self.device)
-                .requires_grad_()
-            )
+        # 1. Flip sign so negative values become positive (the ones we want to minimize)
+        # 2. ReLU sets all originally positive values (now negative) to 0
+        # 3. Mean calculates the average penalty
+        loss_eigen = torch.relu(-zTAz).mean()
+        loss_reg = 1e-5 * torch.norm(A, p="fro")
+
+        return loss_eigen + (loss_reg if reg else 0)
 
     def Jacobian(self, f: torch.Tensor, x: torch.Tensor):
         """Computes the Jacobian of a vector f w.r.t. vector x."""
