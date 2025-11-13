@@ -318,7 +318,7 @@ class Base(Utilities, ABC):  # Inherit from Utilities and make abstract
         # 2. ReLU sets all originally positive values (now negative) to 0
         # 3. Mean calculates the average penalty
         loss_eigen = torch.relu(-zTAz).mean()
-        loss_reg = 1e-5 * torch.norm(A, p="fro")
+        loss_reg = 1e-6 * torch.norm(A, p="fro")
 
         return loss_eigen + (loss_reg if reg else 0)
 
