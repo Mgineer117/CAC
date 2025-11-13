@@ -24,7 +24,7 @@ for algo in algorithms:
     # Start plotting
     plt.figure(figsize=(8, 6))
     plt.plot(
-        ref_x, ref_y, "k--", linewidth=2.5, label="Reference (target)"
+        ref_x, ref_y, "k--", linewidth=3, label="Reference (target)"
     )  # black dotted line
 
     # Mark start and end of reference
@@ -54,7 +54,7 @@ for algo in algorithms:
             "Trajectories" if idx == 0 else None
         )  # ✅ only first line gets legend label
 
-        plt.plot(pos_x, pos_y, color=colors(idx), linewidth=2, label=label)
+        plt.plot(pos_x, pos_y, color=colors(idx), linewidth=3, label=label)
         # plt.plot(pos_x, pos_y, color="steelblue", linewidth=2, label=label)
 
         # Start and end points (optional, keep or remove from legend)

@@ -51,8 +51,8 @@ XE_MAX = np.array([lim, lim, lim, lim, lim, lim, lim, lim, lim, lim]).reshape(-1
 
 # reference control bounds
 # 2500 thrusts / 0.05s and 1.5 degs / 0.05 s
-UREF_MIN = np.array([-1.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
-UREF_MAX = np.array([1.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
+UREF_MIN = np.array([-2.0, -2.0, -2.0, -2.0]).reshape(-1, 1)
+UREF_MAX = np.array([2.0, 2.0, 2.0, 2.0]).reshape(-1, 1)
 
 
 env_config = {
@@ -73,7 +73,7 @@ env_config = {
     "time_bound": 30.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.3,  # control cost weight
+    "r": 0.5,  # control cost weight
 }
 
 
@@ -116,8 +116,8 @@ class FlapperEnv(BaseEnv):
             ]
         )
 
-        self.std = np.array(
-            [0.0, 0.0, 0.00, 0.5347, 0.3999, 0.2258, 0.0, 0.0, 0.0, 0.0]
+        self.std_scale = np.array(
+            [0.05, 0.05, 0.05, 0.5347, 0.3999, 0.2258, 0.05, 0.1, 0.1, 0.1]
         )
 
         # initialize the base environment
@@ -199,8 +199,8 @@ class FlapperEnv(BaseEnv):
 
         # add process noise
         # np.random.randn() creates samples from a standard normal distribution (mean 0, std 1)
-        # We scale these samples by our learned std (self.std)
-        process_noise = np.random.randn(*self.std.shape) * self.std
+        # We scale these samples by our learned std (self.std_scale)
+        process_noise = np.random.randn(*self.std_scale.shape) * self.std_scale
 
         # The final stochastic dynamics
         x_dot = x_dot_deterministic + process_noise
