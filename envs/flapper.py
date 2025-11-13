@@ -117,7 +117,7 @@ class FlapperEnv(BaseEnv):
         )
 
         self.std_scale = np.array(
-            [0.05, 0.05, 0.05, 0.5347, 0.3999, 0.2258, 0.05, 0.1, 0.1, 0.1]
+            [0.01, 0.01, 0.01, 0.5347, 0.3999, 0.2258, 0.01, 0.05, 0.05, 0.05]
         )
 
         # initialize the base environment
