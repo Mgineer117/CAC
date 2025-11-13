@@ -41,7 +41,7 @@ def get_args():
         "--actor-lr", type=float, default=1e-5, help="Actor learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=3e-5, help="Critic learning rate."
+        "--critic-lr", type=float, default=1e-5, help="Critic learning rate."
     )
     parser.add_argument(
         "--Dynamic-lr",
@@ -72,7 +72,7 @@ def get_args():
         "--eps", type=float, default=0.1, help="Used for CMG learning regularization."
     )
     parser.add_argument(
-        "--lbd", type=float, default=1.0, help="Desired contraction rate."
+        "--lbd", type=float, default=0.5, help="Desired contraction rate."
     )
     parser.add_argument(
         "--DynamicLearner-dim",
@@ -90,7 +90,7 @@ def get_args():
         "--actor-dim", type=list, default=[64, 64], help="actor hidden layers."
     )
     parser.add_argument(
-        "--critic-dim", type=list, default=[128, 128], help="critic hidden layers."
+        "--critic-dim", type=list, default=[256, 256], help="critic hidden layers."
     )
 
     parser.add_argument(
@@ -157,7 +157,7 @@ def get_args():
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=1e-2,
+        default=3e-3,
         help="PPO Target KL divergence.",
     )
     parser.add_argument(
@@ -170,7 +170,7 @@ def get_args():
         "--entropy-scaler", type=float, default=1e-3, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
+        "--W-entropy-scaler", type=float, default=1e-3, help="W entropy scaling factor."
     )
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor.")
     parser.add_argument(
