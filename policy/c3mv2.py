@@ -159,9 +159,9 @@ class C3Mv2(C3M):
         )
 
         # === DEFINE LOSSES === #
-        pd_loss = self.loss_pos_matrix_random_sampling(-Cu)
-        c1_loss = self.loss_pos_matrix_random_sampling(-C1)
-        overshoot_loss = self.loss_pos_matrix_random_sampling(-overshoot)
+        pd_loss, pd_reg = self.loss_pos_matrix_random_sampling(-Cu)
+        c1_loss, c1_reg = self.loss_pos_matrix_random_sampling(-C1)
+        overshoot_loss, overshoot_reg = self.loss_pos_matrix_random_sampling(-overshoot)
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
@@ -173,6 +173,9 @@ class C3Mv2(C3M):
             + nu[1] * pd_loss
             + nu[2] * c1_loss
             + zeta * c2_loss
+            + pd_reg
+            + c1_reg
+            + overshoot_reg
         )
 
         dual_loss = -(
