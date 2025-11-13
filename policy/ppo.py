@@ -187,6 +187,7 @@ class PPO(Base):
                 break
 
         # Logging
+        supp_dict = {}
         loss_dict = {
             f"{self.name}/loss/loss": np.mean(losses),
             f"{self.name}/loss/actor_loss": np.mean(actor_losses),
@@ -214,10 +215,9 @@ class PPO(Base):
         del states, actions, rewards, terminals, old_logprobs
         self.eval()
 
-        timesteps = self.num_minibatch * self.minibatch_size
         update_time = time.time() - t0
 
-        return loss_dict, timesteps, update_time
+        return loss_dict, supp_dict, update_time
 
     def actor_loss(
         self,

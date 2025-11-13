@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=8
+#SBATCH --ntasks=12
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time=2-00:00:00
@@ -21,15 +21,19 @@ source ~/.bashrc
 conda activate cac
 
 # === Run CACeriments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task cartpole --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task segway --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.1 &
 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task cartpole --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task segway --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC_ablation --algo-name cacv2-approx --lbd 0.0 --W-entropy-scaler 0.001 &
 
 # === Wait for all background jobs to finish ===
 wait

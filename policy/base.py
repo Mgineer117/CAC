@@ -314,11 +314,8 @@ class Base(Utilities, ABC):  # Inherit from Utilities and make abstract
 
         zTAz = matmul(matmul(zT, A), z)
 
-        # 1. Flip sign so negative values become positive (the ones we want to minimize)
-        # 2. ReLU sets all originally positive values (now negative) to 0
-        # 3. Mean calculates the average penalty
         loss_eigen = torch.relu(-zTAz).mean()
-        loss_reg = torch.relu(zTAz - 100).mean()
+        loss_reg = torch.relu(zTAz - 50).mean()
 
         return loss_eigen, loss_reg if reg else 0
 

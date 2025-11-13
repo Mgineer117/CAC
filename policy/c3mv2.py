@@ -65,7 +65,7 @@ class C3Mv2(C3M):
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
                 {"params": self.u_func.parameters(), "lr": u_lr},
-                {"params": [self.lbd], "lr": 1e-3},
+                {"params": [self.lbd], "lr": 1e-4},
             ]
         )
         self.dual_optimizer = torch.optim.Adam(
@@ -127,7 +127,7 @@ class C3Mv2(C3M):
         ABK = A + matmul(B, K)
         MABK = matmul(M, ABK)
         sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        Cu = dot_M + sym_MABK + 2 * self.lbd * M
+        Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -135,7 +135,7 @@ class C3Mv2(C3M):
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
-        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
+        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
 
         C2_inners = []

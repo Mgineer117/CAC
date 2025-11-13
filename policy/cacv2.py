@@ -56,6 +56,7 @@ class CACv2(CAC):
         gamma: float = 0.99,
         gae: float = 0.95,
         l2_reg: float = 1e-8,
+        tracking_scaler: float = 1.0,
         control_scaler: float = 0.0,
         nupdates: int = 1,
         device: str = "cpu",
@@ -86,6 +87,7 @@ class CACv2(CAC):
             gamma=gamma,
             gae=gae,
             l2_reg=l2_reg,
+            tracking_scaler=tracking_scaler,
             control_scaler=control_scaler,
             nupdates=nupdates,
             device=device,
@@ -168,7 +170,7 @@ class CACv2(CAC):
         ABK = A + matmul(B, K)
         MABK = matmul(M, ABK)
         sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        Cu = dot_M + sym_MABK + 2 * self.lbd * M
+        Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -176,7 +178,7 @@ class CACv2(CAC):
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
-        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
+        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
 
         C2_inners = []

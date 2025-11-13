@@ -193,7 +193,7 @@ class CAC(Base):
         ABK = A + matmul(B, K)
         MABK = matmul(M, ABK)
         sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        Cu = dot_M + sym_MABK + 2 * self.lbd * M
+        Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -201,7 +201,7 @@ class CAC(Base):
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
-        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
+        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
 
         C2_inners = []
@@ -225,14 +225,21 @@ class CAC(Base):
         )
 
         # === DEFINE LOSSES === #
-        pd_loss = self.loss_pos_matrix_random_sampling(-Cu)
-        c1_loss = self.loss_pos_matrix_random_sampling(-C1)
-        overshoot_loss = self.loss_pos_matrix_random_sampling(-overshoot)
+        pd_loss, pd_reg = self.loss_pos_matrix_random_sampling(-Cu)
+        c1_loss, c1_reg = self.loss_pos_matrix_random_sampling(-C1)
+        overshoot_loss, overshoot_reg = self.loss_pos_matrix_random_sampling(-overshoot)
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        loss = overshoot_loss + pd_loss + c1_loss + c2_loss
-
+        loss = (
+            overshoot_loss
+            + pd_loss
+            + c1_loss
+            + c2_loss
+            + pd_reg
+            + c1_reg
+            + overshoot_reg
+        )
         return (
             loss,
             {

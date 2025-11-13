@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=cac-main
+#SBATCH --job-name=cac-main1
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=24
-#SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:2
+#SBATCH --ntasks=12
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:1
 #SBATCH --time=2-00:00:00
 #SBATCH --output=cac.o%j
 #SBATCH --mail-type=FAIL
@@ -34,20 +34,6 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC --algo-n
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC --algo-name c3mv2-approx --lbd 0.0 &
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC --algo-name c3mv2-approx --lbd 0.0 &
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC --algo-name c3mv2-approx --lbd 0.0 &
-
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task cartpole --project Optimal_CAC --algo-name cac-approx --lbd 0.5 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task segway --project Optimal_CAC --algo-name cac-approx --lbd 0.5 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project Optimal_CAC --algo-name cac-approx --lbd 0.5 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project Optimal_CAC --algo-name cac-approx --lbd 0.5 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project Optimal_CAC --algo-name cac-approx --lbd 0.5 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cac-approx --lbd 0.5 &
-
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task cartpole --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task segway --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project Optimal_CAC --algo-name cacv2-approx --lbd 0.0 &
 
 
 
