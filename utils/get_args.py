@@ -34,7 +34,7 @@ def get_args():
     parser.add_argument(
         "--num-runs",
         type=int,
-        default=10,
+        default=5,
         help="Number of experiments for each algorithm.",
     )
     parser.add_argument(
@@ -164,6 +164,12 @@ def get_args():
         "--gae",
         type=float,
         default=0.95,
+        help="Generalized Advantage Estimation factor.",
+    )
+    parser.add_argument(
+        "--sample-mode",
+        type=str,
+        default="Real-world",
         help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(

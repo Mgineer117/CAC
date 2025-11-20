@@ -204,7 +204,10 @@ class BaseEnv(gym.Env):
                 x = x[np.newaxis, :]
             result = self._f_logic(x, lib)
 
-        return result.squeeze(0)
+        try:
+            return result.squeeze(0)
+        except:
+            return result
 
     def B_func(self, x: torch.Tensor | np.ndarray):
         """Calculates the control matrix B(x) for torch or numpy."""
@@ -219,7 +222,10 @@ class BaseEnv(gym.Env):
                 x = x[np.newaxis, :]
             result = self._B_logic(x, lib)
 
-        return result.squeeze(0)
+        try:
+            return result.squeeze(0)
+        except:
+            return result
 
     def B_null(self, x: torch.Tensor | np.ndarray):
         """Calculates the null space of B for torch or numpy."""
@@ -235,7 +241,10 @@ class BaseEnv(gym.Env):
             result = self._B_null_logic(x, n, lib)
 
         # .squeeze() removes the batch dimension if the input was 1D
-        return result.squeeze(0)
+        try:
+            return result.squeeze(0)
+        except:
+            return result
 
     def get_f_and_B(self, x: torch.Tensor | np.ndarray):
         """Get f(x), B(x), and B_null(x) using either learned dynamics or analytical functions."""
@@ -253,7 +262,7 @@ class BaseEnv(gym.Env):
     def get_dynamics(self, x: np.ndarray, u: np.ndarray):
         """Compute the dynamics x_dot given current state x and action u."""
         f_x, B_x, _ = self.get_f_and_B(x)
-        x_dot = f_x + np.matmul(B_x, u[:, np.newaxis]).squeeze()
+        x_dot = f_x + np.matmul(B_x, u[..., np.newaxis]).squeeze()
 
         return x_dot
 
@@ -403,7 +412,7 @@ class BaseEnv(gym.Env):
             )
 
             # === DATA FOR DYNAMICS LEARNING === #
-            n_control_per_x = 1
+            n_control_per_x = 3
             batch_size = ceil(buffer_size / n_control_per_x)
 
             if self.sample_mode == "Gaussian":

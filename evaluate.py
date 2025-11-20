@@ -4,6 +4,7 @@
 # Affiliation: U of Illinois @ Urbana-Champaign       #
 # =================================================== #
 import datetime
+import json
 import os
 import random
 import time
@@ -15,6 +16,8 @@ import numpy as np
 import torch
 
 import wandb
+from policy.layers.dynamic_networks import DynamicLearner
+from policy.layers.sd_lqr_networks import SDCLearner
 from trainer.evaluator import Evaluator
 from utils.get_args import get_args
 from utils.get_dynamics import get_dynamics
@@ -36,47 +39,66 @@ from policy.sd_lqr import SD_LQR
 EVAL_EPISODES = 10
 COLORS = {
     "cac-approx": "#F83C32",  # pastel red
-    "cac-approx-noentropy": "#F88A84",  # pale pastel red
+    "cac-approx-deterministic": "#F88A84",  # pale pastel red
     "c3m-approx": "#1A62CF",  # pastel blue
     "ppo-approx": "#646464",  # grey
+    "lqr-approx": "#138B08",  # green
+    "sd-lqr-approx": "#C00FE4",  # purple
 }
 
 LINESTYLES = {
     "cac-approx": "-",
-    "cac-approx-noentropy": "--",
+    "cac-approx-deterministic": "-",
     "c3m-approx": "-.",
     "ppo-approx": ":",
+    "lqr-approx": "--",
+    "sd-lqr-approx": "--",
 }
 # NAMES = {
 #     "cac-approx": r"CAC w/ $\mathcal{H}(\pi(\cdot\mid s))$",
-#     "cac-approx-noentropy": r"CAC w/o $\mathcal{H}(\pi(\cdot\mid s))$",
+#     "cac-approx-deterministic": r"CAC w/o $\mathcal{H}(\pi(\cdot\mid s))$",
 #     "c3m-approx": "C3M",
 #     "ppo-approx": "PPO",
 # }
 
+# LIMITS = {
+#     "car": {"x"; [], "y": [-5, 5], "z": [-1, 1]},
+#     "pvtol": 50.0,
+#     "neurallander": 10.0,
+#     "quadrotor": 15.0,
+# }
+
 NAMES_CAR = {
-    "cac-approx": 1.13,
-    "cac-approx-noentropy": 1.18,
-    "c3m-approx": 1.15,
-    "ppo-approx": 1.66,
+    "cac-approx": 1.07,
+    "cac-approx-deterministic": 1.08,
+    "c3m-approx": 1.06,
+    "ppo-approx": 1.56,
+    "sd-lqr-approx": 7.88,
+    "lqr-approx": 9.60,
 }
 NAMES_PVTOL = {
-    "cac-approx": 3.18,
-    "cac-approx-noentropy": 3.36,
-    "c3m-approx": 52.7,
-    "ppo-approx": 8.32,
+    "cac-approx": 7.49,
+    "cac-approx-deterministic": 8.79,
+    "c3m-approx": 29.6,
+    "ppo-approx": 12.7,
+    "sd-lqr-approx": 16.7,
+    "lqr-approx": 17.7,
 }
 NAMES_NEURALLANDER = {
-    "cac-approx": 2.56,
-    "cac-approx-noentropy": 2.57,
-    "c3m-approx": 2.55,
-    "ppo-approx": 2.98,
+    "cac-approx": 2.47,
+    "cac-approx-deterministic": 2.51,
+    "c3m-approx": 2.63,
+    "ppo-approx": 2.64,
+    "sd-lqr-approx": 5.67,
+    "lqr-approx": 5.70,
 }
 NAMES_QUADROTOR = {
-    "cac-approx": 3.29,
-    "cac-approx-noentropy": 4.37,
-    "c3m-approx": 3.43,
-    "ppo-approx": 5.68,
+    "cac-approx": 5.55,
+    "cac-approx-deterministic": 5.64,
+    "c3m-approx": 6.97,
+    "ppo-approx": 5.84,
+    "sd-lqr-approx": 5.73,
+    "lqr-approx": 5.79,
 }
 NAMES = {
     "car": NAMES_CAR,
@@ -147,7 +169,7 @@ def get_policy(eval_env, args, get_f_and_B, SDC_func, seed):
         "ppo-approx",
         "cac",
         "cac-approx",
-        "cac-approx-noentropy",
+        "cac-approx-deterministic",
     ):
         policy = C3M_U_Gaussian(
             x_dim=eval_env.num_dim_x,
@@ -176,9 +198,9 @@ def evaluate(eval_env, algo_name, policy, seed):
     Given one ref, show tracking performance
     """
 
-    ep_buffer = []
-    ep_norm_tracking_error = []
-    for _ in range(EVAL_EPISODES):
+    ep_buffer, ep_norm_tracking_error = [], []
+    x_list = []
+    for i in range(EVAL_EPISODES):
         ep_tracking_error, ep_control_effort, ep_inference_time = (
             0,
             0,
@@ -188,6 +210,8 @@ def evaluate(eval_env, algo_name, policy, seed):
         # Env initialization
         options = {"replace_x_0": True}
         obs, infos = eval_env.reset(seed=seed, options=options)
+
+        x = [obs[: eval_env.num_dim_x]]
 
         normalized_error_trajectory = [1.0]
         for t in range(1, eval_env.episode_len + 1):
@@ -206,6 +230,7 @@ def evaluate(eval_env, algo_name, policy, seed):
             normalized_error_trajectory.append(infos["relative_tracking_error"])
             ep_tracking_error += infos["tracking_error"]
             ep_control_effort += infos["control_effort"]
+            x.append(obs[: eval_env.num_dim_x])
 
             if done:
                 auc = np.trapezoid(normalized_error_trajectory, dx=eval_env.dt)
@@ -222,6 +247,7 @@ def evaluate(eval_env, algo_name, policy, seed):
                         "episode_len": t + 1,
                     }
                 )
+                x_list.append(x)
 
                 break
 
@@ -248,6 +274,98 @@ def evaluate(eval_env, algo_name, policy, seed):
     )
     ep_norm_tracking_error = np.mean(ep_norm_tracking_error, axis=0)
 
+    # save tracking figures to fig/task/tracking/
+    if not os.path.exists(f"fig/{eval_env.task}/tracking/{algo_name}"):
+        os.makedirs(f"fig/{eval_env.task}/tracking/{algo_name}")
+
+    if eval_env.pos_dimension == 2:
+        plt.figure()
+        # indicate the start and end points
+        for traj in x_list:
+            traj = np.array(traj)
+            plt.plot(traj[:, 0], traj[:, 1], alpha=0.8, linewidth=3)
+            plt.scatter(traj[0, 0], traj[0, 1], s=100, marker="*", alpha=0.8)
+
+        plt.plot(
+            eval_env.xref[:, 0],
+            eval_env.xref[:, 1],
+            color="black",
+            linewidth=2,
+            linestyle="--",
+            alpha=0.6,
+        )
+        plt.scatter(
+            eval_env.xref[0, 0],
+            eval_env.xref[0, 1],
+            color="black",
+            s=100,
+            marker="*",
+            label="Start",
+            alpha=0.6,
+        )
+
+        plt.xlabel("X position", fontsize=16)
+        plt.ylabel("Z position", fontsize=16)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.axis("equal")
+        # plt.xlim([-7, 2.5])
+        # plt.ylim([2.0, 9.0])
+        plt.grid(True, alpha=0.3, linestyle="--")
+        plt.tight_layout()
+        plt.savefig(
+            f"fig/{eval_env.task}/tracking/{algo_name}/{algo_name}({seed})_tracking_trajectories.svg"
+        )
+        plt.close()
+    elif eval_env.pos_dimension == 3:
+        plt.figure()
+        ax = plt.axes(projection="3d")
+
+        # Plot simulated trajectories
+        for traj in x_list:
+            traj = np.array(traj)
+            ax.plot3D(traj[:, 0], traj[:, 1], traj[:, 2], alpha=0.8, linewidth=3)
+            # Add start/end dots for each trajectory
+            ax.scatter(traj[0, 0], traj[0, 1], traj[0, 2], alpha=0.8, s=100, marker="*")
+
+        # Plot reference trajectory (consistent with 2D style)
+        ax.plot3D(
+            eval_env.xref[:, 0],
+            eval_env.xref[:, 1],
+            eval_env.xref[:, 2],
+            color="black",
+            linewidth=2,
+            linestyle="--",
+            alpha=0.6,
+        )
+        # Add start/end dots for the reference
+        ax.scatter(
+            eval_env.xref[0, 0],
+            eval_env.xref[0, 1],
+            eval_env.xref[0, 2],
+            s=100,
+            alpha=0.6,
+            marker="*",
+        )
+        # Add labels, grid, legend, and equal axis
+        ax.set_xlabel("X position", fontsize=16, labelpad=15)
+        ax.set_ylabel("Y position", fontsize=16, labelpad=15)
+        ax.set_zlabel("Z position", fontsize=16, labelpad=15)
+
+        # ax.view_init(elev=30, azim=-30)
+
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        # ax.zticks(fontsize=14) # zticks fontsize, if needed
+        # plt.axis("equal")
+        plt.grid(True, alpha=0.3, linestyle="--")
+        plt.tight_layout()
+
+        plt.savefig(
+            f"fig/{eval_env.task}/tracking/{algo_name}/{algo_name}({seed})_tracking_trajectories.svg"
+        )
+        plt.close()
+
     return eval_dict, ep_norm_tracking_error
 
 
@@ -257,15 +375,59 @@ def run(args, seed, unique_id, exp_time):
 
     # get env
     eval_env = call_env(args)  # always uses true dynamics
-    logger, writer = setup_logger(args, unique_id, exp_time, seed, verbose=False)
+    logger, writer = setup_logger(
+        args,
+        unique_id,
+        exp_time,
+        seed,
+        verbose=False,
+    )
 
     if args.algo_name in ["lqr", "lqr-approx", "sd-lqr", "sd-lqr-approx"]:
+        # make dir
+        if not os.path.exists(f"model/{args.task}/{args.algo_name}"):
+            os.makedirs(f"model/{args.task}/{args.algo_name}")
         # get dynamics and use it for simulation
-        get_f_and_B, init_epochs = get_dynamics(eval_env, args, logger, writer)
-        # get SDC
-        SDC_func, init_epochs = get_SDC(
-            eval_env, args, logger, writer, get_f_and_B, init_epochs
+        get_f_and_B, _ = get_dynamics(eval_env, args, logger, writer)
+        torch.save(
+            get_f_and_B.state_dict(),
+            f"model/{args.task}/{args.algo_name}/dynamics({seed}).pth",
         )
+        # get_f_and_B = DynamicLearner(
+        #     x_dim=eval_env.num_dim_x,
+        #     action_dim=args.action_dim,
+        #     hidden_dim=args.DynamicLearner_dim,
+        #     Dynamic_lr=args.Dynamic_lr,
+        #     drop_out=0.0,
+        #     nupdates=args.dynamics_epochs,
+        #     device=args.device,
+        # )
+        # get_f_and_B.load_state_dict(
+        #     torch.load(f"model/{args.task}/{args.algo_name}/dynamics({seed}).pth")
+        # )
+        get_f_and_B.eval()
+
+        if args.algo_name in ["sd-lqr", "sd-lqr-approx"]:
+            # get SDC
+            SDC_func, _ = get_SDC(eval_env, args, logger, writer, get_f_and_B, 0)
+            torch.save(
+                SDC_func.state_dict(),
+                f"model/{args.task}/{args.algo_name}/SDC({seed}).pth",
+            )
+            # SDC_func = SDCLearner(
+            #     x_dim=eval_env.num_dim_x,
+            #     a_dim=args.action_dim,
+            #     hidden_dim=args.SDCLearner_dim,
+            #     get_f_and_B=get_f_and_B,
+            #     nupdates=args.sdc_epochs,
+            #     device=args.device,
+            # )
+            # SDC_func.load_state_dict(
+            #     torch.load(f"model/{args.task}/{args.algo_name}/SDC({seed}).pth")
+            # )
+            SDC_func.eval()
+        else:
+            SDC_func = None
     else:
         get_f_and_B = None
         SDC_func = None
@@ -296,12 +458,12 @@ if __name__ == "__main__":
     print(f"-------------------------------------------------------")
 
     algo_names = [
-        "cac-approx",
-        "cac-approx-noentropy",
-        "c3m-approx",
-        "ppo-approx",
-        # "sd-lqr-approx",
-        # "lqr-approx",
+        # "cac-approx",
+        # "cac-approx-deterministic",
+        # "c3m-approx",
+        # "ppo-approx",
+        "sd-lqr-approx",
+        "lqr-approx",
     ]
     tracking_error_mean_dict = {}
     tracking_error_std_dict = {}
@@ -339,8 +501,24 @@ if __name__ == "__main__":
             f"{algo_name}: 95% Confidence Intervals: {ci_dict[f"{algo_name}/mauc_mean"]}"
         )
 
+        # save mean and std dict in json
+        if not os.path.exists(f"results/{args.task}/{algo_name}"):
+            os.makedirs(f"results/{args.task}/{algo_name}")
+
+        with open(f"results/{args.task}/{algo_name}/mean_dict.json", "w") as f:
+            json.dump({k: v.tolist() for k, v in mean_dict.items()}, f, indent=4)
+        with open(f"results/{args.task}/{algo_name}/std_dict.json", "w") as f:
+            json.dump({k: v.tolist() for k, v in ci_dict.items()}, f, indent=4)
+
         # print tracking error
-        tracking_error_array = np.array(tracking_error_list)
+        # makesure tracking_error_list is numpy array and same length by padding
+        max_length = max(len(traj) for traj in tracking_error_list)
+        tracking_error_array = np.array(
+            [
+                np.pad(traj, (0, max_length - len(traj)), mode="edge")
+                for traj in tracking_error_list
+            ]
+        )
         tracking_error_mean_dict[algo_name] = np.mean(tracking_error_array, axis=0)
         tracking_error_std_dict[algo_name] = (
             1.96
@@ -396,6 +574,11 @@ if __name__ == "__main__":
     # Grid and layout
     ax.grid(True, which="both", linestyle="--", linewidth=0.8)
     plt.tight_layout()
+
+    # save figs in fig/env_name/
+    if not os.path.exists(f"fig/{args.task}"):
+        os.makedirs(f"fig/{args.task}")
+    os.chdir(f"fig/{args.task}")
 
     plt.savefig(f"{args.task}_tracking_error.pdf")
     plt.savefig(f"{args.task}_tracking_error.svg")

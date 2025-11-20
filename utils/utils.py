@@ -20,21 +20,21 @@ def call_env(args):
     task = args.task
 
     if task == "car":
-        env = CarEnv()
+        env = CarEnv(sample_mode=args.sample_mode)
     elif task == "pvtol":
-        env = PvtolEnv()
+        env = PvtolEnv(sample_mode=args.sample_mode)
     elif task == "quadrotor":
-        env = QuadRotorEnv()
+        env = QuadRotorEnv(sample_mode=args.sample_mode)
     elif task == "neurallander":
-        env = NeuralLanderEnv()
+        env = NeuralLanderEnv(sample_mode=args.sample_mode)
     elif task == "segway":
-        env = SegwayEnv()
+        env = SegwayEnv(sample_mode=args.sample_mode)
     elif task == "turtlebot":
-        env = TurtlebotEnv()
+        env = TurtlebotEnv(sample_mode=args.sample_mode)
     elif task == "cartpole":
-        env = CartPoleEnv()
+        env = CartPoleEnv(sample_mode=args.sample_mode)
     elif task == "flapper":
-        env = FlapperEnv()
+        env = FlapperEnv(sample_mode=args.sample_mode)
     else:
         raise NotImplementedError(f"{task} is not implemented.")
 
