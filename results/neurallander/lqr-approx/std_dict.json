@@ -1,6 +1,6 @@
 {
-    "lqr-approx/inf_mean": 3.9419726907825934e-05,
-    "lqr-approx/mauc_mean": 2.507775762691594,
-    "lqr-approx/tracking_error_mean": 0.2455385094907256,
-    "lqr-approx/control_effort_mean": 0.6115321749822038
+    "lqr-approx/inf_mean": 0.00014500121686183303,
+    "lqr-approx/mauc_mean": 1.8897555249688394,
+    "lqr-approx/tracking_error_mean": 0.27845559318066737,
+    "lqr-approx/control_effort_mean": 1.1561746173894694
 }
