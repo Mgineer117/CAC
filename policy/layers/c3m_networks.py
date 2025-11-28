@@ -29,7 +29,6 @@ class C3M_W_Gaussian(nn.Module):
         x_dim: int,
         state_dim: int,
         hidden_dim: list,
-        w_lb: float,
         activation: nn.Module = nn.Tanh(),
         device: str = "cpu",
     ):
@@ -39,7 +38,6 @@ class C3M_W_Gaussian(nn.Module):
         self.x_dim = x_dim
         self.state_dim = state_dim
         self.device = device
-        self.w_lb = w_lb
 
         # Define the MLP model with given input dimension and hidden layers
         self.model = MLP(input_dim=x_dim, hidden_dims=hidden_dim, activation=activation)
@@ -105,11 +103,6 @@ class C3M_W_Gaussian(nn.Module):
         W = W.view(n, self.x_dim, self.x_dim)
         W = W.transpose(1, 2).matmul(W)  # W = WᵀW ensures symmetry
 
-        # Add a lower bound to the diagonal to ensure positive definiteness of W(x)
-        W += self.w_lb * torch.eye(self.x_dim).to(self.device).view(
-            1, self.x_dim, self.x_dim
-        )
-
         return W, {
             "dist": dist,
             "probs": probs,
@@ -169,7 +162,6 @@ class C3M_W(nn.Module):
         x_dim: int,
         state_dim: int,
         action_dim: int,
-        w_lb: float,
         task: str,
         hidden_dim: list,
         activation: nn.Module = nn.Tanh(),
@@ -181,7 +173,6 @@ class C3M_W(nn.Module):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.device = device
-        self.w_lb = w_lb
         self.task = task
 
         # Instantiate models for generating the W matrix and optional lower blocks
@@ -212,11 +203,6 @@ class C3M_W(nn.Module):
         # Ensure W is symmetric and PSD by computing WᵀW
         W = self.model_W(x).view(n, self.x_dim, self.x_dim)
         W = W.transpose(1, 2).matmul(W)
-
-        # Add lower-bound scaled identity to guarantee positive definiteness
-        W += self.w_lb * torch.eye(self.x_dim).to(self.device).view(
-            1, self.x_dim, self.x_dim
-        )
 
         return W, {
             "dist": None,

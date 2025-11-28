@@ -40,6 +40,7 @@ EVAL_EPISODES = 10
 COLORS = {
     "cac-approx": "#F83C32",  # pastel red
     "cac-approx-deterministic": "#F88A84",  # pale pastel red
+    "cac-approx-noentropy": "#F88A84",  # pale pastel red
     "c3m-approx": "#1A62CF",  # pastel blue
     "ppo-approx": "#646464",  # grey
     "lqr-approx": "#138B08",  # green
@@ -49,6 +50,7 @@ COLORS = {
 LINESTYLES = {
     "cac-approx": "-",
     "cac-approx-deterministic": "-",
+    "cac-approx-noentropy": "-",
     "c3m-approx": "-.",
     "ppo-approx": ":",
     "lqr-approx": "--",
@@ -71,6 +73,7 @@ LINESTYLES = {
 NAMES_CAR = {
     "cac-approx": 1.07,
     "cac-approx-deterministic": 1.08,
+    "cac-approx-noentropy": 1.08,
     "c3m-approx": 1.06,
     "ppo-approx": 1.56,
     "sd-lqr-approx": 7.88,
@@ -79,6 +82,7 @@ NAMES_CAR = {
 NAMES_PVTOL = {
     "cac-approx": 7.49,
     "cac-approx-deterministic": 8.79,
+    "cac-approx-noentropy": 7.91,
     "c3m-approx": 29.6,
     "ppo-approx": 12.7,
     "sd-lqr-approx": 16.7,
@@ -87,6 +91,7 @@ NAMES_PVTOL = {
 NAMES_NEURALLANDER = {
     "cac-approx": 2.47,
     "cac-approx-deterministic": 2.51,
+    "cac-approx-noentropy": 2.54,
     "c3m-approx": 2.63,
     "ppo-approx": 2.64,
     "sd-lqr-approx": 5.67,
@@ -95,6 +100,7 @@ NAMES_NEURALLANDER = {
 NAMES_QUADROTOR = {
     "cac-approx": 5.55,
     "cac-approx-deterministic": 5.64,
+    "cac-approx-noentropy": 5.29,
     "c3m-approx": 6.97,
     "ppo-approx": 5.84,
     "sd-lqr-approx": 5.73,
@@ -170,6 +176,7 @@ def get_policy(eval_env, args, get_f_and_B, SDC_func, seed):
         "cac",
         "cac-approx",
         "cac-approx-deterministic",
+        "cac-approx-noentropy",
     ):
         policy = C3M_U_Gaussian(
             x_dim=eval_env.num_dim_x,
@@ -388,43 +395,33 @@ def run(args, seed, unique_id, exp_time):
         if not os.path.exists(f"model/{args.task}/{args.algo_name}"):
             os.makedirs(f"model/{args.task}/{args.algo_name}")
         # get dynamics and use it for simulation
-        get_f_and_B, _ = get_dynamics(eval_env, args, logger, writer)
-        torch.save(
-            get_f_and_B.state_dict(),
-            f"model/{args.task}/{args.algo_name}/dynamics({seed}).pth",
+        get_f_and_B = DynamicLearner(
+            x_dim=eval_env.num_dim_x,
+            action_dim=args.action_dim,
+            hidden_dim=args.DynamicLearner_dim,
+            Dynamic_lr=args.Dynamic_lr,
+            drop_out=0.0,
+            nupdates=args.dynamics_epochs,
+            device=args.device,
         )
-        # get_f_and_B = DynamicLearner(
-        #     x_dim=eval_env.num_dim_x,
-        #     action_dim=args.action_dim,
-        #     hidden_dim=args.DynamicLearner_dim,
-        #     Dynamic_lr=args.Dynamic_lr,
-        #     drop_out=0.0,
-        #     nupdates=args.dynamics_epochs,
-        #     device=args.device,
-        # )
-        # get_f_and_B.load_state_dict(
-        #     torch.load(f"model/{args.task}/{args.algo_name}/dynamics({seed}).pth")
-        # )
+        get_f_and_B.load_state_dict(
+            torch.load(f"model/{args.task}/{args.algo_name}/dynamics({seed}).pth")
+        )
         get_f_and_B.eval()
 
         if args.algo_name in ["sd-lqr", "sd-lqr-approx"]:
             # get SDC
-            SDC_func, _ = get_SDC(eval_env, args, logger, writer, get_f_and_B, 0)
-            torch.save(
-                SDC_func.state_dict(),
-                f"model/{args.task}/{args.algo_name}/SDC({seed}).pth",
+            SDC_func = SDCLearner(
+                x_dim=eval_env.num_dim_x,
+                a_dim=args.action_dim,
+                hidden_dim=args.SDCLearner_dim,
+                get_f_and_B=get_f_and_B,
+                nupdates=args.sdc_epochs,
+                device=args.device,
             )
-            # SDC_func = SDCLearner(
-            #     x_dim=eval_env.num_dim_x,
-            #     a_dim=args.action_dim,
-            #     hidden_dim=args.SDCLearner_dim,
-            #     get_f_and_B=get_f_and_B,
-            #     nupdates=args.sdc_epochs,
-            #     device=args.device,
-            # )
-            # SDC_func.load_state_dict(
-            #     torch.load(f"model/{args.task}/{args.algo_name}/SDC({seed}).pth")
-            # )
+            SDC_func.load_state_dict(
+                torch.load(f"model/{args.task}/{args.algo_name}/SDC({seed}).pth")
+            )
             SDC_func.eval()
         else:
             SDC_func = None
@@ -459,11 +456,12 @@ if __name__ == "__main__":
 
     algo_names = [
         # "cac-approx",
-        # "cac-approx-deterministic",
+        "cac-approx-deterministic",
+        "cac-approx-noentropy",
         # "c3m-approx",
         # "ppo-approx",
-        "sd-lqr-approx",
-        "lqr-approx",
+        # "sd-lqr-approx",
+        # "lqr-approx",
     ]
     tracking_error_mean_dict = {}
     tracking_error_std_dict = {}

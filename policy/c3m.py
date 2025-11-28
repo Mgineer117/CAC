@@ -1,15 +1,10 @@
 import time
-from collections import deque
 from typing import Callable
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import inverse, matmul, transpose
-from torch.autograd import grad
-from torch.linalg import matrix_norm
 from torch.optim.lr_scheduler import LambdaLR
 
 from policy.base import Base
@@ -28,11 +23,13 @@ class C3M(Base):
         u_lr: float = 3e-4,
         lbd: float = 1e-2,
         eps: float = 1e-2,
-        w_ub: float = 1e-2,
+        w_ub: float = 10.0,
+        w_lb: float = 1e-1,
         gamma: float = 0.99,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         nupdates: int = 1,
+        detach_grad: bool = True,
         device: str = "cpu",
     ):
         super(C3M, self).__init__()
@@ -61,6 +58,7 @@ class C3M(Base):
 
         self.eps = eps
         self.w_ub = w_ub
+        self.w_lb = w_lb
         self.lbd = lbd
         self.gamma = gamma
 
@@ -73,7 +71,7 @@ class C3M(Base):
 
         self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
 
-        #
+        self.detach_grad = detach_grad
         self.num_updates = 0
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
@@ -114,6 +112,10 @@ class C3M(Base):
         uref = self.to_tensor(batch["uref"])
 
         W, _ = self.W_func(x)  # n, x_dim, x_dim
+        # Add lower-bound scaled identity to guarantee positive definiteness
+        W += self.w_lb * torch.eye(self.x_dim).to(self.device).view(
+            1, self.x_dim, self.x_dim
+        )
         M = inverse(W)  # n, x_dim, x_dim
 
         f, B, Bbot = self.get_f_and_B(x)
@@ -146,7 +148,10 @@ class C3M(Base):
         ABK = A + matmul(B, K)
         MABK = matmul(M, ABK)
         sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
+        if self.detach_grad:
+            Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
+        else:
+            Cu = dot_M + sym_MABK + 2 * self.lbd * M
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -154,7 +159,10 @@ class C3M(Base):
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
-        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
+        if self.detach_grad:
+            C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
+        else:
+            C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
 
         C2_inners = []

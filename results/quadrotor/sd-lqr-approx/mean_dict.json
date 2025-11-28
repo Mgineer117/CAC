@@ -1,6 +1,0 @@
-{
-    "sd-lqr-approx/inf_mean": 0.000842618415104085,
-    "sd-lqr-approx/mauc_mean": 5.972309254881771,
-    "sd-lqr-approx/tracking_error_mean": 0.931315429628382,
-    "sd-lqr-approx/control_effort_mean": 2.39035172308315
-}

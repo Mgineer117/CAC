@@ -99,16 +99,23 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             device=args.device,
         )
 
-    elif algo_name in ("c3m", "c3m-approx", "c3mv2", "c3mv2-approx"):
+    elif algo_name in (
+        "c3m",
+        "c3m-approx",
+        "c3mv2",
+        "c3mv2-approx",
+        "c3mv3",
+        "c3mv3-approx",
+    ):
         from policy.c3m import C3M
         from policy.c3mv2 import C3Mv2
+        from policy.c3mv3 import C3Mv3
         from policy.layers.c3m_networks import C3M_U, C3M_W, C3M_U_Gaussian
 
         W_func = C3M_W(
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
             action_dim=args.action_dim,
-            w_lb=args.w_lb,
             task=args.task,
             hidden_dim=[128, 128],
             activation=nn.Tanh(),
@@ -122,7 +129,11 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         )
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        C3M_class = C3Mv2 if algo_name in ("c3mv2", "c3mv2-approx") else C3M
+        C3M_class = (
+            C3Mv3
+            if algo_name in ("c3mv3", "c3mv3-approx")
+            else C3Mv2 if algo_name in ("c3mv2", "c3mv2-approx") else C3M
+        )
 
         policy = C3M_class(
             x_dim=env.num_dim_x,
@@ -136,10 +147,12 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             lbd=args.lbd,
             eps=args.eps,
             w_ub=args.w_ub,
+            w_lb=args.w_lb,
             gamma=args.gamma,
             num_minibatch=args.num_minibatch,
             minibatch_size=args.minibatch_size,
             nupdates=args.c3m_epochs,
+            detach_grad=args.detach_grad,
             device=args.device,
         )
 
@@ -155,7 +168,6 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             x_dim=env.num_dim_x,
             state_dim=args.state_dim,
             hidden_dim=[128, 128],
-            w_lb=args.w_lb,
             activation=nn.Tanh(),
             device=args.device,
         )
@@ -185,6 +197,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             num_minibatch=args.num_minibatch,
             minibatch_size=args.minibatch_size,
             w_ub=args.w_ub,
+            w_lb=args.w_lb,
             lbd=args.lbd,
             eps=args.eps,
             eps_clip=args.eps_clip,

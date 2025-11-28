@@ -21,12 +21,12 @@ source ~/.bashrc
 conda activate cac
 
 # === Run CACeriments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task cartpole --project Optimal_CAC --algo-name ppo &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task segway --project Optimal_CAC --algo-name ppo &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Optimal_CAC --algo-name ppo &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Optimal_CAC --algo-name ppo &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Optimal_CAC --algo-name ppo &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Optimal_CAC --algo-name ppo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task cartpole --project Exp --algo-name ppo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task segway --project Exp --algo-name ppo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Exp --algo-name ppo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Exp --algo-name ppo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Exp --algo-name ppo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Exp --algo-name ppo &
 
 # === Wait for all background jobs to finish ===
 wait

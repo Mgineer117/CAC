@@ -38,7 +38,8 @@ class CAC(Base):
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         # CMG parameters
-        w_ub: float = 1e-2,
+        w_ub: float = 10.0,
+        w_lb: float = 1e-1,
         lbd: float = 1e-2,
         eps: float = 1e-2,
         W_entropy_scaler: float = 1e-3,
@@ -89,6 +90,7 @@ class CAC(Base):
         self.target_kl = target_kl
         self.eps_clip = eps_clip
         self.w_ub = w_ub
+        self.w_lb = w_lb
 
         self.get_f_and_B = get_f_and_B
         if isinstance(self.get_f_and_B, nn.Module):
@@ -157,6 +159,10 @@ class CAC(Base):
         uref = self.to_tensor(batch["uref"])
 
         W, _ = self.W_func(x)  # n, x_dim, x_dim
+        # Add lower-bound scaled identity to guarantee positive definiteness
+        W += self.w_lb * torch.eye(self.x_dim).to(self.device).view(
+            1, self.x_dim, self.x_dim
+        )
         M = inverse(W)  # n, x_dim, x_dim
 
         f, B, Bbot = self.get_f_and_B(x)
@@ -575,6 +581,10 @@ class CAC(Base):
         with torch.no_grad():
             ### Compute the main rewards
             W, _ = self.W_func(x, deterministic=True)
+            # Add lower-bound scaled identity to guarantee positive definiteness
+            W += self.w_lb * torch.eye(self.x_dim).to(self.device).view(
+                1, self.x_dim, self.x_dim
+            )
             M = torch.inverse(W)
 
             tracking_errorT = transpose(tracking_error, 1, 2)

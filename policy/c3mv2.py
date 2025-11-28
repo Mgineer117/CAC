@@ -7,7 +7,6 @@ import torch.nn as nn
 from torch import inverse, matmul, transpose
 from torch.optim.lr_scheduler import LambdaLR
 
-from policy.base import Base
 from policy.c3m import C3M
 
 
@@ -24,11 +23,13 @@ class C3Mv2(C3M):
         u_lr: float = 3e-4,
         lbd: float = 1e-2,
         eps: float = 1e-2,
-        w_ub: float = 1e-2,
+        w_ub: float = 10.0,
+        w_lb: float = 1e-1,
         gamma: float = 0.99,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         nupdates: int = 1,
+        detach_grad: bool = True,
         device: str = "cpu",
     ):
         super(C3Mv2, self).__init__(
@@ -43,16 +44,18 @@ class C3Mv2(C3M):
             lbd=lbd,
             eps=eps,
             w_ub=w_ub,
+            w_lb=w_lb,
             gamma=gamma,
             num_minibatch=num_minibatch,
             minibatch_size=minibatch_size,
             nupdates=nupdates,
+            detach_grad=detach_grad,
             device=device,
         )
 
         # make lbd and nu a trainable parameter
         self.lbd = nn.Parameter(
-            torch.tensor(lbd, dtype=torch.float32, device=self.device)
+            torch.tensor(0.0, dtype=torch.float32, device=self.device)
         )
         self.nu = nn.Parameter(
             torch.ones(3, dtype=torch.float32, device=self.device) + 1e-2
@@ -69,7 +72,7 @@ class C3Mv2(C3M):
             ]
         )
         self.dual_optimizer = torch.optim.Adam(
-            [{"params": [self.nu], "lr": 1e-2}, {"params": [self.zeta], "lr": 1e-2}]
+            [{"params": [self.nu], "lr": 1e-3}, {"params": [self.zeta], "lr": 1e-3}]
         )
 
         self.lr_scheduler1 = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
@@ -95,6 +98,10 @@ class C3Mv2(C3M):
         uref = self.to_tensor(batch["uref"])
 
         W, _ = self.W_func(x)  # n, x_dim, x_dim
+        # Add lower-bound scaled identity to guarantee positive definiteness
+        W += self.w_lb * torch.eye(self.x_dim).to(self.device).view(
+            1, self.x_dim, self.x_dim
+        )
         M = inverse(W)  # n, x_dim, x_dim
 
         f, B, Bbot = self.get_f_and_B(x)

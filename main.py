@@ -72,7 +72,14 @@ def run(args, seed, unique_id, exp_time):
             seed=args.seed,
         )
         trainer.train()
-    elif args.algo_name in ("c3m", "c3m-approx", "c3mv2", "c3mv2-approx"):
+    elif args.algo_name in (
+        "c3m",
+        "c3m-approx",
+        "c3mv2",
+        "c3mv2-approx",
+        "c3mv3",
+        "c3mv3-approx",
+    ):
         trainer = C3MTrainer(
             env=env,
             eval_env=eval_env,
