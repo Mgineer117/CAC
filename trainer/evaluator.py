@@ -89,7 +89,7 @@ class Evaluator:
 
                 eval_dict_list = []
                 for i in range(self.eval_num):
-                    eval_dict, traj_plot = self.evaluate()
+                    eval_dict, supp_dict = self.evaluate()
                     eval_dict_list.append(eval_dict)
 
                 eval_dict = self.average_dict_values(eval_dict_list)
@@ -97,14 +97,13 @@ class Evaluator:
                 # Manual logging
                 self.write_log(eval_dict, step=logging_step, eval_log=True)
                 self.write_image(
-                    traj_plot,
+                    supp_dict,
                     step=logging_step,
-                    logdir=f"eval",
-                    name="traj_plot",
                 )
 
                 # Calculate expected remaining time
-                pbar.update(1)
+                pbar.update(self.eval_interval)
+                print("pbar updated")
                 eval_idx += 1
 
             torch.cuda.empty_cache()
