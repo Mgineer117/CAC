@@ -211,9 +211,9 @@ class CACv3(CAC):
         Cu = Cu + self.eps * torch.eye(Cu.shape[-1]).to(self.device)
         C1 = C1 + self.eps * torch.eye(C1.shape[-1]).to(self.device)
         C2 = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
-        overshoot = W - (self.w_ub.detach() * torch.eye(W.shape[-1])).unsqueeze(0).to(
-            self.device
-        )
+        overshoot = W - (
+            self.w_ub.detach() * torch.eye(W.shape[-1], device=self.device)
+        ).unsqueeze(0)
 
         # === DEFINE LOSSES === #
         pd_loss, pd_reg = self.loss_pos_matrix_random_sampling(-Cu)
