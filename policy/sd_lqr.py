@@ -20,7 +20,7 @@ class SD_LQR(Base):
         get_f_and_B: nn.Module,
         SDC_func: nn.Module,
         Q_scaler: float = 1.0,
-        R_scaler: float = 1.0,
+        R_scaler: float = 0.1,
         device: str = "cpu",
     ):
         super(SD_LQR, self).__init__()
