@@ -347,8 +347,8 @@ class BaseEnv(gym.Env):
         control_reward = -self.control_scaler * control_effort
 
         if self.reward_mode == "inverse":
-            tracking_reward = 1 / (1 + tracking_reward)
-            control_reward = 1 / (1 + control_reward)
+            tracking_reward = 1 / (1 + abs(tracking_reward))
+            control_reward = 1 / (1 + abs(control_reward))
 
         reward = (0.5 * tracking_reward) + (0.5 * control_reward)
 
