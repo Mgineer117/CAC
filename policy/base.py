@@ -315,7 +315,7 @@ class Base(Utilities, ABC):  # Inherit from Utilities and make abstract
         zTAz = matmul(matmul(zT, A), z)
 
         loss_eigen = torch.relu(-zTAz).mean()
-        loss_reg = torch.relu(zTAz - 50).mean()
+        loss_reg = torch.relu(zTAz - 200).mean()
 
         return loss_eigen, loss_reg if reg else 0
 

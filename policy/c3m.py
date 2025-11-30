@@ -29,7 +29,6 @@ class C3M(Base):
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         nupdates: int = 1,
-        detach_grad: bool = True,
         device: str = "cpu",
     ):
         super(C3M, self).__init__()
@@ -71,7 +70,6 @@ class C3M(Base):
 
         self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
 
-        self.detach_grad = detach_grad
         self.num_updates = 0
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
@@ -148,10 +146,7 @@ class C3M(Base):
         ABK = A + matmul(B, K)
         MABK = matmul(M, ABK)
         sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        if self.detach_grad:
-            Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
-        else:
-            Cu = dot_M + sym_MABK + 2 * self.lbd * M
+        Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -159,10 +154,7 @@ class C3M(Base):
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
-        if self.detach_grad:
-            C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
-        else:
-            C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
+        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
 
         C2_inners = []

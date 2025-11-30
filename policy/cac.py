@@ -595,7 +595,7 @@ class CAC(Base):
 
             control_reward = -self.control_scaler * control_effort
 
-        rewards = 0.5 * tracking_reward + 0.5 * control_reward
+        rewards = (0.5 * tracking_reward) + (0.5 * control_reward)
 
         return rewards
 

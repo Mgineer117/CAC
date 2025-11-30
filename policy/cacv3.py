@@ -1,52 +1,96 @@
 import time
+from copy import deepcopy
 from typing import Callable
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import inverse, matmul, transpose
+from torch.linalg import matrix_norm
 from torch.optim.lr_scheduler import LambdaLR
 
-from policy.c3m import C3M
+from policy.base import Base
+from policy.cac import CAC
+from utils.functions import (
+    compute_kl,
+    conjugate_gradients,
+    estimate_advantages,
+    flat_params,
+    hessian_vector_product,
+    set_flat_params,
+)
 
 
-class C3Mv3(C3M):
+class CACv3(CAC):
     def __init__(
         self,
+        # Learning parameters
         x_dim: int,
-        action_dim: int,
-        W_func: nn.Module,
-        u_func: nn.Module,
         data: dict,
+        W_func: nn.Module,
         get_f_and_B: Callable,
+        actor: nn.Module,
+        critic: nn.Module,
         W_lr: float = 3e-4,
-        u_lr: float = 3e-4,
-        lbd: float = 1e-2,
-        eps: float = 1e-2,
-        w_ub: float = 10.0,
-        w_lb: float = 1e-1,
-        gamma: float = 0.99,
+        actor_lr: float = 3e-4,
+        critic_lr: float = 5e-4,
         num_minibatch: int = 8,
         minibatch_size: int = 256,
+        # CMG parameters
+        w_ub: float = 10.0,
+        w_lb: float = 1e-1,
+        lbd: float = 1e-2,
+        eps: float = 1e-2,
+        W_entropy_scaler: float = 1e-3,
+        # TRPO parameters
+        damping: float = 1e-1,
+        backtrack_iters: int = 10,
+        backtrack_coeff: float = 0.8,
+        target_kl: float = 0.03,
+        # PPO parameters
+        eps_clip: float = 0.2,
+        K: int = 5,
+        entropy_scaler: float = 1e-3,
+        # RL parameters
+        gamma: float = 0.99,
+        gae: float = 0.95,
+        l2_reg: float = 1e-8,
+        tracking_scaler: float = 1.0,
+        control_scaler: float = 0.0,
         nupdates: int = 1,
         device: str = "cpu",
     ):
-        super(C3Mv3, self).__init__(
+        super(CACv3, self).__init__(
             x_dim=x_dim,
-            action_dim=action_dim,
-            W_func=W_func,
-            u_func=u_func,
             data=data,
+            W_func=W_func,
             get_f_and_B=get_f_and_B,
+            actor=actor,
+            critic=critic,
             W_lr=W_lr,
-            u_lr=u_lr,
-            lbd=lbd,
-            eps=eps,
-            w_ub=w_ub,
-            w_lb=w_lb,
-            gamma=gamma,
+            actor_lr=actor_lr,
+            critic_lr=critic_lr,
             num_minibatch=num_minibatch,
             minibatch_size=minibatch_size,
+            w_ub=w_ub,
+            w_lb=w_lb,
+            lbd=lbd,
+            eps=eps,
+            W_entropy_scaler=W_entropy_scaler,
+            damping=damping,
+            backtrack_iters=backtrack_iters,
+            backtrack_coeff=backtrack_coeff,
+            target_kl=target_kl,
+            eps_clip=eps_clip,
+            K=K,
+            entropy_scaler=entropy_scaler,
+            gamma=gamma,
+            gae=gae,
+            l2_reg=l2_reg,
+            tracking_scaler=tracking_scaler,
+            control_scaler=control_scaler,
             nupdates=nupdates,
             device=device,
         )
@@ -68,10 +112,9 @@ class C3Mv3(C3M):
             torch.ones(1, dtype=torch.float32, device=self.device) + 1e-2
         )
 
-        self.optimizer = torch.optim.Adam(
+        self.W_optimizer = torch.optim.Adam(
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
-                {"params": self.u_func.parameters(), "lr": u_lr},
                 {"params": [self.lbd], "lr": 1e-3},
                 {"params": [self.w_ub], "lr": 1e-3},
                 {"params": [self.w_lb], "lr": 1e-3},
@@ -81,15 +124,12 @@ class C3Mv3(C3M):
             [{"params": [self.nu], "lr": 1e-2}, {"params": [self.zeta], "lr": 1e-2}]
         )
 
-        self.lr_scheduler1 = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
-        self.lr_scheduler2 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler1 = LambdaLR(self.W_optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler3 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
 
-        #
-        self.num_updates = 0
-        self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
 
-    def compute_loss(self):
+    def compute_W_loss(self):
         # === SAMPLE BATCH === #
         batch = dict()
         buffer_size, batch_size = self.data["x"].shape[0], 1024
@@ -123,8 +163,12 @@ class C3Mv3(C3M):
         Bbot = Bbot.detach()
 
         # since online we do not do below
-        u, _ = self.u_func(x, xref, uref)
+        u, _ = self.actor(x, xref, uref)
         K = self.Jacobian(u, x)  # n, f_dim, x_dim
+
+        # detach actor gradients
+        u = u.detach()
+        K = K.detach()
 
         A = DfDx + sum(
             [
@@ -167,16 +211,16 @@ class C3Mv3(C3M):
         Cu = Cu + self.eps * torch.eye(Cu.shape[-1]).to(self.device)
         C1 = C1 + self.eps * torch.eye(C1.shape[-1]).to(self.device)
         C2 = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
-        overshoot = W - (
-            self.w_ub.detach() * torch.eye(W.shape[-1], device=self.device)
-        ).unsqueeze(0)
+        overshoot = W - (self.w_ub.detach() * torch.eye(W.shape[-1])).unsqueeze(0).to(
+            self.device
+        )
 
         # === DEFINE LOSSES === #
         pd_loss, pd_reg = self.loss_pos_matrix_random_sampling(-Cu)
         c1_loss, c1_reg = self.loss_pos_matrix_random_sampling(-C1)
         overshoot_loss, overshoot_reg = self.loss_pos_matrix_random_sampling(-overshoot)
         c2_loss = C2
-        self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, W)
+        self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
         nu = self.nu.detach()
         zeta = self.zeta.detach()
@@ -209,18 +253,18 @@ class C3Mv3(C3M):
             },
         )
 
-    def optimize_params(self, primal_loss: torch.Tensor, dual_loss: torch.Tensor):
+    def optimize_W_params(self, primal_loss: torch.Tensor, dual_loss: torch.Tensor):
         # === OPTIMIZATION STEP === #
-        self.optimizer.zero_grad()
+        self.W_optimizer.zero_grad()
         primal_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
-            [self.W_func, self.u_func, self.lbd],
-            ["W_func", "u_func", "lbd"],
-            dir="C3M",
+            [self.W_func, self.lbd],
+            ["W_func", "lbd"],
+            dir="CAC",
             device=self.device,
         )
-        self.optimizer.step()
+        self.W_optimizer.step()
 
         self.dual_optimizer.zero_grad()
         dual_loss.backward()
@@ -237,34 +281,48 @@ class C3Mv3(C3M):
         )
         self.dual_optimizer.step()
 
-        # lr scheduling
-        self.lr_scheduler1.step()
-        self.lr_scheduler2.step()
-
         # ensure the primal and dual feasibility
         with torch.no_grad():
-            self.lbd.clamp_(min=1e-3, max=1e6)
+            self.lbd.clamp_(min=1e-6, max=1e6)
             self.nu.clamp_(min=0.0, max=1e6)
-
-            self.w_lb.clamp_(min=1e-3, max=90.0)
-            self.w_ub.clamp_(min=self.w_lb.detach(), max=100.0)
 
         return grad_dict
 
-    def learn(self):
+    def learn(self, batch):
+        W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
+        RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
+
+        self.lr_scheduler1.step()
+        self.lr_scheduler2.step()
+        self.lr_scheduler3.step()
+
+        loss_dict = {}
+        loss_dict.update(W_loss_dict)
+        loss_dict.update(RL_loss_dict)
+        supp_dict = {}
+        supp_dict.update(W_supp_dict)
+        supp_dict.update(RL_supp_dict)
+
+        update_time = W_update_time + RL_update_time
+
+        self.num_updates += 1
+
+        return loss_dict, supp_dict, update_time
+
+    def learn_W(self):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
 
         # === PERFORM OPTIMIZATION STEP === #
-        primal_loss, dual_loss, infos = self.compute_loss()
-        grad_dict = self.optimize_params(primal_loss, dual_loss)
+        primal_loss, dual_loss, infos = self.compute_W_loss()
+        grad_dict = self.optimize_W_params(primal_loss, dual_loss)
 
         # === LOGGING === #
         supp_dict = {}
         if self.num_updates % 300 == 0:
             fig = self.get_eigenvalue_plot()
-            supp_dict["C3M/plot/eigenvalues"] = fig
+            supp_dict["CAC/plot/eigenvalues"] = fig
 
         loss_dict = {
             f"{self.name}/loss/loss": primal_loss.item(),
@@ -274,32 +332,26 @@ class C3Mv3(C3M):
             f"{self.name}/loss/overshoot_loss": infos["overshoot_loss"].item(),
             f"{self.name}/loss/dual_loss": dual_loss.item(),
             f"{self.name}/analytics/lbd": self.lbd.item(),
-            f"{self.name}/analytics/w_ub": self.w_ub.item(),
-            f"{self.name}/analytics/w_lb": self.w_lb.item(),
             f"{self.name}/analytics/nu1": self.nu[0].item(),
             f"{self.name}/analytics/nu2": self.nu[1].item(),
             f"{self.name}/analytics/nu3": self.nu[2].item(),
             f"{self.name}/analytics/zeta": self.zeta.item(),
             f"{self.name}/lr/W_lr": self.lr_scheduler1.get_last_lr()[0],
-            f"{self.name}/lr/u_lr": self.lr_scheduler1.get_last_lr()[1],
-            f"{self.name}/lr/lbd_lr": self.lr_scheduler1.get_last_lr()[2],
-            f"{self.name}/lr/w_ub_lr": self.lr_scheduler1.get_last_lr()[3],
-            f"{self.name}/lr/w_lb_lr": self.lr_scheduler1.get_last_lr()[4],
-            f"{self.name}/lr/nu_lr": self.lr_scheduler2.get_last_lr()[0],
-            f"{self.name}/lr/zeta_lr": self.lr_scheduler2.get_last_lr()[1],
+            f"{self.name}/lr/lbd_lr": self.lr_scheduler1.get_last_lr()[1],
+            f"{self.name}/lr/nu_lr": self.lr_scheduler3.get_last_lr()[0],
+            f"{self.name}/lr/zeta_lr": self.lr_scheduler3.get_last_lr()[1],
         }
         norm_dict = self.compute_weight_norm(
-            [self.W_func, self.u_func],
-            ["W_func", "u_func"],
+            [self.W_func],
+            ["W_func"],
             dir=f"{self.name}",
             device=self.device,
         )
         loss_dict.update(grad_dict)
         loss_dict.update(norm_dict)
 
-        # === CLEANUP === #
+        # Cleanup
         self.eval()
         update_time = time.time() - t0
-        self.num_updates += 1
 
         return loss_dict, supp_dict, update_time

@@ -17,26 +17,24 @@ from envs import (
 
 
 def call_env(args):
-    task = args.task
+    # 1. Define the map of strings to Class objects
+    env_map = {
+        "car": CarEnv,
+        "pvtol": PvtolEnv,
+        "quadrotor": QuadRotorEnv,
+        "neurallander": NeuralLanderEnv,
+        "segway": SegwayEnv,
+        "turtlebot": TurtlebotEnv,
+        "cartpole": CartPoleEnv,
+        "flapper": FlapperEnv,
+    }
 
-    if task == "car":
-        env = CarEnv(sample_mode=args.sample_mode)
-    elif task == "pvtol":
-        env = PvtolEnv(sample_mode=args.sample_mode)
-    elif task == "quadrotor":
-        env = QuadRotorEnv(sample_mode=args.sample_mode)
-    elif task == "neurallander":
-        env = NeuralLanderEnv(sample_mode=args.sample_mode)
-    elif task == "segway":
-        env = SegwayEnv(sample_mode=args.sample_mode)
-    elif task == "turtlebot":
-        env = TurtlebotEnv(sample_mode=args.sample_mode)
-    elif task == "cartpole":
-        env = CartPoleEnv(sample_mode=args.sample_mode)
-    elif task == "flapper":
-        env = FlapperEnv(sample_mode=args.sample_mode)
-    else:
-        raise NotImplementedError(f"{task} is not implemented.")
+    # 2. Check existence
+    if args.task not in env_map:
+        raise NotImplementedError(f"{args.task} is not implemented.")
+
+    # 3. Instantiate once using the common arguments
+    env = env_map[args.task](sample_mode=args.sample_mode, reward_mode=args.reward_mode)
 
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.shape[0]
@@ -48,17 +46,17 @@ def call_env(args):
 def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
     algo_name = args.algo_name
 
-    if algo_name in ("lqr", "lqr-approx", "sd-lqr", "sd-lqr-approx"):
+    if algo_name.startswith(("lqr", "sd-lqr")):
         from policy.lqr import LQR
         from policy.sd_lqr import SD_LQR
 
-        if algo_name in ("lqr", "lqr-approx"):
+        if algo_name.startswith("lqr"):
             policy = LQR(
                 x_dim=env.num_dim_x,
                 action_dim=args.action_dim,
                 get_f_and_B=get_f_and_B,
             )
-        elif algo_name in ("sd-lqr", "sd-lqr-approx"):
+        elif algo_name.startswith("sd-lqr"):
             policy = SD_LQR(
                 x_dim=env.num_dim_x,
                 action_dim=args.action_dim,
@@ -66,7 +64,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
                 SDC_func=SDC_func,
             )
 
-    elif algo_name in ("ppo", "ppo-approx"):
+    elif algo_name.startswith("ppo"):
         from policy.layers.c3m_networks import C3M_U_Gaussian
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
         from policy.ppo import PPO
@@ -99,14 +97,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             device=args.device,
         )
 
-    elif algo_name in (
-        "c3m",
-        "c3m-approx",
-        "c3mv2",
-        "c3mv2-approx",
-        "c3mv3",
-        "c3mv3-approx",
-    ):
+    elif algo_name.startswith("c3m"):
         from policy.c3m import C3M
         from policy.c3mv2 import C3Mv2
         from policy.c3mv3 import C3Mv3
@@ -131,8 +122,8 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
         C3M_class = (
             C3Mv3
-            if algo_name in ("c3mv3", "c3mv3-approx")
-            else C3Mv2 if algo_name in ("c3mv2", "c3mv2-approx") else C3M
+            if algo_name.startswith("c3mv3")
+            else C3Mv2 if algo_name.startswith("c3mv2") else C3M
         )
 
         policy = C3M_class(
@@ -152,13 +143,13 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             num_minibatch=args.num_minibatch,
             minibatch_size=args.minibatch_size,
             nupdates=args.c3m_epochs,
-            detach_grad=args.detach_grad,
             device=args.device,
         )
 
-    elif algo_name in ("cac", "cac-approx", "cacv2", "cacv2-approx"):
+    elif algo_name.startswith("cac"):
         from policy.cac import CAC
         from policy.cacv2 import CACv2
+        from policy.cacv3 import CACv3
         from policy.layers.c3m_networks import C3M_W, C3M_U_Gaussian, C3M_W_Gaussian
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 
@@ -182,7 +173,11 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        policy_class = CAC if algo_name in ("cac", "cac-approx") else CACv2
+        policy_class = (
+            CACv3
+            if algo_name.startswith("cacv3")
+            else CACv2 if algo_name.startswith("cacv2") else CAC
+        )
 
         policy = policy_class(
             x_dim=env.num_dim_x,

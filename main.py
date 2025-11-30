@@ -11,7 +11,7 @@ import uuid
 import torch
 
 import wandb
-from trainer.offline_trainer import C3MTrainer, DynamicsTrainer
+from trainer.offline_trainer import C3MTrainer
 from trainer.online_trainer import OnlineTrainer
 from utils.get_args import get_args
 from utils.get_dynamics import get_dynamics
@@ -42,14 +42,7 @@ def run(args, seed, unique_id, exp_time):
 
     policy = get_policy(env, eval_env, args, get_f_and_B, SDC_func)
 
-    if args.algo_name in (
-        "cac",
-        "cac-approx",
-        "cacv2",
-        "cacv2-approx",
-        "ppo",
-        "ppo-approx",
-    ):
+    if args.algo_name.startswith(("cac", "ppo")):
         sampler = OnlineSampler(
             state_dim=args.state_dim,
             action_dim=args.action_dim,
@@ -72,14 +65,7 @@ def run(args, seed, unique_id, exp_time):
             seed=args.seed,
         )
         trainer.train()
-    elif args.algo_name in (
-        "c3m",
-        "c3m-approx",
-        "c3mv2",
-        "c3mv2-approx",
-        "c3mv3",
-        "c3mv3-approx",
-    ):
+    elif args.algo_name.startswith("c3m"):
         trainer = C3MTrainer(
             env=env,
             eval_env=eval_env,

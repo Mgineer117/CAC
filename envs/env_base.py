@@ -76,6 +76,7 @@ class BaseEnv(gym.Env):
         # etc parameters
         self.use_learned_dynamics = False
         self.sample_mode = env_config["sample_mode"]
+        self.reward_mode = env_config["reward_mode"]
 
         # reset
         self.reset()
@@ -344,6 +345,10 @@ class BaseEnv(gym.Env):
 
         tracking_reward = -self.tracking_scaler * tracking_error
         control_reward = -self.control_scaler * control_effort
+
+        if self.reward_mode == "inverse":
+            tracking_reward = 1 / (1 + tracking_reward)
+            control_reward = 1 / (1 + control_reward)
 
         reward = (0.5 * tracking_reward) + (0.5 * control_reward)
 

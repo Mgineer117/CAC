@@ -29,7 +29,6 @@ class C3Mv2(C3M):
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         nupdates: int = 1,
-        detach_grad: bool = True,
         device: str = "cpu",
     ):
         super(C3Mv2, self).__init__(
@@ -49,13 +48,12 @@ class C3Mv2(C3M):
             num_minibatch=num_minibatch,
             minibatch_size=minibatch_size,
             nupdates=nupdates,
-            detach_grad=detach_grad,
             device=device,
         )
 
         # make lbd and nu a trainable parameter
         self.lbd = nn.Parameter(
-            torch.tensor(0.0, dtype=torch.float32, device=self.device)
+            torch.tensor(0.0, dtype=torch.float32, device=self.device) + 1e-2
         )
         self.nu = nn.Parameter(
             torch.ones(3, dtype=torch.float32, device=self.device) + 1e-2
@@ -68,11 +66,11 @@ class C3Mv2(C3M):
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
                 {"params": self.u_func.parameters(), "lr": u_lr},
-                {"params": [self.lbd], "lr": 1e-4},
+                {"params": [self.lbd], "lr": 1e-3},
             ]
         )
         self.dual_optimizer = torch.optim.Adam(
-            [{"params": [self.nu], "lr": 1e-3}, {"params": [self.zeta], "lr": 1e-3}]
+            [{"params": [self.nu], "lr": 1e-2}, {"params": [self.zeta], "lr": 1e-2}]
         )
 
         self.lr_scheduler1 = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)

@@ -1,0 +1,4 @@
+{
+    "c3m_epochs": 50000,
+    "timesteps": 5e7
+}

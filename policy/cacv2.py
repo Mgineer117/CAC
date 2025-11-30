@@ -97,7 +97,7 @@ class CACv2(CAC):
 
         # make lbd and nu a trainable parameter
         self.lbd = nn.Parameter(
-            torch.tensor(0.0, dtype=torch.float32, device=self.device)
+            torch.tensor(0.0, dtype=torch.float32, device=self.device) + 1e-2
         )
         self.nu = nn.Parameter(
             torch.ones(3, dtype=torch.float32, device=self.device) + 1e-2
@@ -113,7 +113,7 @@ class CACv2(CAC):
             ]
         )
         self.dual_optimizer = torch.optim.Adam(
-            [{"params": [self.nu], "lr": 1e-3}, {"params": [self.zeta], "lr": 1e-3}]
+            [{"params": [self.nu], "lr": 1e-2}, {"params": [self.zeta], "lr": 1e-2}]
         )
 
         self.lr_scheduler1 = LambdaLR(self.W_optimizer, lr_lambda=self.lr_lambda)

@@ -50,7 +50,7 @@ env_config = {
 
 
 class TurtlebotEnv(BaseEnv):
-    def __init__(self, sample_mode: str = "uniform"):
+    def __init__(self, sample_mode: str = "uniform", reward_mode: str = "default"):
         """
         State: tracking error between current and reference trajectory
         Reward: 1 / (The 2-norm of tracking error + 1)
@@ -61,6 +61,8 @@ class TurtlebotEnv(BaseEnv):
 
         # initialize the base environment
         env_config["sample_mode"] = sample_mode
+        env_config["reward_mode"] = reward_mode
+
         super(TurtlebotEnv, self).__init__(env_config)
 
     def _f_logic(self, x, lib):

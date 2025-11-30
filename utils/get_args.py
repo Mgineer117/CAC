@@ -55,12 +55,6 @@ def get_args():
         default=1e-3,
         help="SDC decomposition neural net learning rate.",
     )
-    parser.add_argument(
-        "--detach-grad",
-        action="store_true",
-        default=False,
-        help="Enable detach.",
-    )
 
     parser.add_argument("--W-lr", type=float, default=3e-4, help="CMG learning rate.")
     parser.add_argument(
@@ -177,7 +171,13 @@ def get_args():
         "--sample-mode",
         type=str,
         default="Real-world",
-        help="Generalized Advantage Estimation factor.",
+        help="Sampling mode for generating offline data for learning dynamics.",
+    )
+    parser.add_argument(
+        "--reward-mode",
+        type=str,
+        default="default",
+        help="Reward mode for the environment.",
     )
     parser.add_argument(
         "--entropy-scaler", type=float, default=1e-3, help="Entropy scaling factor."

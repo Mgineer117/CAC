@@ -55,7 +55,7 @@ env_config = {
 
 
 class SegwayEnv(BaseEnv):
-    def __init__(self, sample_mode: str = "uniform"):
+    def __init__(self, sample_mode: str = "uniform", reward_mode: str = "default"):
         """
         State: tracking error between current and reference trajectory
         Reward: 1 / (The 2-norm of tracking error + 1)
@@ -66,6 +66,7 @@ class SegwayEnv(BaseEnv):
 
         # initialize the base environment
         env_config["sample_mode"] = sample_mode
+        env_config["reward_mode"] = reward_mode
 
         super(SegwayEnv, self).__init__(env_config)
 

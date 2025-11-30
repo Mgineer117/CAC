@@ -3,9 +3,9 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=6
-#SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=8
+#SBATCH --gres=gpu:2
 #SBATCH --time=2-00:00:00
 #SBATCH --output=cac.o%j
 #SBATCH --mail-type=FAIL
@@ -21,12 +21,18 @@ source ~/.bashrc
 conda activate cac
 
 # === Run CACeriments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task cartpole --project Exp --algo-name ppo &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --task segway --project Exp --algo-name ppo &
+# CUDA_VISIBLE_DEVICES=0 python3 main.py --task cartpole --project Exp --algo-name ppo &
+# CUDA_VISIBLE_DEVICES=0 python3 main.py --task segway --project Exp --algo-name ppo &
+
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task car --project Exp --algo-name ppo &
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task pvtol --project Exp --algo-name ppo &
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task neurallander --project Exp --algo-name ppo &
 CUDA_VISIBLE_DEVICES=0 python3 main.py --task quadrotor --project Exp --algo-name ppo &
+
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task car --project Exp --algo-name ppo --reward-mode inverse &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task pvtol --project Exp --algo-name ppo --reward-mode inverse &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task neurallander --project Exp --algo-name ppo --reward-mode inverse &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --task quadrotor --project Exp --algo-name ppo --reward-mode inverse &
 
 # === Wait for all background jobs to finish ===
 wait

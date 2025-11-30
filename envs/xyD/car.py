@@ -46,12 +46,12 @@ env_config = {
     "time_bound": 6.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.1,  # control cost weight
+    "r": 0.01,  # control cost weight
 }
 
 
 class CarEnv(BaseEnv):
-    def __init__(self, sample_mode: str = "uniform"):
+    def __init__(self, sample_mode: str = "uniform", reward_mode: str = "default"):
         """
         State: tracking error between current and reference trajectory
         Reward: The 2-norm of tracking error
@@ -62,6 +62,7 @@ class CarEnv(BaseEnv):
 
         # initialize the base environment
         env_config["sample_mode"] = sample_mode
+        env_config["reward_mode"] = reward_mode
 
         super(CarEnv, self).__init__(env_config)
 
