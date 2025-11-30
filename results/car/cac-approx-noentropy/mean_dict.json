@@ -1,0 +1,6 @@
+{
+    "cac-approx-noentropy/inf_mean": 6.776018957396846e-05,
+    "cac-approx-noentropy/mauc_mean": 1.0759978064985067,
+    "cac-approx-noentropy/tracking_error_mean": 0.2021387982523665,
+    "cac-approx-noentropy/control_effort_mean": 0.8282307539846089
+}

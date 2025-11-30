@@ -1,0 +1,6 @@
+{
+    "cac-approx-deterministic/inf_mean": 6.792114008611171e-05,
+    "cac-approx-deterministic/mauc_mean": 1.077941811678378,
+    "cac-approx-deterministic/tracking_error_mean": 0.20293570900600338,
+    "cac-approx-deterministic/control_effort_mean": 1.5070318280842268
+}
