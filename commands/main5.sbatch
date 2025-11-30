@@ -3,9 +3,9 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=8
-#SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:2
+#SBATCH --ntasks=12
+#SBATCH --cpus-per-task=5
+#SBATCH --gres=gpu:3
 #SBATCH --time=2-00:00:00
 #SBATCH --output=cac.o%j
 #SBATCH --mail-type=FAIL
@@ -21,15 +21,20 @@ source ~/.bashrc
 conda activate cac
 
 # === Run CACeriments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task car --algo-name cacv2 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task pvtol --algo-name cacv2 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task neurallander --algo-name cacv2 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task quadrotor --algo-name cacv2 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task car --algo-name cac &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task pvtol --algo-name cac &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task neurallander --algo-name cac &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task quadrotor --algo-name cac &
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task car --algo-name cacv3 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task pvtol --algo-name cacv3 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task neurallander --algo-name cacv3 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task quadrotor --algo-name cacv3 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task car --algo-name cacv2 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task pvtol --algo-name cacv2 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task neurallander --algo-name cacv2 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task quadrotor --algo-name cacv2 &
+
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task car --algo-name cacv3 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task pvtol --algo-name cacv3 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task neurallander --algo-name cacv3 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task quadrotor --algo-name cacv3 &
 
 # === Wait for all background jobs to finish ===
 wait

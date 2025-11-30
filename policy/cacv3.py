@@ -130,6 +130,9 @@ class CACv3(CAC):
         self.to(self._dtype).to(self.device)
 
     def compute_W_loss(self):
+        #
+        I = torch.eye(self.x_dim, device=self.device)
+
         # === SAMPLE BATCH === #
         batch = dict()
         buffer_size, batch_size = self.data["x"].shape[0], 1024
@@ -143,11 +146,9 @@ class CACv3(CAC):
         xref = self.to_tensor(batch["xref"])
         uref = self.to_tensor(batch["uref"])
 
-        W, _ = self.W_func(x)  # n, x_dim, x_dim
+        raw_W, _ = self.W_func(x)  # n, x_dim, x_dim
         # Add lower-bound scaled identity to guarantee positive definiteness
-        W += self.w_lb.detach() * torch.eye(self.x_dim).to(self.device).view(
-            1, self.x_dim, self.x_dim
-        )
+        W = raw_W + self.w_lb * I
         M = inverse(W)  # n, x_dim, x_dim
 
         f, B, Bbot = self.get_f_and_B(x)
@@ -208,12 +209,10 @@ class CACv3(CAC):
             C2s.append(C2)
 
         ### DEFINE PD MATRICES ###
-        Cu = Cu + self.eps * torch.eye(Cu.shape[-1]).to(self.device)
-        C1 = C1 + self.eps * torch.eye(C1.shape[-1]).to(self.device)
+        Cu = Cu + self.eps * I
+        C1 = C1 + self.eps * I
         C2 = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
-        overshoot = W - (
-            self.w_ub.detach() * torch.eye(W.shape[-1], device=self.device)
-        ).unsqueeze(0)
+        overshoot = W - self.w_ub * I
 
         # === DEFINE LOSSES === #
         pd_loss, pd_reg = self.loss_pos_matrix_random_sampling(-Cu)
@@ -222,14 +221,12 @@ class CACv3(CAC):
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        nu = self.nu.detach()
-        zeta = self.zeta.detach()
         primal_loss = (
             (1 / self.lbd) ** 2 * (self.w_ub / self.w_lb)
-            + nu[0] * overshoot_loss
-            + nu[1] * pd_loss
-            + nu[2] * c1_loss
-            + zeta * c2_loss
+            + self.nu[0].detach() * overshoot_loss
+            + self.nu[1].detach() * pd_loss
+            + self.nu[2].detach() * c1_loss
+            + self.zeta.detach() * c2_loss
             + pd_reg
             + c1_reg
             + overshoot_reg
