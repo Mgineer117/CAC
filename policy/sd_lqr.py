@@ -20,7 +20,8 @@ class SD_LQR(Base):
         get_f_and_B: nn.Module,
         SDC_func: nn.Module,
         Q_scaler: float = 1.0,
-        R_scaler: float = 1.0,
+        R_scaler: float = 0.1,
+        gamma: float = 0.99,
         device: str = "cpu",
     ):
         super(SD_LQR, self).__init__()
@@ -43,6 +44,8 @@ class SD_LQR(Base):
 
         self.Q_scaler = Q_scaler
         self.R_scaler = R_scaler
+
+        self.gamma = gamma
 
         #
         self.dummy = torch.tensor(1e-5)

@@ -12,12 +12,12 @@ from tqdm import tqdm
 
 from log.wandb_logger import WandbLogger
 from policy.base import Base
-from trainer.base_trainer import BaseTrainer
+from trainer.evaluator import Evaluator
 from utils.sampler import OnlineSampler
 
 
 # model-free policy trainer
-class OnlineTrainer(BaseTrainer):
+class OnlineTrainer(Evaluator):
     def __init__(
         self,
         env: gym.Env,

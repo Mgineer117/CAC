@@ -55,6 +55,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
                 x_dim=env.num_dim_x,
                 action_dim=args.action_dim,
                 get_f_and_B=get_f_and_B,
+                gamma=args.gamma,
             )
         elif algo_name.startswith("sd-lqr"):
             policy = SD_LQR(
@@ -62,6 +63,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
                 action_dim=args.action_dim,
                 get_f_and_B=get_f_and_B,
                 SDC_func=SDC_func,
+                gamma=args.gamma,
             )
 
     elif algo_name.startswith("ppo"):

@@ -21,7 +21,8 @@ class LQR(Base):
         action_dim: int,
         get_f_and_B: Callable,
         Q_scaler: float = 1.0,
-        R_scaler: float = 1.0,
+        R_scaler: float = 0.1,
+        gamma: float = 0.99,
         device: str = "cpu",
     ):
         super(LQR, self).__init__()
@@ -39,6 +40,8 @@ class LQR(Base):
         self.Q_scaler = Q_scaler
         self.R_scaler = R_scaler
         self.get_f_and_B = get_f_and_B
+
+        self.gamma = gamma
 
         #
         self.dummy = torch.tensor(1e-5)

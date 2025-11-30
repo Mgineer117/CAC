@@ -305,34 +305,9 @@ class BaseEnv(gym.Env):
         """Sample reference controls based on frequencies and weights."""
         pass
 
+    @abstractmethod
     def system_reset(self):
-        """Resets the system to an initial state and generates a reference trajectory."""
-        xref_0, xe_0, x_0 = self.define_initial_state()
-
-        # Generate reference trajectory
-        freqs = list(range(1, 11))
-        weights = np.random.randn(len(freqs), len(self.UREF_MIN))
-        weights = (weights / np.sqrt((weights**2).sum(axis=0, keepdims=True))).tolist()
-
-        xref_list, uref_list = [xref_0], []
-        for i, _t in enumerate(self.t):
-            uref_t = self.sample_reference_controls(
-                freqs, weights, _t, {"xref_0": xref_0}
-            )
-            xref_t, term, trunc = self.get_transition(xref_list[-1].copy(), uref_t)
-
-            xref_list.append(xref_t)
-            uref_list.append(uref_t)
-
-            if term or trunc:
-                break
-
-        return (
-            x_0,
-            np.array(xref_list),
-            np.array(uref_list),
-            i,
-        )
+        pass
 
     def get_rewards(self, u):
         error = self.x_t - self.xref[self.time_steps]

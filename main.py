@@ -84,13 +84,14 @@ def run(args, seed, unique_id, exp_time):
         from trainer.evaluator import Evaluator
 
         evaluator = Evaluator(
+            env=env,
             eval_env=eval_env,
             policy=policy,
             logger=logger,
             writer=writer,
-            timesteps=args.timesteps,
             init_epochs=init_epochs,
-            eval_epochs=args.log_interval,
+            epochs=args.timesteps,
+            log_interval=args.log_interval,
             eval_num=args.eval_num,
             eval_episodes=args.eval_episodes,
             seed=args.seed,

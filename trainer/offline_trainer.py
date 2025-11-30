@@ -12,10 +12,10 @@ from tqdm import tqdm
 
 from log.wandb_logger import WandbLogger
 from policy.base import Base
-from trainer.base_trainer import BaseTrainer
+from trainer.evaluator import Evaluator
 
 
-class C3MTrainer(BaseTrainer):
+class C3MTrainer(Evaluator):
     def __init__(
         self,
         env: gym.Env,
@@ -127,7 +127,7 @@ class C3MTrainer(BaseTrainer):
             raise ValueError("Error: Model is not identifiable!!!")
 
 
-class DynamicsTrainer(BaseTrainer):
+class DynamicsTrainer(Evaluator):
     def __init__(
         self,
         env: gym.Env,
@@ -187,7 +187,7 @@ class DynamicsTrainer(BaseTrainer):
         )
 
 
-class SDCTrainer(BaseTrainer):
+class SDCTrainer(Evaluator):
     def __init__(
         self,
         env: gym.Env,
