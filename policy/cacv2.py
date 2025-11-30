@@ -201,8 +201,8 @@ class CACv2(CAC):
             C2s.append(C2)
 
         ### DEFINE PD MATRICES ###
-        Cu = Cu + self.eps * I
-        C1 = C1 + self.eps * I
+        Cu = Cu + self.eps * torch.eye(Cu.shape[-1], device=self.device)
+        C1 = C1 + self.eps * torch.eye(C1.shape[-1], device=self.device)
         C2 = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
         overshoot = W - self.w_ub * I
 
