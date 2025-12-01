@@ -116,8 +116,8 @@ class CACv3(CAC):
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
                 {"params": [self.lbd], "lr": 1e-3},
-                {"params": [self.w_ub], "lr": 1e-3},
-                {"params": [self.w_lb], "lr": 1e-3},
+                {"params": [self.w_ub], "lr": 1e-5},
+                {"params": [self.w_lb], "lr": 1e-5},
             ]
         )
         self.dual_optimizer = torch.optim.Adam(

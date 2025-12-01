@@ -3,9 +3,9 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=12
-#SBATCH --cpus-per-task=5
-#SBATCH --gres=gpu:3
+#SBATCH --ntasks=20
+#SBATCH --cpus-per-task=3
+#SBATCH --gres=gpu:5
 #SBATCH --time=2-00:00:00
 #SBATCH --output=cac.o%j
 #SBATCH --mail-type=FAIL
@@ -21,20 +21,30 @@ source ~/.bashrc
 conda activate cac
 
 # === Run CACeriments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task car --algo-name c3m &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task pvtol --algo-name c3m &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task neurallander --algo-name c3m &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task quadrotor --algo-name c3m &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task car --algo-name c3m --lbd 0.0 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task pvtol --algo-name c3m --lbd 0.0 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task neurallander --algo-name c3m --lbd 0.0 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --project Exp --task quadrotor --algo-name c3m --lbd 0.0 &
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task car --algo-name c3mv2 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task pvtol --algo-name c3mv2 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task neurallander --algo-name c3mv2 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task quadrotor --algo-name c3mv2 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task car --algo-name c3m  --lbd 0.25 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task pvtol --algo-name c3m --lbd 0.25 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task neurallander --algo-name c3m --lbd 0.25 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --project Exp --task quadrotor --algo-name c3m --lbd 0.25 &
 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task car --algo-name c3mv3 &
-CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task pvtol --algo-name c3mv3 &
-CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task neurallander --algo-name c3mv3 &
-CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task quadrotor --algo-name c3mv3 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task car --algo-name c3m --lbd 0.5 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task pvtol --algo-name c3m --lbd 0.5 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task neurallander --algo-name c3m --lbd 0.5 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --project Exp --task quadrotor --algo-name c3m --lbd 0.5 &
+
+CUDA_VISIBLE_DEVICES=3 python3 main.py --project Exp --task car --algo-name c3m --lbd 0.75 &
+CUDA_VISIBLE_DEVICES=3 python3 main.py --project Exp --task pvtol --algo-name c3m --lbd 0.75 &
+CUDA_VISIBLE_DEVICES=3 python3 main.py --project Exp --task neurallander --algo-name c3m --lbd 0.75 &
+CUDA_VISIBLE_DEVICES=3 python3 main.py --project Exp --task quadrotor --algo-name c3m --lbd 0.75 &
+
+CUDA_VISIBLE_DEVICES=4 python3 main.py --project Exp --task car --algo-name c3m --lbd 1.0 &
+CUDA_VISIBLE_DEVICES=4 python3 main.py --project Exp --task pvtol --algo-name c3m --lbd 1.0 &
+CUDA_VISIBLE_DEVICES=4 python3 main.py --project Exp --task neurallander --algo-name c3m --lbd 1.0 &
+CUDA_VISIBLE_DEVICES=4 python3 main.py --project Exp --task quadrotor --algo-name c3m --lbd 1.0 &
 
 # === Wait for all background jobs to finish ===
 wait
