@@ -115,9 +115,9 @@ class CACv3(CAC):
         self.W_optimizer = torch.optim.Adam(
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
-                {"params": [self.lbd], "lr": 1e-3},
-                {"params": [self.w_ub], "lr": 1e-5},
-                {"params": [self.w_lb], "lr": 1e-5},
+                {"params": [self.lbd], "lr": 1e-4},
+                {"params": [self.w_ub], "lr": 1e-4},
+                {"params": [self.w_lb], "lr": 1e-4},
             ]
         )
         self.dual_optimizer = torch.optim.Adam(
@@ -286,23 +286,25 @@ class CACv3(CAC):
         return grad_dict
 
     def learn(self, batch):
-        W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
+        loss_dict, supp_dict = {}, {}
+
+        W_update_time = 0
+        if self.num_RL_updates % 3 == 0:
+            W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
+            loss_dict.update(W_loss_dict)
+            supp_dict.update(W_supp_dict)
+
         RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
+        # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+        loss_dict.update(RL_loss_dict)
+        supp_dict.update(RL_supp_dict)
 
         self.lr_scheduler1.step()
         self.lr_scheduler2.step()
         self.lr_scheduler3.step()
 
-        loss_dict = {}
-        loss_dict.update(W_loss_dict)
-        loss_dict.update(RL_loss_dict)
-        supp_dict = {}
-        supp_dict.update(W_supp_dict)
-        supp_dict.update(RL_supp_dict)
-
         update_time = W_update_time + RL_update_time
-
-        self.num_updates += 1
+        self.num_RL_updates += 1
 
         return loss_dict, supp_dict, update_time
 
@@ -317,7 +319,7 @@ class CACv3(CAC):
 
         # === LOGGING === #
         supp_dict = {}
-        if self.num_updates % 300 == 0:
+        if self.num_W_updates % 300 == 0:
             fig = self.get_eigenvalue_plot()
             supp_dict["CAC/plot/eigenvalues"] = fig
 
@@ -329,6 +331,8 @@ class CACv3(CAC):
             f"{self.name}/loss/overshoot_loss": infos["overshoot_loss"].item(),
             f"{self.name}/loss/dual_loss": dual_loss.item(),
             f"{self.name}/analytics/lbd": self.lbd.item(),
+            f"{self.name}/analytics/w_ub": self.w_ub.item(),
+            f"{self.name}/analytics/w_lb": self.w_lb.item(),
             f"{self.name}/analytics/nu1": self.nu[0].item(),
             f"{self.name}/analytics/nu2": self.nu[1].item(),
             f"{self.name}/analytics/nu3": self.nu[2].item(),
@@ -350,5 +354,6 @@ class CACv3(CAC):
         # Cleanup
         self.eval()
         update_time = time.time() - t0
+        self.num_W_updates += 1
 
         return loss_dict, supp_dict, update_time

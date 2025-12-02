@@ -280,23 +280,24 @@ class CACv2(CAC):
         return grad_dict
 
     def learn(self, batch):
-        W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
+        loss_dict, supp_dict = {}, {}
+
+        W_update_time = 0
+        if self.num_RL_updates % 3 == 0:
+            W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
+            loss_dict.update(W_loss_dict)
+            supp_dict.update(W_supp_dict)
+
         RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
+        loss_dict.update(RL_loss_dict)
+        supp_dict.update(RL_supp_dict)
 
         self.lr_scheduler1.step()
         self.lr_scheduler2.step()
         self.lr_scheduler3.step()
 
-        loss_dict = {}
-        loss_dict.update(W_loss_dict)
-        loss_dict.update(RL_loss_dict)
-        supp_dict = {}
-        supp_dict.update(W_supp_dict)
-        supp_dict.update(RL_supp_dict)
-
         update_time = W_update_time + RL_update_time
-
-        self.num_updates += 1
+        self.num_RL_updates += 1
 
         return loss_dict, supp_dict, update_time
 
@@ -311,7 +312,7 @@ class CACv2(CAC):
 
         # === LOGGING === #
         supp_dict = {}
-        if self.num_updates % 300 == 0:
+        if self.num_W_updates % 300 == 0:
             fig = self.get_eigenvalue_plot()
             supp_dict["CAC/plot/eigenvalues"] = fig
 
@@ -344,5 +345,6 @@ class CACv2(CAC):
         # Cleanup
         self.eval()
         update_time = time.time() - t0
+        self.num_W_updates += 1
 
         return loss_dict, supp_dict, update_time

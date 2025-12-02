@@ -250,7 +250,7 @@ class C3Mv2(C3M):
 
         # === LOGGING === #
         supp_dict = {}
-        if self.num_updates % 300 == 0:
+        if self.num_updates % 500 == 0:
             fig = self.get_eigenvalue_plot()
             supp_dict["C3M/plot/eigenvalues"] = fig
 

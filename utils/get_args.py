@@ -56,9 +56,9 @@ def get_args():
         help="SDC decomposition neural net learning rate.",
     )
 
-    parser.add_argument("--W-lr", type=float, default=3e-4, help="CMG learning rate.")
+    parser.add_argument("--W-lr", type=float, default=1e-3, help="CMG learning rate.")
     parser.add_argument(
-        "--u-lr", type=float, default=3e-4, help="C3M actor learning rate."
+        "--u-lr", type=float, default=1e-3, help="C3M actor learning rate."
     )
     parser.add_argument(
         "--w-ub", type=float, default=10.0, help="Contraction metric upper bound."
@@ -158,7 +158,7 @@ def get_args():
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=1e-2,
+        default=0.003,
         help="PPO Target KL divergence.",
     )
     parser.add_argument(

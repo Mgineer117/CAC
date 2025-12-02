@@ -98,7 +98,8 @@ class CAC(Base):
             self.get_f_and_B.eval()
 
         self.nupdates = nupdates
-        self.num_updates = 0
+        self.num_W_updates = 0
+        self.num_RL_updates = 0
 
         # trainable networks
         self.W_func = W_func
@@ -271,21 +272,25 @@ class CAC(Base):
         return grad_dict
 
     def learn(self, batch):
-        W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
+        loss_dict, supp_dict = {}, {}
+
+        # Implement the freeze-and-learn scheme here
+        W_update_time = 0
+        if self.num_RL_updates % 3 == 0:
+            W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
+            loss_dict.update(W_loss_dict)
+            supp_dict.update(W_supp_dict)
+
         RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
         # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+        loss_dict.update(RL_loss_dict)
+        supp_dict.update(RL_supp_dict)
 
         self.lr_scheduler1.step()
         self.lr_scheduler2.step()
 
-        loss_dict = {}
-        loss_dict.update(W_loss_dict)
-        loss_dict.update(RL_loss_dict)
-        supp_dict = {}
-        supp_dict.update(W_supp_dict)
-        supp_dict.update(RL_supp_dict)
-
         update_time = W_update_time + RL_update_time
+        self.num_RL_updates += 1
 
         return loss_dict, supp_dict, update_time
 
@@ -300,7 +305,7 @@ class CAC(Base):
 
         # === LOGGING === #
         supp_dict = {}
-        if self.num_updates % 300 == 0:
+        if self.num_W_updates % 300 == 0:
             fig = self.get_eigenvalue_plot()
             supp_dict["CAC/plot/eigenvalues"] = fig
 
@@ -325,7 +330,7 @@ class CAC(Base):
         # Cleanup
         self.eval()
         update_time = time.time() - t0
-        self.num_updates += 1
+        self.num_W_updates += 1
 
         return loss_dict, supp_dict, update_time
 
@@ -471,34 +476,33 @@ class CAC(Base):
             )
 
         # === CRITIC UPDATE === #
-        critic_iteration = 5
-        batch_size = states.size(0) // critic_iteration
+        batch_size = states.size(0) // self.num_minibatch
         grad_dict_list = []
-        for _ in range(critic_iteration):
-            indices = torch.randperm(states.size(0))[:batch_size]
-            mb_states = states[indices]
-            mb_returns = returns[indices]
+        for _ in range(self.K):
+            for _ in range(self.num_minibatch):
+                indices = torch.randperm(states.size(0))[:batch_size]
+                mb_states, mb_returns = states[indices], returns[indices]
 
-            value_loss = self.critic_loss(mb_states, mb_returns)
+                value_loss = self.critic_loss(mb_states, mb_returns)
 
-            self.RL_optimizer.zero_grad()
-            value_loss.backward()
-            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
-            grad_dict = self.compute_gradient_norm(
-                [self.critic],
-                ["critic"],
-                dir=f"{self.name}",
-                device=self.device,
-            )
-            grad_dict_list.append(grad_dict)
-            self.RL_optimizer.step()
+                self.RL_optimizer.zero_grad()
+                value_loss.backward()
+                nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
+                grad_dict = self.compute_gradient_norm(
+                    [self.critic],
+                    ["critic"],
+                    dir=f"{self.name}",
+                    device=self.device,
+                )
+                grad_dict_list.append(grad_dict)
+                self.RL_optimizer.step()
         grad_dict = self.average_dict_values(grad_dict_list)
 
         # === ACTOR UPDATE === #
         actor_loss, entropy_loss, _, _ = self.actor_loss(
             states, actions, old_logprobs, advantages
         )
-        loss = actor_loss + entropy_loss
+        loss = actor_loss  # + entropy_loss
         actor_gradients = torch.autograd.grad(loss, self.actor.parameters())
         grad_flat = torch.cat([g.view(-1) for g in actor_gradients]).detach()
 
