@@ -377,7 +377,9 @@ class CACv3(CAC):
             f"{self.name}/analytics/nu3": self.nu[2].item(),
             f"{self.name}/analytics/zeta": self.zeta.item(),
             f"{self.name}/lr/W_lr": self.lr_scheduler1.get_last_lr()[0],
-            f"{self.name}/lr/lbd_lr": self.lr_scheduler1.get_last_lr()[1],
+            f"{self.name}/lr/lbd_lr": self.lr_scheduler2.get_last_lr()[0],
+            f"{self.name}/lr/w_ub_lr": self.lr_scheduler2.get_last_lr()[1],
+            f"{self.name}/lr/w_lb_lr": self.lr_scheduler2.get_last_lr()[2],
             f"{self.name}/lr/nu_lr": self.lr_scheduler3.get_last_lr()[0],
             f"{self.name}/lr/zeta_lr": self.lr_scheduler3.get_last_lr()[1],
         }

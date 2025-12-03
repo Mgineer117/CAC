@@ -316,11 +316,11 @@ class C3Mv3(C3M):
             f"{self.name}/analytics/zeta": self.zeta.item(),
             f"{self.name}/lr/W_lr": self.lr_scheduler1.get_last_lr()[0],
             f"{self.name}/lr/u_lr": self.lr_scheduler1.get_last_lr()[1],
-            f"{self.name}/lr/lbd_lr": self.lr_scheduler1.get_last_lr()[2],
-            f"{self.name}/lr/w_ub_lr": self.lr_scheduler1.get_last_lr()[3],
-            f"{self.name}/lr/w_lb_lr": self.lr_scheduler1.get_last_lr()[4],
-            f"{self.name}/lr/nu_lr": self.lr_scheduler2.get_last_lr()[0],
-            f"{self.name}/lr/zeta_lr": self.lr_scheduler2.get_last_lr()[1],
+            f"{self.name}/lr/lbd_lr": self.lr_scheduler2.get_last_lr()[0],
+            f"{self.name}/lr/w_ub_lr": self.lr_scheduler2.get_last_lr()[1],
+            f"{self.name}/lr/w_lb_lr": self.lr_scheduler2.get_last_lr()[2],
+            f"{self.name}/lr/nu_lr": self.lr_scheduler3.get_last_lr()[0],
+            f"{self.name}/lr/zeta_lr": self.lr_scheduler3.get_last_lr()[1],
         }
         norm_dict = self.compute_weight_norm(
             [self.W_func, self.u_func],
