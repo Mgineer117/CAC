@@ -113,8 +113,12 @@ class CACv3(CAC):
             [{"params": [self.nu], "lr": 1e-2}, {"params": [self.zeta], "lr": 1e-2}]
         )
 
-        self.lr_scheduler1 = LambdaLR(self.W_optimizer, lr_lambda=self.lr_lambda)
-        self.lr_scheduler3 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler1 = LambdaLR(
+            self.W_optimizer, lr_lambda=self.timestep_lr_lambda
+        )
+        self.lr_scheduler3 = LambdaLR(
+            self.dual_optimizer, lr_lambda=self.timestep_lr_lambda
+        )
 
         self.to(self._dtype).to(self.device)
 
@@ -251,30 +255,38 @@ class CACv3(CAC):
             device=self.device,
         )
         self.W_optimizer.step()
+        self.lr_scheduler1.step()
 
-        self.dual_optimizer.zero_grad()
-        dual_loss.backward()
-        torch.nn.utils.clip_grad_norm_(
-            self.dual_optimizer.param_groups[0]["params"], max_norm=10.0
-        )
-        grad_dict.update(
-            self.compute_gradient_norm(
-                [self.nu, self.zeta],
-                ["nu", "zeta"],
-                dir=f"{self.name}",
-                device=self.device,
+        if self.progress >= 0.1:
+            self.dual_optimizer.zero_grad()
+            dual_loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                self.dual_optimizer.param_groups[0]["params"], max_norm=10.0
             )
-        )
-        self.dual_optimizer.step()
+            grad_dict.update(
+                self.compute_gradient_norm(
+                    [self.nu, self.zeta],
+                    ["nu", "zeta"],
+                    dir=f"{self.name}",
+                    device=self.device,
+                )
+            )
+            self.dual_optimizer.step()
+            self.lr_scheduler3.step()
 
-        # ensure the primal and dual feasibility
-        with torch.no_grad():
-            self.lbd.clamp_(min=1e-6, max=1e6)
-            self.nu.clamp_(min=0.0, max=1e6)
+            # ensure the primal and dual feasibility
+            with torch.no_grad():
+                self.lbd.clamp_(min=1e-6, max=1e6)
+                self.nu.clamp_(min=0.0, max=1e6)
+
+                self.w_lb.clamp_(min=1e-3, max=90.0)
+                self.w_ub.clamp_(min=self.w_lb.detach(), max=100.0)
 
         return grad_dict
 
-    def learn(self, batch):
+    def learn(self, batch: dict, progress: float):
+        self.progress = progress
+
         loss_dict, supp_dict = {}, {}
 
         W_update_time = 0
@@ -285,13 +297,10 @@ class CACv3(CAC):
 
         RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
         # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+        # self.lr_scheduler2.step()
 
         loss_dict.update(RL_loss_dict)
         supp_dict.update(RL_supp_dict)
-
-        self.lr_scheduler1.step()
-        self.lr_scheduler2.step()
-        self.lr_scheduler3.step()
 
         update_time = W_update_time + RL_update_time
         self.num_RL_updates += 1

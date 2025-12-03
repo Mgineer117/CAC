@@ -119,13 +119,24 @@ class CAC(Base):
             ]
         )
 
-        self.lr_scheduler1 = LambdaLR(self.W_optimizer, lr_lambda=self.lr_lambda)
-        self.lr_scheduler2 = LambdaLR(self.RL_optimizer, lr_lambda=self.lr_lambda)
+        self.progress = 0.0
+        self.lr_scheduler1 = LambdaLR(
+            self.W_optimizer, lr_lambda=self.timestep_lr_lambda
+        )
+        self.lr_scheduler2 = LambdaLR(
+            self.RL_optimizer, lr_lambda=self.timestep_lr_lambda
+        )
 
         self.to(self._dtype).to(self.device)
 
-    def lr_lambda(self, step):
-        return max(0, 1.0 - float(step) / float(self.nupdates))
+    def timestep_lr_lambda(self, _):
+        """
+        Calculates LR multiplier based on total environment steps taken.
+        Ignores the internal scheduler 'step' counter (_).
+        """
+        # Linear decay: 1.0 -> 0.0
+        # Use max(0.0, ...) to prevent negative LR if we train longer than expected
+        return max(0.0, 1.0 - self.progress)
 
     def to_device(self, device):
         self.device = device
@@ -271,7 +282,9 @@ class CAC(Base):
 
         return grad_dict
 
-    def learn(self, batch):
+    def learn(self, batch: dict, progress: float):
+        self.progress = progress
+
         loss_dict, supp_dict = {}, {}
 
         # Implement the freeze-and-learn scheme here
@@ -288,7 +301,7 @@ class CAC(Base):
         supp_dict.update(RL_supp_dict)
 
         self.lr_scheduler1.step()
-        self.lr_scheduler2.step()
+        # self.lr_scheduler2.step()
 
         update_time = W_update_time + RL_update_time
         self.num_RL_updates += 1
@@ -503,7 +516,7 @@ class CAC(Base):
         actor_loss, entropy_loss, _, _ = self.actor_loss(
             states, actions, old_logprobs, advantages
         )
-        loss = actor_loss  # + entropy_loss
+        loss = actor_loss + entropy_loss
         actor_gradients = torch.autograd.grad(loss, self.actor.parameters())
         grad_flat = torch.cat([g.view(-1) for g in actor_gradients]).detach()
 

@@ -218,33 +218,32 @@ class C3Mv3(C3M):
             device=self.device,
         )
         self.optimizer.step()
-
-        self.dual_optimizer.zero_grad()
-        dual_loss.backward()
-        torch.nn.utils.clip_grad_norm_(
-            self.dual_optimizer.param_groups[0]["params"], max_norm=10.0
-        )
-        grad_dict.update(
-            self.compute_gradient_norm(
-                [self.nu, self.zeta],
-                ["nu", "zeta"],
-                dir=f"{self.name}",
-                device=self.device,
-            )
-        )
-        self.dual_optimizer.step()
-
-        # lr scheduling
         self.lr_scheduler1.step()
-        self.lr_scheduler2.step()
 
-        # ensure the primal and dual feasibility
-        with torch.no_grad():
-            self.lbd.clamp_(min=1e-3, max=1e6)
-            self.nu.clamp_(min=0.0, max=1e6)
+        if (self.num_updates / self.nupdates) >= 0.1:
+            self.dual_optimizer.zero_grad()
+            dual_loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                self.dual_optimizer.param_groups[0]["params"], max_norm=10.0
+            )
+            grad_dict.update(
+                self.compute_gradient_norm(
+                    [self.nu, self.zeta],
+                    ["nu", "zeta"],
+                    dir=f"{self.name}",
+                    device=self.device,
+                )
+            )
+            self.dual_optimizer.step()
+            self.lr_scheduler2.step()
 
-            self.w_lb.clamp_(min=1e-3, max=90.0)
-            self.w_ub.clamp_(min=self.w_lb.detach(), max=100.0)
+            # ensure the primal and dual feasibility
+            with torch.no_grad():
+                self.lbd.clamp_(min=1e-3, max=1e6)
+                self.nu.clamp_(min=0.0, max=1e6)
+
+                self.w_lb.clamp_(min=1e-3, max=90.0)
+                self.w_ub.clamp_(min=self.w_lb.detach(), max=100.0)
 
         return grad_dict
 

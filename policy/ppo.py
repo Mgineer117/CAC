@@ -70,13 +70,23 @@ class PPO(Base):
                 {"params": self.critic.parameters(), "lr": critic_lr},
             ]
         )
-        self.ppo_lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
+
+        self.progress = 0.0
+        self.ppo_lr_scheduler = LambdaLR(
+            self.optimizer, lr_lambda=self.timestep_lr_lambda
+        )
 
         #
         self.to(self._dtype).to(self.device)
 
-    def lr_lambda(self, step):
-        return max(0, 1.0 - float(step) / float(self.nupdates))
+    def timestep_lr_lambda(self, _):
+        """
+        Calculates LR multiplier based on total environment steps taken.
+        Ignores the internal scheduler 'step' counter (_).
+        """
+        # Linear decay: 1.0 -> 0.0
+        # Use max(0.0, ...) to prevent negative LR if we train longer than expected
+        return max(0.0, 1.0 - self.progress)
 
     def to_device(self, device):
         self.device = device
@@ -96,10 +106,12 @@ class PPO(Base):
             "entropy": metaData["entropy"],
         }
 
-    def learn(self, batch):
+    def learn(self, batch: dict, progress: float):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
+
+        self.progress = progress
 
         # Ingredients: Convert batch data to tensors
         def to_tensor(data):

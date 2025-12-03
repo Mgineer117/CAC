@@ -69,7 +69,9 @@ class OnlineTrainer(Evaluator):
                     env=self.env, policy=self.policy, seed=self.seed
                 )
 
-                loss_dict, supp_dict, update_time = self.policy.learn(batch)
+                loss_dict, supp_dict, update_time = self.policy.learn(
+                    batch, progress=step / (self.epochs + self.init_epochs)
+                )
 
                 # Calculate expected remaining time
                 pbar.update(batch["rewards"].shape[0])
