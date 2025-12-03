@@ -76,7 +76,7 @@ class PPO(Base):
         self.to(self._dtype).to(self.device)
 
     def lr_lambda(self, step):
-        return 1.0 - float(step) / float(self.nupdates)
+        return max(0, 1.0 - float(step) / float(self.nupdates))
 
     def to_device(self, device):
         self.device = device

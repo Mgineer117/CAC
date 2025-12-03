@@ -6,21 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import inverse, matmul, transpose
-from torch.linalg import matrix_norm
 from torch.optim.lr_scheduler import LambdaLR
 
-from policy.base import Base
 from policy.cac import CAC
-from utils.functions import (
-    compute_kl,
-    conjugate_gradients,
-    estimate_advantages,
-    flat_params,
-    hessian_vector_product,
-    set_flat_params,
-)
 
 
 class CACv3(CAC):
@@ -115,7 +104,7 @@ class CACv3(CAC):
         self.W_optimizer = torch.optim.Adam(
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
-                {"params": [self.lbd], "lr": 1e-4},
+                {"params": [self.lbd], "lr": W_lr},
                 {"params": [self.w_ub], "lr": 1e-4},
                 {"params": [self.w_lb], "lr": 1e-4},
             ]
@@ -296,6 +285,7 @@ class CACv3(CAC):
 
         RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
         # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+
         loss_dict.update(RL_loss_dict)
         supp_dict.update(RL_supp_dict)
 

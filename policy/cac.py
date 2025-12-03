@@ -125,7 +125,7 @@ class CAC(Base):
         self.to(self._dtype).to(self.device)
 
     def lr_lambda(self, step):
-        return 1.0 - float(step) / float(self.nupdates)
+        return max(0, 1.0 - float(step) / float(self.nupdates))
 
     def to_device(self, device):
         self.device = device
@@ -283,6 +283,7 @@ class CAC(Base):
 
         RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
         # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+
         loss_dict.update(RL_loss_dict)
         supp_dict.update(RL_supp_dict)
 
