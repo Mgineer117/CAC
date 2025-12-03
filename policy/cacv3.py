@@ -104,6 +104,10 @@ class CACv3(CAC):
         self.W_optimizer = torch.optim.Adam(
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
+            ]
+        )
+        self.primal_optimizer = torch.optim.Adam(
+            [
                 {"params": [self.lbd], "lr": W_lr},
                 {"params": [self.w_ub], "lr": 1e-4},
                 {"params": [self.w_lb], "lr": 1e-4},
@@ -115,6 +119,9 @@ class CACv3(CAC):
 
         self.lr_scheduler1 = LambdaLR(
             self.W_optimizer, lr_lambda=self.timestep_lr_lambda
+        )
+        self.lr_scheduler2 = LambdaLR(
+            self.primal_optimizer, lr_lambda=self.timestep_lr_lambda
         )
         self.lr_scheduler3 = LambdaLR(
             self.dual_optimizer, lr_lambda=self.timestep_lr_lambda
@@ -214,9 +221,8 @@ class CACv3(CAC):
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        primal_loss = (
-            (1 / self.lbd) ** 2 * (self.w_ub / self.w_lb)
-            + self.nu[0].detach() * overshoot_loss
+        W_loss = (
+            self.nu[0].detach() * overshoot_loss
             + self.nu[1].detach() * pd_loss
             + self.nu[2].detach() * c1_loss
             + self.zeta.detach() * c2_loss
@@ -224,6 +230,8 @@ class CACv3(CAC):
             + c1_reg
             + overshoot_reg
         )
+
+        primal_loss = (1 / self.lbd) ** 2 * (self.w_ub / self.w_lb)
 
         dual_loss = -(
             self.nu[0] * overshoot_loss.detach()
@@ -233,6 +241,7 @@ class CACv3(CAC):
         )
 
         return (
+            W_loss,
             primal_loss,
             dual_loss,
             {
@@ -243,25 +252,56 @@ class CACv3(CAC):
             },
         )
 
-    def optimize_W_params(self, primal_loss: torch.Tensor, dual_loss: torch.Tensor):
+    def optimize_W_params(
+        self, W_loss: torch.Tensor, primal_loss: torch.Tensor, dual_loss: torch.Tensor
+    ):
         # === OPTIMIZATION STEP === #
         self.W_optimizer.zero_grad()
-        primal_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
+        W_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            [p for group in self.W_optimizer.param_groups for p in group["params"]],
+            max_norm=10.0,
+        )
         grad_dict = self.compute_gradient_norm(
-            [self.W_func, self.lbd],
-            ["W_func", "lbd"],
-            dir="CAC",
+            [self.W_func],
+            ["W_func"],
+            dir=f"{self.name}",
             device=self.device,
         )
         self.W_optimizer.step()
         self.lr_scheduler1.step()
 
         if self.progress >= 0.1:
+            self.primal_optimizer.zero_grad()
+            primal_loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                [
+                    p
+                    for group in self.primal_optimizer.param_groups
+                    for p in group["params"]
+                ],
+                max_norm=10.0,
+            )
+            grad_dict.update(
+                self.compute_gradient_norm(
+                    [self.lbd, self.w_ub, self.w_lb],
+                    ["lbd", "w_ub", "w_lb"],
+                    dir=f"{self.name}",
+                    device=self.device,
+                )
+            )
+            self.primal_optimizer.step()
+            self.lr_scheduler2.step()
+
             self.dual_optimizer.zero_grad()
             dual_loss.backward()
             torch.nn.utils.clip_grad_norm_(
-                self.dual_optimizer.param_groups[0]["params"], max_norm=10.0
+                [
+                    p
+                    for group in self.dual_optimizer.param_groups
+                    for p in group["params"]
+                ],
+                max_norm=10.0,
             )
             grad_dict.update(
                 self.compute_gradient_norm(
@@ -313,8 +353,8 @@ class CACv3(CAC):
         t0 = time.time()
 
         # === PERFORM OPTIMIZATION STEP === #
-        primal_loss, dual_loss, infos = self.compute_W_loss()
-        grad_dict = self.optimize_W_params(primal_loss, dual_loss)
+        W_loss, primal_loss, dual_loss, infos = self.compute_W_loss()
+        grad_dict = self.optimize_W_params(W_loss, primal_loss, dual_loss)
 
         # === LOGGING === #
         supp_dict = {}
