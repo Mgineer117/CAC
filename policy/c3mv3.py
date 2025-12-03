@@ -72,9 +72,9 @@ class C3Mv3(C3M):
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
                 {"params": self.u_func.parameters(), "lr": u_lr},
-                {"params": [self.lbd], "lr": 1e-4},
-                {"params": [self.w_ub], "lr": 1e-5},
-                {"params": [self.w_lb], "lr": 1e-5},
+                {"params": [self.lbd], "lr": W_lr},
+                {"params": [self.w_ub], "lr": 1e-4},
+                {"params": [self.w_lb], "lr": 1e-4},
             ]
         )
         self.dual_optimizer = torch.optim.Adam(
