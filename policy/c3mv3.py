@@ -141,7 +141,7 @@ class C3Mv3(C3M):
         ABK = A + matmul(B, K)
         MABK = matmul(M, ABK)
         sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        Cu = dot_M + sym_MABK + 2 * self.lbd * M.detach()
+        Cu = dot_M + 2 * sym_MABK + 2 * self.lbd * M.detach()
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -149,7 +149,7 @@ class C3Mv3(C3M):
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
-        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W.detach()
+        C1_inner = -DfW + 2 * sym_DfDxW + 2 * self.lbd * W.detach()
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
 
         C2_inners = []
@@ -158,7 +158,7 @@ class C3Mv3(C3M):
             DbW = self.weighted_gradients(W, B[:, :, j], x)
             DbDxW = matmul(DBDx[:, :, :, j], W)
             sym_DbDxW = DbDxW + transpose(DbDxW, 1, 2)
-            C2_inner = DbW - sym_DbDxW
+            C2_inner = DbW - 2 * sym_DbDxW
             C2 = matmul(matmul(transpose(Bbot, 1, 2), C2_inner), Bbot)
 
             C2_inners.append(C2_inner)
