@@ -153,7 +153,6 @@ class C3M(Base):
         DfW = self.weighted_gradients(W, f, x)
         DfDxW = matmul(DfDx, W)
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
-
         # this has to be a negative definite matrix
         C1_inner = -DfW + 2 * sym_DfDxW + 2 * self.lbd * W.detach()
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
@@ -163,7 +162,7 @@ class C3M(Base):
         for j in range(self.action_dim):
             DbW = self.weighted_gradients(W, B[:, :, j], x)
             DbDxW = matmul(DBDx[:, :, :, j], W)
-            sym_DbDxW = DbDxW + transpose(DbDxW, 1, 2)
+            sym_DbDxW = 0.5 * (DbDxW + transpose(DbDxW, 1, 2))
             C2_inner = DbW - 2 * sym_DbDxW
             C2 = matmul(matmul(transpose(Bbot, 1, 2), C2_inner), Bbot)
 
