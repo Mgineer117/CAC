@@ -237,12 +237,12 @@ class CAC(Base):
             ABK = A + matmul(B, K)
             MABK = matmul(M.detach(), ABK)
             sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-            C_u = dot_M + sym_MABK + 2 * self.lbd * M.detach()
+            C_u = dot_M + 2 * sym_MABK + 2 * self.lbd * M.detach()
         else:
             ABK = A + matmul(B, K)
             MABK = matmul(M, ABK)
             sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-            C_u = dot_M + sym_MABK + 2 * self.lbd * M
+            C_u = dot_M + 2 * sym_MABK + 2 * self.lbd * M
 
         # C1
         DfW = self.weighted_gradients(W, f, x)
@@ -250,7 +250,7 @@ class CAC(Base):
         sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
 
         # this has to be a negative definite matrix
-        C1_inner = -DfW + sym_DfDxW + 2 * self.lbd * W
+        C1_inner = -DfW + 2 * sym_DfDxW + 2 * self.lbd * W
         C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
 
         C2_inners = []
