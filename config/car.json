@@ -1,4 +1,4 @@
 {
-    "c3m_epochs": 50000,
-    "timesteps": 5e7
+    "c3m_epochs": 100000,
+    "timesteps": 1e8
 }
