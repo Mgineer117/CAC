@@ -14,8 +14,8 @@ g = 9.81
 mass = 1.47
 
 # X bounds
-X_MIN = np.array([-10.0, -10.0, 0.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
-X_MAX = np.array([10.0, 10.0, 3.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
+X_MIN = np.array([-20.0, -20.0, 0.0, -1.0, -1.0, -1.0]).reshape(-1, 1)
+X_MAX = np.array([20.0, 20.0, 5.0, 1.0, 1.0, 1.0]).reshape(-1, 1)
 
 # Initial reference state bounds
 XREF_INIT_MIN = np.array([-3.0, -3.0, 0.5, 1.0, 0.0, 0.0])
@@ -220,6 +220,8 @@ class NeuralLanderEnv(BaseEnv):
 
             if term or trunc:
                 break
+
+        print(f"Generated reference trajectory with {i} steps.")
 
         return (
             x_0,

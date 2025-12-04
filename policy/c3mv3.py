@@ -68,14 +68,10 @@ class C3Mv3(C3M):
             torch.ones(1, dtype=torch.float32, device=self.device) + 1e-2
         )
 
-        self.optimizer = torch.optim.Adam(
+        self.primal_optimizer = torch.optim.Adam(
             [
                 {"params": self.W_func.parameters(), "lr": W_lr},
                 {"params": self.u_func.parameters(), "lr": u_lr},
-            ]
-        )
-        self.primal_optimizer = torch.optim.Adam(
-            [
                 {"params": [self.lbd], "lr": W_lr},
                 {"params": [self.w_ub], "lr": 1e-4},
                 {"params": [self.w_lb], "lr": 1e-4},
@@ -85,9 +81,8 @@ class C3Mv3(C3M):
             [{"params": [self.nu], "lr": 1e-2}, {"params": [self.zeta], "lr": 1e-2}]
         )
 
-        self.lr_scheduler1 = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
-        self.lr_scheduler2 = LambdaLR(self.primal_optimizer, lr_lambda=self.lr_lambda)
-        self.lr_scheduler3 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler1 = LambdaLR(self.primal_optimizer, lr_lambda=self.lr_lambda)
+        self.lr_scheduler2 = LambdaLR(self.dual_optimizer, lr_lambda=self.lr_lambda)
 
         #
         self.num_updates = 0
@@ -182,8 +177,9 @@ class C3Mv3(C3M):
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, W)
 
-        W_loss = (
-            self.nu[0].detach() * overshoot_loss
+        primal_loss = (
+            (1 / self.lbd) ** 2 * (self.w_ub / self.w_lb)
+            + self.nu[0].detach() * overshoot_loss
             + self.nu[1].detach() * pd_loss
             + self.nu[2].detach() * c1_loss
             + self.zeta.detach() * c2_loss
@@ -191,8 +187,6 @@ class C3Mv3(C3M):
             + c1_reg
             + overshoot_reg
         )
-
-        primal_loss = (1 / self.lbd) ** 2 * (self.w_ub / self.w_lb)
 
         dual_loss = -(
             self.nu[0] * overshoot_loss.detach()
@@ -202,7 +196,6 @@ class C3Mv3(C3M):
         )
 
         return (
-            W_loss,
             primal_loss,
             dual_loss,
             {
@@ -213,49 +206,57 @@ class C3Mv3(C3M):
             },
         )
 
-    def optimize_params(
-        self, W_loss: torch.Tensor, primal_loss: torch.Tensor, dual_loss: torch.Tensor
-    ):
-        # === OPTIMIZATION STEP === #
-        self.optimizer.zero_grad()
-        W_loss.backward()
+    def optimize_params(self, primal_loss: torch.Tensor, dual_loss: torch.Tensor):
+        grad_dict = {}
+        # Define progress threshold (using 0.1 based on your snippet, or 1.0 if strictly intended)
+        warmup_complete = (self.num_updates / self.nupdates) >= 0.1
+
+        # ==========================================
+        # 1. PRIMAL UPDATE (W_func, u_func, lbd, w_lb, w_ub)
+        # ==========================================
+        self.primal_optimizer.zero_grad()
+        primal_loss.backward()
+
+        # If in warmup phase, prevent updates to lbd, w_lb, and w_ub
+        # by nullifying their gradients before the optimizer step.
+        if not warmup_complete:
+            if self.lbd.grad is not None:
+                self.lbd.grad = None
+            if self.w_lb.grad is not None:
+                self.w_lb.grad = None
+            if self.w_ub.grad is not None:
+                self.w_ub.grad = None
+
         torch.nn.utils.clip_grad_norm_(
-            [p for group in self.optimizer.param_groups for p in group["params"]],
+            [
+                p
+                for group in self.primal_optimizer.param_groups
+                for p in group["params"]
+            ],
             max_norm=10.0,
         )
-        grad_dict = self.compute_gradient_norm(
-            [self.W_func, self.u_func],
-            ["W_func", "u_func"],
-            dir=f"{self.name}",
-            device=self.device,
+
+        # Log primal gradients
+        grad_dict.update(
+            self.compute_gradient_norm(
+                [self.W_func, self.u_func, self.lbd, self.w_ub, self.w_lb],
+                ["W_func", "u_func", "lbd", "w_ub", "w_lb"],
+                dir=f"{self.name}",
+                device=self.device,
+            )
         )
-        self.optimizer.step()
+
+        self.primal_optimizer.step()
         self.lr_scheduler1.step()
 
-        if (self.num_updates / self.nupdates) >= 0.1:
-            self.primal_optimizer.zero_grad()
-            primal_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                [
-                    p
-                    for group in self.primal_optimizer.param_groups
-                    for p in group["params"]
-                ],
-                max_norm=10.0,
-            )
-            grad_dict.update(
-                self.compute_gradient_norm(
-                    [self.lbd, self.w_ub, self.w_lb],
-                    ["lbd", "w_ub", "w_lb"],
-                    dir=f"{self.name}",
-                    device=self.device,
-                )
-            )
-            self.primal_optimizer.step()
-            self.lr_scheduler2.step()
-
+        # ==========================================
+        # 2. DUAL UPDATE (nu, zeta)
+        # ==========================================
+        # Only update Dual variables if warmup is complete
+        if warmup_complete:
             self.dual_optimizer.zero_grad()
             dual_loss.backward()
+
             torch.nn.utils.clip_grad_norm_(
                 [
                     p
@@ -264,6 +265,7 @@ class C3Mv3(C3M):
                 ],
                 max_norm=10.0,
             )
+
             grad_dict.update(
                 self.compute_gradient_norm(
                     [self.nu, self.zeta],
@@ -272,14 +274,18 @@ class C3Mv3(C3M):
                     device=self.device,
                 )
             )
-            self.dual_optimizer.step()
-            self.lr_scheduler3.step()
 
-            # ensure the primal and dual feasibility
-            with torch.no_grad():
+            self.dual_optimizer.step()
+            self.lr_scheduler2.step()
+
+        # ==========================================
+        # 3. FEASIBILITY CLAMPING
+        # ==========================================
+        with torch.no_grad():
+            # Only clamp these if we are actually updating them
+            if warmup_complete:
                 self.lbd.clamp_(min=1e-3, max=1e6)
                 self.nu.clamp_(min=0.0, max=1e6)
-
                 self.w_lb.clamp_(min=1e-3, max=90.0)
                 self.w_ub.clamp_(min=self.w_lb.detach(), max=100.0)
 
@@ -291,8 +297,8 @@ class C3Mv3(C3M):
         t0 = time.time()
 
         # === PERFORM OPTIMIZATION STEP === #
-        W_loss, primal_loss, dual_loss, infos = self.compute_loss()
-        grad_dict = self.optimize_params(W_loss, primal_loss, dual_loss)
+        primal_loss, dual_loss, infos = self.compute_loss()
+        grad_dict = self.optimize_params(primal_loss, dual_loss)
 
         # === LOGGING === #
         supp_dict = {}
@@ -316,11 +322,11 @@ class C3Mv3(C3M):
             f"{self.name}/analytics/zeta": self.zeta.item(),
             f"{self.name}/lr/W_lr": self.lr_scheduler1.get_last_lr()[0],
             f"{self.name}/lr/u_lr": self.lr_scheduler1.get_last_lr()[1],
-            f"{self.name}/lr/lbd_lr": self.lr_scheduler2.get_last_lr()[0],
-            f"{self.name}/lr/w_ub_lr": self.lr_scheduler2.get_last_lr()[1],
-            f"{self.name}/lr/w_lb_lr": self.lr_scheduler2.get_last_lr()[2],
-            f"{self.name}/lr/nu_lr": self.lr_scheduler3.get_last_lr()[0],
-            f"{self.name}/lr/zeta_lr": self.lr_scheduler3.get_last_lr()[1],
+            f"{self.name}/lr/lbd_lr": self.lr_scheduler1.get_last_lr()[2],
+            f"{self.name}/lr/w_ub_lr": self.lr_scheduler1.get_last_lr()[3],
+            f"{self.name}/lr/w_lb_lr": self.lr_scheduler1.get_last_lr()[4],
+            f"{self.name}/lr/nu_lr": self.lr_scheduler2.get_last_lr()[0],
+            f"{self.name}/lr/zeta_lr": self.lr_scheduler2.get_last_lr()[1],
         }
         norm_dict = self.compute_weight_norm(
             [self.W_func, self.u_func],
