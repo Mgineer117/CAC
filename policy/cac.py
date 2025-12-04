@@ -258,8 +258,8 @@ class CAC(Base):
         for j in range(self.action_dim):
             DbW = self.weighted_gradients(W, B[:, :, j], x)
             DbDxW = matmul(DBDx[:, :, :, j], W)
-            sym_DbDxW = DbDxW + transpose(DbDxW, 1, 2)
-            C2_inner = DbW - sym_DbDxW
+            sym_DbDxW = 0.5 * (DbDxW + transpose(DbDxW, 1, 2))
+            C2_inner = DbW - 2 * sym_DbDxW
             C2 = matmul(matmul(transpose(Bbot, 1, 2), C2_inner), Bbot)
 
             C2_inners.append(C2_inner)
