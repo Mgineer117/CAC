@@ -71,7 +71,7 @@ def draw_final_plot(ax, x_data, u_data, title):
         y=u_data,
         ax=ax,
         fill=True,
-        cmap="rocket_r",
+        cmap="Blues",
         alpha=0.9,
         levels=7,
         thresh=0.01,

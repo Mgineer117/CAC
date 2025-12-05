@@ -339,8 +339,8 @@ class CACv3(CAC):
             loss_dict.update(W_loss_dict)
             supp_dict.update(W_supp_dict)
 
-        RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
-        # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
+        # RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_ppo(batch)
+        RL_loss_dict, RL_supp_dict, RL_update_time = self.learn_trpo(batch)
 
         loss_dict.update(RL_loss_dict)
         supp_dict.update(RL_supp_dict)
