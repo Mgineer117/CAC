@@ -1,15 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from scipy.spatial import ConvexHull
+
+# Optional: Set a style for cleaner academic plots
+sns.set_style("white")
 
 
 def generate_distinct_centered_data(mode, n_samples=1000):
     """
     Generates data (x, u) centered in the plot using specific sampling strategies.
     """
-    # np.random.seed(42)
-
     # Plot center coordinates
     c_x, c_u = 0.5, 0.5
 
@@ -31,27 +31,20 @@ def generate_distinct_centered_data(mode, n_samples=1000):
         return x, u
 
     elif mode == "control_focused":
-        # --- 2. Control-Focused: q=3 sampling ---
-        # "Large Tall/Thin" or "Large Square" based on your input snippet width=0.9/height=0.9
+        # --- 2. Control-Focused: Wide coverage ---
         width = 0.9
         height = 0.9
-        q = 15  # n_control_per_x
+        q = 3  # n_control_per_x
 
         x_min = c_x - (width / 2)
         u_min = c_u - (height / 2)
 
-        # 1. Determine base batch size (total = base * q)
         batch_size = int(n_samples / q)
 
-        # 2. Base Uniform Sampling
         x_base = np.random.uniform(x_min, x_min + width, batch_size)
         u_base = np.random.uniform(u_min, u_min + height, batch_size)
 
-        # 3. Apply Training Sampling Logic
-        # Step A: Repeat x (q times)
         x = np.concatenate([x_base] * q, axis=0)
-
-        # Step B: Shuffle u independently q times and stack
         u = np.concatenate(
             [u_base[np.random.permutation(len(u_base))] for _ in range(q)],
             axis=0,
@@ -59,22 +52,19 @@ def generate_distinct_centered_data(mode, n_samples=1000):
         return x, u
 
     elif mode == "state_focused":
-        # --- 3. State-Focused: q=1 sampling ---
+        # --- 3. State-Focused: Baseline ---
         width = 0.9
         height = 0.9
-        q = 1  # n_control_per_x (Standard sampling)
+        q = 1
 
         x_min = c_x - (width / 2)
         u_min = c_u - (height / 2)
 
-        # 1. Determine base batch size
-        batch_size = int(0.1 * n_samples / q)
+        batch_size = int(0.3 * n_samples / q)
 
-        # 2. Base Uniform Sampling
         x_base = np.random.uniform(x_min, x_min + width, batch_size)
         u_base = np.random.uniform(u_min, u_min + height, batch_size)
 
-        # 3. Apply Training Sampling Logic (Trivial for q=1, but consistent)
         x = np.concatenate([x_base] * q, axis=0)
         u = np.concatenate(
             [u_base[np.random.permutation(len(u_base))] for _ in range(q)],
@@ -85,27 +75,39 @@ def generate_distinct_centered_data(mode, n_samples=1000):
 
 def draw_final_plot(ax, x_data, u_data, title):
     """
-    Draws the plot with expanded density fill and no dotted lines.
+    Draws the plot.
+    heatmap (KDE) is active.
+    Scatter plot is provided as a comment for alternative visualization.
     """
     PLOT_MAX = 1.0
 
-    # --- Draw Density Plot ---
+    # ---------------------------------------------------------
+    # OPTION 1: Scatter Plot (Uncomment to use instead of Heatmap)
+    # ---------------------------------------------------------
+    # sns.scatterplot(
+    #     x=x_data, y=u_data, ax=ax,
+    #     s=10, color="#1f77b4", alpha=0.3, edgecolor=None
+    # )
+
+    # ---------------------------------------------------------
+    # OPTION 2: Density Heatmap (Normalized visually)
+    # ---------------------------------------------------------
     # bw_adjust=0.5: Sharper edges to fit the uniform shape
-    # thresh=0.01:   Lowers the cutoff so the fill extends to the data limits
+    # thresh=0.05: Cuts off the very low density tails for a cleaner look
     sns.kdeplot(
         x=x_data,
         y=u_data,
         ax=ax,
         fill=True,
-        cmap="flare",
+        cmap="Blues",
         alpha=0.9,
-        levels=7,
-        thresh=0.01,
+        levels=10,  # Increased levels for smoother gradient
+        thresh=0.05,
         bw_adjust=0.5,
         zorder=2,
     )
 
-    # --- Draw Contour Outline ---
+    # --- Draw Contour Outline (Optional) ---
     sns.kdeplot(
         x=x_data,
         y=u_data,
@@ -114,10 +116,26 @@ def draw_final_plot(ax, x_data, u_data, title):
         color="gray",
         alpha=0.3,
         linewidths=1.5,
-        levels=[0.01],
+        levels=[0.05],  # Match the thresh of the fill
         bw_adjust=0.5,
         zorder=3,
     )
+
+    # # --- Add Colorbar (Normalized) ---
+    # # Only adding to the last plot, but treating it as "Relative Density"
+    # if title == "Control-focused":
+    #     # Create colorbar based on the contour set
+    #     mappable = ax.collections[0]
+    #     cbar = plt.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04)
+
+    #     # NORMALIZATION FIX:
+    #     # Instead of showing raw PDF values (which differ wildly between plots),
+    #     # we set the ticks to simply show 0 (Min) and 1 (Max/Peak).
+    #     cbar.set_ticks([mappable.get_array().min(), mappable.get_array().max()])
+    #     cbar.set_ticklabels(["Low", "High"])
+    #     # 3. ENLARGE THE LABELS HERE:
+    #     cbar.ax.tick_params(labelsize=24)
+    #     cbar.set_label("Relative Density", fontsize=28, weight="bold")
 
     # --- Styling ---
     ax.set_xlim(0, PLOT_MAX)
@@ -140,14 +158,14 @@ def draw_final_plot(ax, x_data, u_data, title):
     )
 
     # Labels
-    ax.set_xlabel(r"$|\mathcal{X}|$", fontsize=32, loc="right", weight="bold")
-    ax.set_ylabel(r"$|\mathcal{U}|$", fontsize=32, loc="top", rotation=0, weight="bold")
+    ax.set_xlabel(r"$|\mathcal{X}|$", fontsize=30, loc="right", weight="bold")
+    ax.set_ylabel(r"$|\mathcal{U}|$", fontsize=30, loc="top", rotation=0, weight="bold")
 
     # Remove ticks
     ax.set_xticks([])
     ax.set_yticks([])
 
-    ax.set_title(title, fontsize=32, pad=20, weight="bold")
+    ax.set_title(title, fontsize=24, pad=20, weight="bold")
 
 
 # --- Main Execution ---
@@ -167,5 +185,3 @@ draw_final_plot(axes[2], x2, u2, "Control-focused")
 
 plt.tight_layout()
 plt.savefig("synthetic_data_final.svg", dpi=300)
-plt.savefig("synthetic_data_final.pdf", dpi=300)
-plt.show()
