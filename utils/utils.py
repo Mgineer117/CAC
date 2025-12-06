@@ -4,16 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from envs import (
-    CarEnv,
-    CartPoleEnv,
-    FlapperEnv,
-    NeuralLanderEnv,
-    PvtolEnv,
-    QuadRotorEnv,
-    SegwayEnv,
-    TurtlebotEnv,
-)
+from envs import CarEnv, CartPoleEnv, NeuralLanderEnv, PvtolEnv, QuadRotorEnv, SegwayEnv
 
 
 def call_env(args):
@@ -24,9 +15,7 @@ def call_env(args):
         "quadrotor": QuadRotorEnv,
         "neurallander": NeuralLanderEnv,
         "segway": SegwayEnv,
-        "turtlebot": TurtlebotEnv,
         "cartpole": CartPoleEnv,
-        "flapper": FlapperEnv,
     }
 
     # 2. Check existence
