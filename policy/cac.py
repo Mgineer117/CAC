@@ -123,9 +123,6 @@ class CAC(Base):
         self.lr_scheduler1 = LambdaLR(
             self.W_optimizer, lr_lambda=self.timestep_lr_lambda
         )
-        self.lr_scheduler2 = LambdaLR(
-            self.RL_optimizer, lr_lambda=self.timestep_lr_lambda
-        )
 
         self.to(self._dtype).to(self.device)
 
@@ -134,8 +131,6 @@ class CAC(Base):
         Calculates LR multiplier based on total environment steps taken.
         Ignores the internal scheduler 'step' counter (_).
         """
-        # Linear decay: 1.0 -> 0.0
-        # Use max(0.0, ...) to prevent negative LR if we train longer than expected
         return max(0.0, 1.0 - self.progress)
 
     def to_device(self, device):
@@ -248,15 +243,19 @@ class CAC(Base):
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        loss = (
-            overshoot_loss
-            + pd_loss
-            + c1_loss
-            + c2_loss
-            + pd_reg
-            + c1_reg
-            + overshoot_reg
-        )
+        if self.progress < 0.1:
+            loss = c1_loss + c2_loss + c1_reg
+        else:
+            loss = (
+                overshoot_loss
+                + pd_loss
+                + c1_loss
+                + c2_loss
+                + pd_reg
+                + c1_reg
+                + overshoot_reg
+            )
+
         return (
             loss,
             {
@@ -301,7 +300,6 @@ class CAC(Base):
         supp_dict.update(RL_supp_dict)
 
         self.lr_scheduler1.step()
-        # self.lr_scheduler2.step()
 
         update_time = W_update_time + RL_update_time
         self.num_RL_updates += 1
@@ -442,8 +440,6 @@ class CAC(Base):
             f"{self.name}/analytics/K-epoch": k + 1,
             f"{self.name}/analytics/avg_rewards": torch.mean(original_rewards).item(),
             f"{self.name}/analytics/corrected_avg_rewards": torch.mean(rewards).item(),
-            # f"{self.name}/learning_rate/actor_lr": self.lr_scheduler2.get_last_lr()[0],
-            # f"{self.name}/learning_rate/critic_lr": self.lr_scheduler2.get_last_lr()[1],
         }
         grad_dict = self.average_dict_values(grad_dicts)
         norm_dict = self.compute_weight_norm(

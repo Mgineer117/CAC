@@ -34,7 +34,11 @@ def call_env(args):
         raise NotImplementedError(f"{args.task} is not implemented.")
 
     # 3. Instantiate once using the common arguments
-    env = env_map[args.task](sample_mode=args.sample_mode, reward_mode=args.reward_mode)
+    env = env_map[args.task](
+        sample_mode=args.sample_mode,
+        reward_mode=args.reward_mode,
+        n_control_per_x=args.n_control_per_x,
+    )
 
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.shape[0]

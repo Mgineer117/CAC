@@ -182,15 +182,18 @@ class C3M(Base):
         c2_loss = C2
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        loss = (
-            overshoot_loss
-            + pd_loss
-            + c1_loss
-            + c2_loss
-            + pd_reg
-            + c1_reg
-            + overshoot_reg
-        )
+        if self.num_updates / self.nupdates < 0.1:
+            loss = c1_loss + c2_loss + c1_reg
+        else:
+            loss = (
+                overshoot_loss
+                + pd_loss
+                + c1_loss
+                + c2_loss
+                + pd_reg
+                + c1_reg
+                + overshoot_reg
+            )
 
         return (
             loss,
@@ -204,8 +207,6 @@ class C3M(Base):
 
     def optimize_params(self, loss: torch.Tensor):
         grad_dict = {}
-        # Define progress threshold (using 0.1 based on your snippet, or 1.0 if strictly intended)
-        warmup_complete = (self.num_updates / self.nupdates) >= 0.1
 
         # === OPTIMIZATION STEP === #
         self.optimizer.zero_grad()

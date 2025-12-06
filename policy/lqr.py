@@ -21,7 +21,7 @@ class LQR(Base):
         action_dim: int,
         get_f_and_B: Callable,
         Q_scaler: float = 1.0,
-        R_scaler: float = 0.1,
+        R_scaler: float = 0.03,
         gamma: float = 0.99,
         device: str = "cpu",
     ):

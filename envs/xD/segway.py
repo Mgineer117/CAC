@@ -50,12 +50,17 @@ env_config = {
     "time_bound": 6.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.1,  # control cost weight
+    "r": 0.03,  # control cost weight
 }
 
 
 class SegwayEnv(BaseEnv):
-    def __init__(self, sample_mode: str = "uniform", reward_mode: str = "default"):
+    def __init__(
+        self,
+        sample_mode: str = "uniform",
+        reward_mode: str = "default",
+        n_control_per_x: int = 1,
+    ):
         """
         State: tracking error between current and reference trajectory
         Reward: 1 / (The 2-norm of tracking error + 1)
@@ -67,6 +72,7 @@ class SegwayEnv(BaseEnv):
         # initialize the base environment
         env_config["sample_mode"] = sample_mode
         env_config["reward_mode"] = reward_mode
+        env_config["n_control_per_x"] = n_control_per_x
 
         super(SegwayEnv, self).__init__(env_config)
 

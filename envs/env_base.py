@@ -57,6 +57,7 @@ class BaseEnv(gym.Env):
         )
 
         # environment parameters
+        self.n_control_per_x = env_config["n_control_per_x"]
         self.num_dim_x = env_config["num_dim_x"]  # x, y, theta, v
         self.num_dim_control = env_config[
             "num_dim_control"
@@ -392,8 +393,7 @@ class BaseEnv(gym.Env):
             )
 
             # === DATA FOR DYNAMICS LEARNING === #
-            n_control_per_x = 3
-            batch_size = ceil(buffer_size / n_control_per_x)
+            batch_size = ceil(buffer_size / self.n_control_per_x)
 
             if self.sample_mode == "Gaussian":
                 # Compute mean and std for Gaussian distribution
@@ -419,11 +419,14 @@ class BaseEnv(gym.Env):
                 )
 
                 # Step 1: Repeat x n_control_per_x times along axis 0
-                x = np.concatenate([x] * n_control_per_x, axis=0)
+                x = np.concatenate([x] * self.n_control_per_x, axis=0)
 
                 # Step 2: Shuffle u independently n_control_per_x times and stack
                 u = np.concatenate(
-                    [u[np.random.permutation(len(u))] for _ in range(n_control_per_x)],
+                    [
+                        u[np.random.permutation(len(u))]
+                        for _ in range(self.n_control_per_x)
+                    ],
                     axis=0,
                 )
 
@@ -449,11 +452,14 @@ class BaseEnv(gym.Env):
                 )
 
                 # Step 1: Repeat x n_control_per_x times along axis 0
-                x = np.concatenate([x] * n_control_per_x, axis=0)
+                x = np.concatenate([x] * self.n_control_per_x, axis=0)
 
                 # Step 2: Shuffle u independently n_control_per_x times and stack
                 u = np.concatenate(
-                    [u[np.random.permutation(len(u))] for _ in range(n_control_per_x)],
+                    [
+                        u[np.random.permutation(len(u))]
+                        for _ in range(self.n_control_per_x)
+                    ],
                     axis=0,
                 )
 

@@ -168,15 +168,21 @@ def get_args():
         help="Generalized Advantage Estimation factor.",
     )
     parser.add_argument(
+        "--n-control-per-x",
+        type=int,
+        default=1,
+        help="Number of control inputs per state for generating offline data for learning dynamics.",
+    )
+    parser.add_argument(
         "--sample-mode",
         type=str,
-        default="Real-world",
+        default="Uniform",
         help="Sampling mode for generating offline data for learning dynamics.",
     )
     parser.add_argument(
         "--reward-mode",
         type=str,
-        default="default",
+        default="inverse",
         help="Reward mode for the environment.",
     )
     parser.add_argument(
