@@ -90,200 +90,114 @@ class C3Mv3(C3M):
         self.to(self._dtype).to(self.device)
 
     def compute_loss(self):
-        #
-        I = torch.eye(self.x_dim, device=self.device)
+        # 1. Prepare Data
+        x, xref, uref = self._sample_batch(batch_size=1024)
+        Ix = torch.eye(self.x_dim, device=self.device)
+        Iu = torch.eye(self.x_dim - self.action_dim, device=self.device)
 
-        # === SAMPLE BATCH === #
-        batch = dict()
-        buffer_size, batch_size = self.data["x"].shape[0], 1024
-        indices = np.random.choice(buffer_size, size=batch_size, replace=False)
-        for key in self.data.keys():
-            # Sample a batch of 1024
-            batch[key] = self.data[key][indices]
+        # 2. Get System Matrices & Metric
+        raw_W, _ = self.W_func(x)
 
-        # === PREPARE TENSORS === #
-        x = self.to_tensor(batch["x"]).requires_grad_()
-        xref = self.to_tensor(batch["xref"])
-        uref = self.to_tensor(batch["uref"])
-
-        raw_W, _ = self.W_func(x)  # n, x_dim, x_dim
-        # Add lower-bound scaled identity to guarantee positive definiteness
-        W = raw_W + self.w_lb * I
-        M = inverse(W)  # n, x_dim, x_dim
-
+        # Get physics terms and strictly move to GPU/Correct Dtype
         f, B, Bbot = self.get_f_and_B(x)
-        f = f.to(self._dtype).to(self.device)  # n, x_dim
-        B = B.to(self._dtype).to(self.device)  # n, x_dim, action
-        Bbot = Bbot.to(self._dtype).to(self.device)  #
+        f = f.to(dtype=self._dtype, device=self.device)
+        B = B.to(dtype=self._dtype, device=self.device)
+        Bbot = Bbot.to(dtype=self._dtype, device=self.device)
 
-        DfDx = self.Jacobian(f, x)  # n, f_dim, x_dim
-        DBDx = self.B_Jacobian(B, x)  # n, x_dim, x_dim, b_dim
+        f, B, Bbot = f.detach(), B.detach(), Bbot.detach()
 
-        f = f.detach()
-        B = B.detach()
-        Bbot = Bbot.detach()
-
-        # since online we do not do below
+        # 3. Compute Derivatives & Controller
         u, _ = self.u_func(x, xref, uref)
-        K = self.Jacobian(u, x)  # n, f_dim, x_dim
 
-        A = DfDx + sum(
-            [
-                u[:, i].unsqueeze(-1).unsqueeze(-1) * DBDx[:, :, :, i]
-                for i in range(self.action_dim)
-            ]
+        # 4. Compute Constraints (The heavy math is moved to helpers)
+        # -- L_u (Contraction)
+        Cu, dot_M, sym_MABK = self._compute_contraction_condition(
+            x, u, f, B, raw_W, self.lbd
         )
 
-        dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
-        dot_M = self.weighted_gradients(M, dot_x, x)
+        # -- L_w1 (Feasibility on perp manifold)
+        C1 = self._compute_C1_condition(x, f, Bbot, raw_W, self.lbd)
 
-        # contraction condition
-        ABK = A + matmul(B, K)
-        MABK = matmul(M, ABK)
-        sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
-        Cu = dot_M + 2 * sym_MABK + 2 * self.lbd * M.detach()
+        # -- L_w2 (Matching condition)
+        C2_val, C2s = self._compute_C2_condition(x, B, Bbot, raw_W)
 
-        # C1
-        DfW = self.weighted_gradients(W, f, x)
-        DfDxW = matmul(DfDx, W)
-        sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
+        # -- Bounds
+        overshoot = raw_W - self.w_ub * Ix + self.w_lb.detach() * Ix
 
-        # this has to be a negative definite matrix
-        C1_inner = -DfW + 2 * sym_DfDxW + 2 * self.lbd * W.detach()
-        C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
-
-        C2_inners = []
-        C2s = []
-        for j in range(self.action_dim):
-            DbW = self.weighted_gradients(W, B[:, :, j], x)
-            DbDxW = matmul(DBDx[:, :, :, j], W)
-            sym_DbDxW = 0.5 * (DbDxW + transpose(DbDxW, 1, 2))
-            C2_inner = DbW - 2 * sym_DbDxW
-            C2 = matmul(matmul(transpose(Bbot, 1, 2), C2_inner), Bbot)
-
-            C2_inners.append(C2_inner)
-            C2s.append(C2)
-
-        ### DEFINE PD MATRICES ###
-        Cu = Cu + self.eps * torch.eye(Cu.shape[-1], device=self.device)
-        C1 = C1 + self.eps * torch.eye(C1.shape[-1], device=self.device)
-        C2 = sum([(C2**2).reshape(batch_size, -1).sum(1).mean() for C2 in C2s])
-        overshoot = raw_W - self.w_ub * I
-
-        # === DEFINE LOSSES === #
-        pd_loss, pd_reg = self.loss_pos_matrix_random_sampling(-Cu)
-        c1_loss, c1_reg = self.loss_pos_matrix_random_sampling(-C1)
+        # 5. Calculate Losses (using sampling helper)
+        pd_loss, pd_reg = self.loss_pos_matrix_random_sampling(-(Cu + self.eps * Ix))
+        c1_loss, c1_reg = self.loss_pos_matrix_random_sampling(-(C1 + self.eps * Iu))
         overshoot_loss, overshoot_reg = self.loss_pos_matrix_random_sampling(-overshoot)
-        c2_loss = C2
-        self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, W)
+        c2_loss = C2_val
 
-        primal_loss = (
-            (1 / self.lbd) ** 2 * (self.w_ub / self.w_lb)
-            + self.nu[0].detach() * overshoot_loss
-            + self.nu[1].detach() * pd_loss
-            + self.nu[2].detach() * c1_loss
-            + self.zeta.detach() * c2_loss
-            + pd_reg
-            + c1_reg
-            + overshoot_reg
-        )
+        # Logging
+        self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2_val, raw_W)
 
-        dual_loss = -(
-            self.nu[0] * overshoot_loss.detach()
-            + self.nu[1] * pd_loss.detach()
-            + self.nu[2] * c1_loss.detach()
-            + self.zeta * c2_loss.detach()
-        )
+        # === COMBINE LOSSES === #
+        if not self.warmup_complete:
+            primal_loss = c1_loss + c1_reg + c2_loss
+            dual_loss = torch.tensor(0.0, device=self.device)
+        else:
+            primal_loss = (
+                (1 / self.lbd) ** 2 * (self.w_ub / self.w_lb)
+                + (self.nu[0].detach() * overshoot_loss + overshoot_reg)
+                + (self.nu[1].detach() * pd_loss + pd_reg)
+                + (self.nu[2].detach() * c1_loss + c1_reg)
+                + (self.zeta.detach() * c2_loss)
+            )
+            dual_loss = -(
+                self.nu[0] * overshoot_loss.detach()
+                + self.nu[1] * pd_loss.detach()
+                + self.nu[2] * c1_loss.detach()
+                + self.zeta * c2_loss.detach()
+            )
 
-        return (
-            primal_loss,
-            dual_loss,
-            {
-                "pd_loss": pd_loss,
-                "c1_loss": c1_loss,
-                "c2_loss": c2_loss,
-                "overshoot_loss": overshoot_loss,
-            },
-        )
+        loss_dict = {
+            "pd_loss": pd_loss,
+            "c1_loss": c1_loss,
+            "c2_loss": c2_loss,
+            "overshoot_loss": overshoot_loss,
+        }
+        return primal_loss, dual_loss, loss_dict
 
-    def optimize_params(self, primal_loss: torch.Tensor, dual_loss: torch.Tensor):
+    def optimize_params(self, primal_loss, dual_loss):
         grad_dict = {}
-        # Define progress threshold (using 0.1 based on your snippet, or 1.0 if strictly intended)
-        warmup_complete = (self.num_updates / self.nupdates) >= 0.1
 
-        # ==========================================
-        # 1. PRIMAL UPDATE (W_func, u_func, lbd, w_lb, w_ub)
-        # ==========================================
-        self.primal_optimizer.zero_grad()
-        primal_loss.backward()
+        # 1. Primal Step
+        primal_params = [self.W_func, self.u_func, self.lbd, self.w_ub, self.w_lb]
+        primal_names = ["W_func", "u_func", "lbd", "w_ub", "w_lb"]
 
-        # If in warmup phase, prevent updates to lbd, w_lb, and w_ub
-        # by nullifying their gradients before the optimizer step.
-        if not warmup_complete:
-            if self.lbd.grad is not None:
-                self.lbd.grad = None
-            if self.w_lb.grad is not None:
-                self.w_lb.grad = None
-            if self.w_ub.grad is not None:
-                self.w_ub.grad = None
+        # If warmup is done, we update the Lagrange multipliers and bounds
+        freeze_list = []
+        if not self.warmup_complete:
+            freeze_list = [self.lbd, self.w_lb, self.w_ub]
 
-        torch.nn.utils.clip_grad_norm_(
-            [
-                p
-                for group in self.primal_optimizer.param_groups
-                for p in group["params"]
-            ],
-            max_norm=10.0,
-        )
-
-        # Log primal gradients
         grad_dict.update(
-            self.compute_gradient_norm(
-                [self.W_func, self.u_func, self.lbd, self.w_ub, self.w_lb],
-                ["W_func", "u_func", "lbd", "w_ub", "w_lb"],
-                dir=f"{self.name}",
-                device=self.device,
+            self._step_optimizer(
+                optimizer=self.primal_optimizer,
+                loss=primal_loss,
+                params_to_log=primal_params,
+                names_to_log=primal_names,
+                scheduler=self.lr_scheduler1,
+                params_to_freeze=freeze_list,
             )
         )
 
-        self.primal_optimizer.step()
-        self.lr_scheduler1.step()
-
-        # ==========================================
-        # 2. DUAL UPDATE (nu, zeta)
-        # ==========================================
-        # Only update Dual variables if warmup is complete
-        if warmup_complete:
-            self.dual_optimizer.zero_grad()
-            dual_loss.backward()
-
-            torch.nn.utils.clip_grad_norm_(
-                [
-                    p
-                    for group in self.dual_optimizer.param_groups
-                    for p in group["params"]
-                ],
-                max_norm=10.0,
-            )
-
+        # 2. Dual Step (Only if warmup complete)
+        if self.warmup_complete:
             grad_dict.update(
-                self.compute_gradient_norm(
-                    [self.nu, self.zeta],
-                    ["nu", "zeta"],
-                    dir=f"{self.name}",
-                    device=self.device,
+                self._step_optimizer(
+                    optimizer=self.dual_optimizer,
+                    loss=dual_loss,
+                    params_to_log=[self.nu, self.zeta],
+                    names_to_log=["nu", "zeta"],
+                    scheduler=self.lr_scheduler2,
+                    params_to_freeze=[],  # No freezing in dual step
                 )
             )
 
-            self.dual_optimizer.step()
-            self.lr_scheduler2.step()
-
-        # ==========================================
-        # 3. FEASIBILITY CLAMPING
-        # ==========================================
-        with torch.no_grad():
-            # Only clamp these if we are actually updating them
-            if warmup_complete:
+            # 3. Feasibility Clamping
+            with torch.no_grad():
                 self.lbd.clamp_(min=1e-3, max=1e6)
                 self.nu.clamp_(min=0.0, max=1e6)
                 self.w_lb.clamp_(min=1e-3, max=90.0)
@@ -291,10 +205,121 @@ class C3Mv3(C3M):
 
         return grad_dict
 
+    def _sample_batch(self, batch_size):
+        # Concise sampling logic
+        idxs = np.random.choice(self.data["x"].shape[0], size=batch_size, replace=False)
+        return (
+            self.to_tensor(self.data["x"][idxs]).requires_grad_(),
+            self.to_tensor(self.data["xref"][idxs]),
+            self.to_tensor(self.data["uref"][idxs]),
+        )
+
+    def _step_optimizer(
+        self,
+        optimizer,
+        loss,
+        params_to_log,
+        names_to_log,
+        scheduler=None,
+        params_to_freeze=None,
+    ):
+        """Generic wrapper for zero_grad -> backward -> freeze -> clip -> step"""
+        optimizer.zero_grad()
+        loss.backward()
+
+        # === FREEZE SPECIFIC PARAMS === #
+        if params_to_freeze:
+            for p in params_to_freeze:
+                p.grad = None
+
+        # Gather all params for clipping
+        all_params = [
+            p
+            for group in optimizer.param_groups
+            for p in group["params"]
+            if p.grad is not None
+        ]
+        if all_params:
+            torch.nn.utils.clip_grad_norm_(all_params, max_norm=10.0)
+
+        # Compute norms for logging
+        grads = self.compute_gradient_norm(
+            params_to_log, names_to_log, dir=self.name, device=self.device
+        )
+
+        optimizer.step()
+        if scheduler:
+            scheduler.step()
+        return grads
+
+    def _compute_contraction_condition(self, x, u, f, B, raw_W, lbd):
+        W = raw_W + self.w_lb * torch.eye(self.x_dim, device=self.device)
+        M = inverse(W)
+
+        # Calculate Jacobians
+        DfDx = self.Jacobian(f, x)
+        DBDx = self.B_Jacobian(B, x)
+        K = self.Jacobian(u, x)
+
+        # Dynamics A matrix: df/dx + sum(u_i * db_i/dx)
+        sum_u_DBDx = sum(
+            [u[:, i, None, None] * DBDx[:, :, :, i] for i in range(self.action_dim)]
+        )
+        A = DfDx + sum_u_DBDx
+
+        # Total time derivative of M
+        dot_x = f + matmul(B, u.unsqueeze(-1)).squeeze(-1)
+        dot_M = self.weighted_gradients(M, dot_x, x)
+
+        # Stability condition: dot_M + 2sym(M(A+BK)) + 2lambda*M
+        ABK = A + matmul(B, K)
+        MABK = matmul(M, ABK)
+        sym_MABK = 0.5 * (MABK + transpose(MABK, 1, 2))
+
+        Cu = dot_M + 2 * sym_MABK + 2 * abs(lbd) * M.detach()
+        return Cu, dot_M, sym_MABK
+
+    def _compute_C1_condition(self, x, f, Bbot, raw_W, lbd):
+        W = raw_W + self.w_lb.detach() * torch.eye(self.x_dim, device=self.device)
+
+        DfDx = self.Jacobian(f, x)
+        DfW = self.weighted_gradients(W, f, x)
+        DfDxW = matmul(DfDx, W)
+        sym_DfDxW = 0.5 * (DfDxW + transpose(DfDxW, 1, 2))
+
+        # Condition 2 (Stability on null space)
+        # Bbot.T * (-dot_W + 2sym(A*W) + 2lambda*W) * Bbot
+        C1_inner = -DfW + 2 * sym_DfDxW + 2 * abs(lbd.detach()) * W.detach()
+        C1 = matmul(matmul(transpose(Bbot, 1, 2), C1_inner), Bbot)
+        return C1
+
+    def _compute_C2_condition(self, x, B, Bbot, raw_W):
+        W = raw_W + self.w_lb.detach() * torch.eye(self.x_dim, device=self.device)
+
+        DBDx = self.B_Jacobian(B, x)
+        C2s = []
+        for j in range(self.action_dim):
+            # Lie derivative along control directions
+            DbW = self.weighted_gradients(W, B[:, :, j], x)
+            DbDxW = matmul(DBDx[:, :, :, j], W)
+            sym_DbDxW = 0.5 * (DbDxW + transpose(DbDxW, 1, 2))
+
+            C2_inner = DbW - 2 * sym_DbDxW
+            C2_proj = matmul(matmul(transpose(Bbot, 1, 2), C2_inner), Bbot)
+            C2s.append(C2_proj)
+
+        # Sum of squares of norms
+        batch_size = x.shape[0]
+        C2_total = sum([(C**2).reshape(batch_size, -1).sum(1).mean() for C in C2s])
+        return C2_total, C2s
+
     def learn(self):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
+
+        # Define progress threshold (using 0.1 based on your snippet, or 1.0 if strictly intended)
+        self.warmup_complete = (self.num_updates / self.nupdates) >= 0.1
 
         # === PERFORM OPTIMIZATION STEP === #
         primal_loss, dual_loss, infos = self.compute_loss()

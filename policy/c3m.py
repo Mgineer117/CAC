@@ -203,6 +203,10 @@ class C3M(Base):
         )
 
     def optimize_params(self, loss: torch.Tensor):
+        grad_dict = {}
+        # Define progress threshold (using 0.1 based on your snippet, or 1.0 if strictly intended)
+        warmup_complete = (self.num_updates / self.nupdates) >= 0.1
+
         # === OPTIMIZATION STEP === #
         self.optimizer.zero_grad()
         loss.backward()

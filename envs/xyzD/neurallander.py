@@ -221,8 +221,6 @@ class NeuralLanderEnv(BaseEnv):
             if term or trunc:
                 break
 
-        print(f"Generated reference trajectory with {i} steps.")
-
         return (
             x_0,
             np.array(xref_list),
