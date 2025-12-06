@@ -105,8 +105,6 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
 
     elif algo_name.startswith("c3m"):
         from policy.c3m import C3M
-        from policy.c3mv2 import C3Mv2
-        from policy.c3mv3 import C3Mv3
         from policy.layers.c3m_networks import C3M_U, C3M_W, C3M_U_Gaussian
 
         W_func = C3M_W(
@@ -126,13 +124,8 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         )
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        C3M_class = (
-            C3Mv3
-            if algo_name.startswith("c3mv3")
-            else C3Mv2 if algo_name.startswith("c3mv2") else C3M
-        )
 
-        policy = C3M_class(
+        policy = C3M(
             x_dim=env.num_dim_x,
             action_dim=args.action_dim,
             W_func=W_func,
@@ -154,8 +147,6 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
 
     elif algo_name.startswith("cac"):
         from policy.cac import CAC
-        from policy.cacv2 import CACv2
-        from policy.cacv3 import CACv3
         from policy.layers.c3m_networks import C3M_W, C3M_U_Gaussian, C3M_W_Gaussian
         from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 
@@ -179,13 +170,8 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
         critic = PPO_Critic(args.state_dim, hidden_dim=args.critic_dim)
 
         data = env.get_rollout(args.c3m_buffer_size, mode="c3m")
-        policy_class = (
-            CACv3
-            if algo_name.startswith("cacv3")
-            else CACv2 if algo_name.startswith("cacv2") else CAC
-        )
 
-        policy = policy_class(
+        policy = CAC(
             x_dim=env.num_dim_x,
             W_func=W_func,
             get_f_and_B=get_f_and_B,
