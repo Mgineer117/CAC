@@ -56,9 +56,9 @@ def get_args():
         help="SDC decomposition neural net learning rate.",
     )
 
-    parser.add_argument("--W-lr", type=float, default=1e-3, help="CMG learning rate.")
+    parser.add_argument("--W-lr", type=float, default=3e-4, help="CMG learning rate.")
     parser.add_argument(
-        "--u-lr", type=float, default=1e-3, help="C3M actor learning rate."
+        "--u-lr", type=float, default=3e-4, help="C3M actor learning rate."
     )
     parser.add_argument(
         "--w-ub", type=float, default=10.0, help="Contraction metric upper bound."
@@ -88,10 +88,10 @@ def get_args():
         help="SDC decomposition neural net hidden layer.",
     )
     parser.add_argument(
-        "--actor-dim", type=list, default=[64, 64], help="actor hidden layers."
+        "--actor-dim", type=list, default=[128, 128], help="actor hidden layers."
     )
     parser.add_argument(
-        "--critic-dim", type=list, default=[128, 128], help="critic hidden layers."
+        "--critic-dim", type=list, default=[256, 256], help="critic hidden layers."
     )
 
     parser.add_argument(
@@ -106,7 +106,7 @@ def get_args():
     parser.add_argument(
         "--sdc-epochs",
         type=int,
-        default=2000,
+        default=5000,
         help="Number of training samples.",
     )
     parser.add_argument(
@@ -158,7 +158,7 @@ def get_args():
     parser.add_argument(
         "--target-kl",
         type=float,
-        default=0.003,
+        default=0.01,
         help="PPO Target KL divergence.",
     )
     parser.add_argument(

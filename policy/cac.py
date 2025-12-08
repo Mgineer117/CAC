@@ -130,8 +130,11 @@ class CAC(Base):
         """
         Calculates LR multiplier based on total environment steps taken.
         Ignores the internal scheduler 'step' counter (_).
+        Squared decay: drops faster than linear.
         """
-        return max(0.0, 1.0 - self.progress)
+        # We square the linear term.
+        # Logic: At progress 0.5, linear is 0.5, quadratic is 0.25 (lower).
+        return max(0.0, 1.0 - self.progress) ** 2
 
     def to_device(self, device):
         self.device = device
@@ -288,7 +291,7 @@ class CAC(Base):
 
         # Implement the freeze-and-learn scheme here
         W_update_time = 0
-        if self.num_RL_updates % 3 == 0:
+        if self.num_RL_updates % 5 == 0:
             W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
             loss_dict.update(W_loss_dict)
             supp_dict.update(W_supp_dict)
