@@ -249,7 +249,7 @@ class CAC(Base):
         self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
         if self.progress < 0.1:
-            loss = c1_loss + c2_loss + c1_reg
+            loss = c1_loss + c2_loss + c1_reg + overshoot_loss + overshoot_reg
         else:
             loss = (
                 overshoot_loss
