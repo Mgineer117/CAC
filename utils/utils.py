@@ -183,6 +183,7 @@ def get_policy(env, eval_env, args, get_f_and_B, SDC_func=None):
             control_scaler=env.control_scaler,
             target_kl=args.target_kl,
             gamma=args.gamma,
+            reward_mode=args.reward_mode,
             gae=args.gae,
             K=args.K_epochs,
             nupdates=nupdates,

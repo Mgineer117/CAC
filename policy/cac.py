@@ -43,6 +43,7 @@ class CAC(Base):
         lbd: float = 1e-2,
         eps: float = 1e-2,
         W_entropy_scaler: float = 1e-3,
+        reward_mode: str = "default",
         # TRPO parameters
         damping: float = 1e-1,
         backtrack_iters: int = 10,
@@ -80,6 +81,7 @@ class CAC(Base):
         self.control_scaler = control_scaler
         self.eps = eps
         self.gamma = gamma
+        self.reward_mode = reward_mode
         self.gae = gae
         self.K = K
         self.l2_reg = l2_reg
@@ -609,6 +611,10 @@ class CAC(Base):
             ).squeeze(-1)
 
             control_reward = -self.control_scaler * control_effort
+
+        if self.reward_mode == "inverse":
+            tracking_reward = 1 / (1 + abs(tracking_reward))
+            control_reward = 1 / (1 + abs(control_reward))
 
         rewards = (0.5 * tracking_reward) + (0.5 * control_reward)
 
