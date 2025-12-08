@@ -55,7 +55,7 @@ env_config = {
     "num_dim_control": 4,
     "pos_dimension": 3,
     "dt": 0.03,
-    "time_bound": 6.0,
+    "time_bound": 9.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
     "r": 0.1,  # control cost weight
