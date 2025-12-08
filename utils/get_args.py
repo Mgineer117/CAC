@@ -186,10 +186,10 @@ def get_args():
         help="Reward mode for the environment.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-4, help="Entropy scaling factor."
+        "--entropy-scaler", type=float, default=1e-3, help="Entropy scaling factor."
     )
     parser.add_argument(
-        "--W-entropy-scaler", type=float, default=1e-3, help="W entropy scaling factor."
+        "--W-entropy-scaler", type=float, default=1e-2, help="W entropy scaling factor."
     )
     parser.add_argument(
         "--control-scaler",
