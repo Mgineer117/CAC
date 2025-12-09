@@ -1,6 +1,6 @@
 import time
 from typing import Callable
-
+from tqdm import tqdm
 import numpy as np
 import torch
 import torch.nn as nn
@@ -29,6 +29,7 @@ class C3M(Base):
         num_minibatch: int = 8,
         minibatch_size: int = 256,
         nupdates: int = 1,
+        warmup_epochs: int = 1000,
         device: str = "cpu",
     ):
         super(C3M, self).__init__()
@@ -74,6 +75,10 @@ class C3M(Base):
         self.dummy = torch.tensor(1e-5)
         self.to(self._dtype).to(self.device)
 
+        self.warmup_epochs = warmup_epochs
+        if self.warmup_epochs > 0:
+            self.warmup_W()
+
     def lr_lambda(self, step):
         return 1.0 - float(step) / float(self.nupdates)
 
@@ -95,7 +100,7 @@ class C3M(Base):
             "entropy": self.dummy,
         }
 
-    def compute_loss(self):
+    def compute_loss(self, warming_up: bool = False):
         #
         I = torch.eye(self.x_dim, device=self.device)
 
@@ -180,11 +185,11 @@ class C3M(Base):
         c1_loss, c1_reg = self.loss_pos_matrix_random_sampling(-C1)
         overshoot_loss, overshoot_reg = self.loss_pos_matrix_random_sampling(-overshoot)
         c2_loss = C2
-        self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        if self.num_updates / self.nupdates < 0.1:
+        if warming_up:
             loss = c1_loss + c2_loss + c1_reg + overshoot_loss + overshoot_reg
         else:
+            self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
             loss = (
                 overshoot_loss
                 + pd_loss
@@ -224,6 +229,37 @@ class C3M(Base):
         self.lr_scheduler.step()
 
         return grad_dict
+
+    def warmup_W(self):
+        # Configuration
+        target_loss = 0.01
+        max_epochs = self.warmup_epochs  # This is your hard limit
+
+        with tqdm(range(max_epochs), desc="Warmup Phase") as pbar:
+            for epoch in pbar:
+                # 1. Train Step
+                loss, infos = self.compute_loss(warming_up=True)
+                self.optimize_params(loss)
+
+                # 2. Get scalar loss for checking
+                current_loss = loss.item() if hasattr(loss, "item") else loss
+
+                # 3. Update Progress Bar
+                pbar.set_postfix(loss=f"{current_loss:.4f}")
+
+                # 4. Early Stopping Check (The Goal)
+                if current_loss < target_loss:
+                    pbar.write(
+                        f"✓ Warmup converged early at epoch {epoch+1} (Loss: {current_loss:.4f} <= {target_loss})"
+                    )
+                    break
+
+            else:
+                # This 'else' block runs ONLY if the loop finishes naturally (hit max_epochs)
+                # and was NOT broken by the threshold check.
+                pbar.write(
+                    f"⚠ Max warmup epochs ({max_epochs}) reached without hitting threshold."
+                )
 
     def learn(self):
         """Performs a single training step using PPO, incorporating all reference training steps."""

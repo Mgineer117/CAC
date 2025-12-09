@@ -100,13 +100,13 @@ def get_args():
     parser.add_argument(
         "--dynamics-epochs",
         type=int,
-        default=20000,
+        default=30000,
         help="Number of training samples.",
     )
     parser.add_argument(
         "--sdc-epochs",
         type=int,
-        default=5000,
+        default=10000,
         help="Number of training samples.",
     )
     parser.add_argument(
@@ -194,7 +194,7 @@ def get_args():
     parser.add_argument(
         "--control-scaler",
         type=float,
-        default=0.03,
+        default=0.01,
         help="Control scaling factor to reward.",
     )
     parser.add_argument("--gamma", type=float, default=0.95, help="Discount factor.")

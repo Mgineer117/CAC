@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from torch import inverse, matmul, transpose
 from torch.linalg import matrix_norm
 from torch.optim.lr_scheduler import LambdaLR
+from tqdm import tqdm
 
 from policy.base import Base
 from utils.functions import (
@@ -60,6 +61,7 @@ class CAC(Base):
         tracking_scaler: float = 1.0,
         control_scaler: float = 0.0,
         nupdates: int = 1,
+        warmup_epochs: int = 1000,
         device: str = "cpu",
     ):
         super(CAC, self).__init__()
@@ -128,6 +130,10 @@ class CAC(Base):
 
         self.to(self._dtype).to(self.device)
 
+        self.warmup_epochs = warmup_epochs
+        if self.warmup_epochs > 0:
+            self.warmup_W()
+
     def timestep_lr_lambda(self, _):
         """
         Calculates LR multiplier based on total environment steps taken.
@@ -136,7 +142,7 @@ class CAC(Base):
         """
         # We square the linear term.
         # Logic: At progress 0.5, linear is 0.5, quadratic is 0.25 (lower).
-        return max(0.0, 1.0 - self.progress) ** 2
+        return max(0.0, 1.0 - self.progress) ** 4
 
     def to_device(self, device):
         self.device = device
@@ -156,7 +162,7 @@ class CAC(Base):
             "entropy": metaData["entropy"],
         }
 
-    def compute_W_loss(self):
+    def compute_W_loss(self, warming_up: bool = False):
         #
         I = torch.eye(self.x_dim, device=self.device)
 
@@ -246,11 +252,11 @@ class CAC(Base):
         c1_loss, c1_reg = self.loss_pos_matrix_random_sampling(-C1)
         overshoot_loss, overshoot_reg = self.loss_pos_matrix_random_sampling(-overshoot)
         c2_loss = C2
-        self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
 
-        if self.progress < 0.1:
+        if warming_up:
             loss = c1_loss + c2_loss + c1_reg + overshoot_loss + overshoot_reg
         else:
+            self.record_eigenvalues(Cu, dot_M, sym_MABK, C1, C2, overshoot)
             loss = (
                 overshoot_loss
                 + pd_loss
@@ -275,16 +281,47 @@ class CAC(Base):
         # === OPTIMIZATION STEP === #
         self.W_optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=10.0)
+        torch.nn.utils.clip_grad_norm_(self.W_func.parameters(), max_norm=10.0)
         grad_dict = self.compute_gradient_norm(
-            [self.W_func, self.lbd],
-            ["W_func", "lbd"],
+            [self.W_func],
+            ["W_func"],
             dir="CAC",
             device=self.device,
         )
         self.W_optimizer.step()
 
         return grad_dict
+
+    def warmup_W(self):
+        # Configuration
+        target_loss = 0.01
+        max_epochs = self.warmup_epochs  # This is your hard limit
+
+        with tqdm(range(max_epochs), desc="Warmup Phase") as pbar:
+            for epoch in pbar:
+                # 1. Train Step
+                loss, infos = self.compute_W_loss(warming_up=True)
+                self.optimize_W_params(loss)
+
+                # 2. Get scalar loss for checking
+                current_loss = loss.item() if hasattr(loss, "item") else loss
+
+                # 3. Update Progress Bar
+                pbar.set_postfix(loss=f"{current_loss:.4f}")
+
+                # 4. Early Stopping Check (The Goal)
+                if current_loss < target_loss:
+                    pbar.write(
+                        f"✓ Warmup converged early at epoch {epoch+1} (Loss: {current_loss:.4f} <= {target_loss})"
+                    )
+                    break
+
+            else:
+                # This 'else' block runs ONLY if the loop finishes naturally (hit max_epochs)
+                # and was NOT broken by the threshold check.
+                pbar.write(
+                    f"⚠ Max warmup epochs ({max_epochs}) reached without hitting threshold."
+                )
 
     def learn(self, batch: dict, progress: float):
         self.progress = progress
@@ -293,7 +330,7 @@ class CAC(Base):
 
         # Implement the freeze-and-learn scheme here
         W_update_time = 0
-        if self.num_RL_updates % 5 == 0:
+        if self.num_RL_updates % 3 == 0:
             W_loss_dict, W_supp_dict, W_update_time = self.learn_W()
             loss_dict.update(W_loss_dict)
             supp_dict.update(W_supp_dict)

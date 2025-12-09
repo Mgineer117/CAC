@@ -58,7 +58,7 @@ env_config = {
     "time_bound": 6.0,
     "use_learned_dynamics": False,
     "q": 1.0,  # state cost weight
-    "r": 0.03,  # control cost weight
+    "r": 0.01,  # control cost weight
 }
 
 
