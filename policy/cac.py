@@ -1,3 +1,4 @@
+import math
 import time
 from copy import deepcopy
 from typing import Callable
@@ -136,13 +137,15 @@ class CAC(Base):
 
     def timestep_lr_lambda(self, _):
         """
-        Calculates LR multiplier based on total environment steps taken.
-        Ignores the internal scheduler 'step' counter (_).
-        Squared decay: drops faster than linear.
+        Exponential decay: Multiplier = exp(-k * progress)
         """
-        # We square the linear term.
-        # Logic: At progress 0.5, linear is 0.5, quadratic is 0.25 (lower).
-        return max(0.0, 1.0 - self.progress) ** 4
+        # Controls how fast it drops.
+        # k=10.0 means it drops to ~0.0045% (exp(-10)) by the end.
+        # k=5.0 means it drops to ~0.6% (exp(-5)) by the end.
+        # k=3.0 means it drops to ~5.0% (exp(-3)) by the end.
+        decay_k = 10.0
+
+        return math.exp(-decay_k * self.progress)
 
     def to_device(self, device):
         self.device = device
